@@ -1,0 +1,13 @@
+server-ip=127.0.0.1
+server-port=25565
+online-mode=true
+motd=Higgs and Hrrm - Local development
+gamemode=survival
+difficulty=easy
+max-players=4
+view-distance=8
+simulation-distance=6
+enable-rcon=false
+enable-query=false
+level-name=world
+white-list=true
