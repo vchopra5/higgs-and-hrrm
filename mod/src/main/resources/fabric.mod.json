@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "id": "higgs_villagers",
+  "version": "${version}",
+  "name": "Higgs Villagers",
+  "description": "Speak to villagers through a local Higgs bridge and inspect native trades.",
+  "environment": "*",
+  "entrypoints": {
+    "main": ["dev.higgs.HiggsVillagers"],
+    "client": ["dev.higgs.HiggsVillagersClient"]
+  },
+  "depends": {"fabricloader": ">=0.18.0", "minecraft": "26.1.2", "java": ">=25", "fabric-api": "*"}
+}

@@ -17,3 +17,8 @@ server-cardboard/*
 !server-cardboard/start.command
 !server-cardboard/components.json
 !server-cardboard/server.properties.example
+.tools/
+.gradle/
+**/build/
+**/node_modules/
+mod/run/

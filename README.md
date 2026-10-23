@@ -2,16 +2,47 @@
 
 Local Minecraft Java Edition **26.1.2** server with **Fabric 0.20.1** and
 **Cardboard 26.1-15** for the villager conversation project.
-Fabric API and iCommon are installed. Higgs integration is not installed yet.
+Fabric API and iCommon are installed. The Higgs integration prototype lives in
+`mod/` and `backend/`; live Boson and microphone testing is still required.
 Exact mod versions, download URLs, and checksums are in
 `server-cardboard/components.json`.
 
-## Planned villager mod
+## Villager voice prototype
 
-See the [build architecture and diagram](docs/architecture.md) for the custom
-Fabric client/server mod and Higgs backend we need to implement. It separates
-our code from existing Minecraft capabilities and describes the first voice
-conversation and trading flow. The mod is planned, not installed yet.
+See the [build architecture and diagram](docs/architecture.md). The first pass
+implements Fabric client/server code, push-to-talk audio, a Higgs backend,
+live trade lookup, and the native merchant-screen handoff.
+
+1. Put your Boson key in the root `.env` as `BOSON_API_KEY=...`. Keep the generated
+   `HIGGS_BRIDGE_TOKEN`; the server mod and backend must share it. For a fresh
+   clone, copy `.env.example` to `.env` and generate a token with
+   `openssl rand -hex 32`. Never commit `.env`.
+2. Install Node.js 22+ and run `npm --prefix backend ci`, then
+   `npm --prefix backend start` in a terminal. Restart the backend after changing
+   the key; restart the game server if you change the bridge token.
+3. Build using JDK 25 and `./scripts/build-mod.sh`. The JAR is
+   `mod/build/libs/higgs-villagers-0.1.0.jar`.
+4. With the game server stopped, copy that JAR into `server-cardboard/mods/`.
+   Install the same JAR plus Fabric API in your **Fabric 26.1.2 client** mods
+   directory. Cardboard and iCommon are server-side dependencies, not client
+   requirements for this mod.
+5. Start the server and join. Look at an adult villager and press **V**.
+   Wait for **Ready**, hold **B** to speak, then release to get a reply.
+   Press **V** again to leave. Key bindings can be changed in Minecraft controls.
+
+Allow microphone access for the Minecraft/Java process when macOS asks. Audio
+is sent only while B is held; after the first press, the microphone device stays
+open until the conversation ends. Speech currently plays through the default
+system audio device, not Minecraft's positional audio or volume sliders.
+Use headphones to avoid feedback.
+
+Ask “What can I buy?” or “Show me the bread trade.” The model can open the native
+trading screen; you choose and complete the trade there. It cannot change prices
+or spend items by voice. Sessions end when you leave the villager's range.
+
+Validation: `npm --prefix backend test` tests against a local fake Higgs endpoint;
+`./scripts/build-mod.sh` compiles both mod entrypoints. These checks do not prove
+real API access, microphone compatibility, or a successful in-game conversation.
 
 ## Run locally
 

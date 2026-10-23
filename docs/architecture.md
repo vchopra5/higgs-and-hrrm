@@ -1,7 +1,12 @@
 # Talking and trading villagers: build architecture
 
-**Status: proposed, not implemented.** The Fabric/Cardboard server is running;
-the components below are the application code we still need to build.
+**Status: first prototype implemented; live voice validation pending.**
+The code is in `mod/` and `backend/`. The diagram remains the target architecture.
+The prototype uses default system audio rather than spatial playback; persona
+comes from a shared prompt plus villager context rather than persistent per-villager
+voice configuration. It uses a ten-minute session limit and 60-second speech-turn
+limit. Live API, microphone, and in-game trade validation require the Boson key
+and a Fabric client. See the root README for installation and controls.
 
 Target Minecraft 26.1.2 and Fabric. Install our mod on both the client and server,
 with client-only audio code kept out of the dedicated server entry point.
@@ -9,7 +14,7 @@ Run one companion backend process locally for the first version.
 
 ## What we build
 
-Every box below is custom project code. The three groups are runtime boundaries;
+Every box below represents custom project work. The three groups are runtime boundaries;
 the boxes inside them are modules, not separate services.
 
 ```mermaid
