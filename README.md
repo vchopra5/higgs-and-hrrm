@@ -6,6 +6,13 @@ Fabric API and iCommon are installed. Higgs integration is not installed yet.
 Exact mod versions, download URLs, and checksums are in
 `server-cardboard/components.json`.
 
+## Planned villager mod
+
+See the [build architecture and diagram](docs/architecture.md) for the custom
+Fabric client/server mod and Higgs backend we need to implement. It separates
+our code from existing Minecraft capabilities and describes the first voice
+conversation and trading flow. The mod is planned, not installed yet.
+
 ## Run locally
 
 These launch commands use the already-provisioned local installation. A fresh
