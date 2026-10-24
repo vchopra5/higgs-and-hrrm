@@ -4,9 +4,10 @@
 The code is in `mod/` and `backend/`. The diagram remains the target architecture.
 The prototype uses default system audio rather than spatial playback; persona
 comes from a shared prompt plus villager context rather than persistent per-villager
-voice configuration. It uses a ten-minute session limit and 60-second speech-turn
-limit. Live API, microphone, and in-game trade validation require the Boson key
-and a Fabric client. See the root README for installation and controls.
+voice configuration. It uses a ten-minute session limit; hands-free sessions use
+Higgs server-side voice activity detection. The live API accepts this configuration;
+end-to-end microphone and in-game trade validation still need the Fabric client.
+See the root README for installation and controls.
 
 Target Minecraft 26.1.2 and Fabric. Install our mod on both the client and server,
 with client-only audio code kept out of the dedicated server entry point.
@@ -20,7 +21,7 @@ the boxes inside them are modules, not separate services.
 ```mermaid
 flowchart TB
     subgraph clientMod ["Build: Fabric client mod"]
-        interaction["Villager selection and push-to-talk UI"]
+        interaction["Villager selection and hands-free microphone UI"]
         capture["Microphone capture and audio streaming"]
         playback["Speech buffering and spatial playback"]
     end
@@ -51,7 +52,7 @@ flowchart TB
 
 | Component | Custom work |
 | --- | --- |
-| Client interaction UI | Select a nearby villager, request a conversation, show listening/speaking/error state, and provide push-to-talk and end-conversation controls. Keep normal villager trading available. |
+| Client interaction UI | Select a nearby villager, request a conversation, show listening/speaking/error state, and provide mute and end-conversation controls. Keep normal villager trading available. |
 | Microphone capture | Request OS microphone access, capture and convert audio to the API format, send bounded chunks over a dedicated WebSocket, and stop capture when the session ends. Audio does not pass through Minecraft's game packets. |
 | Speech playback | Decode and buffer returned audio, play it from the selected villager's location through the client audio facilities, and flush queued speech on interruption or session cancellation. Initially only the speaking player hears the response. |
 | Conversation lifecycle | Validate the player and villager on the game server, enforce distance and one active conversation per player, and bind player UUID, villager UUID, and session ID. End the session on walking away, disconnect, death, or villager removal. Issue short-lived, single-use tickets for the matching audio session. |
@@ -92,7 +93,7 @@ schemas, audio formats, and session configuration when implementation begins.
    and creates a conversation bound to that player and villager.
 2. The backend creates the Higgs session using the server-provided persona and
    context. The client authenticates its audio connection with its session ticket.
-3. Push-to-talk sends microphone audio to the backend and then Higgs. Spoken
+3. An active, unmuted session streams microphone audio to the backend and then Higgs. Spoken
    replies stream back into the client's playback buffer.
 4. For “What can I buy?”, Higgs calls `get_trades`. The server mod reads the
    villager's current offers and returns them through the backend.

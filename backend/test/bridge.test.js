@@ -18,9 +18,9 @@ test('authenticated session, one-use ticket, audio relay, tool batching and clea
   assert.equal((await fetch(base + '/sessions', { method: 'POST' })).status, 401);
   const response = await call('/sessions', 'POST', { playerId: 'player', villagerId: 'villager', context: { profession: 'farmer' } });
   assert.equal(response.status, 201); const { sessionId, ticket } = await response.json();
-  const client = new WebSocket(base.replace('http:', 'ws:') + '/audio?ticket=' + ticket); const events = []; client.on('message', data => events.push(JSON.parse(data))); await once(client, 'open');
+  const client = new WebSocket(base.replace('http:', 'ws:') + '/audio?mode=ptt&ticket=' + ticket); const events = []; client.on('message', data => events.push(JSON.parse(data))); await once(client, 'open');
   await until(() => events.some(e => e.message === 'Ready'));
-  const reused = new WebSocket(base.replace('http:', 'ws:') + '/audio?ticket=' + ticket); const rejected = once(reused, 'error'); await rejected;
+  const reused = new WebSocket(base.replace('http:', 'ws:') + '/audio?mode=ptt&ticket=' + ticket); const rejected = once(reused, 'error'); await rejected;
   assert.equal(received[0].session.audio.input.turn_detection, null);
   const audio = Buffer.alloc(4800).toString('base64');
   client.send(JSON.stringify({ type: 'audio', audio })); client.send(JSON.stringify({ type: 'commit' }));
@@ -58,4 +58,72 @@ test('missing secrets fail safely', async t => {
   const bridge = createBridge({ token }); bridge.server.listen(0, '127.0.0.1'); await once(bridge.server, 'listening'); t.after(() => bridge.close());
   const response = await fetch(`http://127.0.0.1:${bridge.server.address().port}/sessions`, { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
   assert.equal(response.status, 503);
+});
+
+test('hands-free VAD survives long silence, repeated turns, interruption and nonfatal errors', async t => {
+  const mock = new WebSocketServer({ port: 0, host: '127.0.0.1' }); await once(mock, 'listening');
+  const received = []; const logs = []; let upstream;
+  mock.on('connection', ws => { upstream = ws; ws.on('message', data => { const event = JSON.parse(data); received.push(event); if (event.type === 'session.update') ws.send(JSON.stringify({ type: 'session.created' })); }); });
+  const bridge = createBridge({ token, apiKey: 'test-key', upstreamUrl: `ws://127.0.0.1:${mock.address().port}`, log: entry => logs.push(entry) });
+  bridge.server.listen(0, '127.0.0.1'); await once(bridge.server, 'listening');
+  t.after(async () => { await bridge.close(); for (const c of mock.clients) c.terminate(); await new Promise(r => mock.close(r)); });
+  const base = `http://127.0.0.1:${bridge.server.address().port}`;
+  const response = await fetch(base + '/sessions', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify({ playerId: 'p', villagerId: 'v', context: {} }) });
+  const { sessionId, ticket } = await response.json();
+  const client = new WebSocket(base.replace('http:', 'ws:') + '/audio?ticket=' + ticket); const events = []; client.on('message', data => events.push(JSON.parse(data))); await once(client, 'open');
+  await until(() => events.some(e => e.message === 'Ready'));
+  assert.deepEqual(received[0].session.audio.input.turn_detection, { type: 'server_vad', silence_duration_ms: 900 });
+  // 65 seconds of PCM silence, delivered quickly in bounded chunks: never an input turn cap.
+  const audio = Buffer.alloc(48_000).toString('base64');
+  for (let i = 0; i < 65; i++) { client.send(JSON.stringify({ type: 'audio', audio })); await until(() => received.filter(e => e.type === 'input_audio_buffer.append').length === i + 1); }
+  assert.equal(bridge.sessions.get(sessionId).inputBytes, 0);
+  assert.equal(events.filter(e => e.type === 'error').length, 0);
+  const emit = event => upstream.send(JSON.stringify(event));
+  for (let i = 0; i < 3; i++) {
+    emit({ type: 'input_audio_buffer.speech_started' });
+    emit({ type: 'input_audio_buffer.speech_stopped' });
+    emit({ type: 'response.created', response: { id: `r${i}` } });
+    // Continuous capture must not suppress the output while Higgs is talking.
+    client.send(JSON.stringify({ type: 'audio', audio }));
+    emit({ type: 'response.output_audio.delta', delta: 'AAA=' });
+    emit({ type: 'response.done', response: { id: `r${i}`, status: 'completed' } });
+    await until(() => events.filter(e => e.type === 'audio').length === i + 1);
+  }
+  assert.equal(events.filter(e => e.type === 'speech' && e.active).length, 3);
+  assert.equal(received.filter(e => ['response.create', 'input_audio_buffer.commit', 'response.cancel'].includes(e.type)).length, 0);
+  emit({ type: 'response.created', response: { id: 'old' } });
+  emit({ type: 'response.function_call_arguments.done', call_id: 'stale', name: 'propose_trade', arguments: '{"offerIndex":0}' });
+  await until(() => bridge.sessions.get(sessionId).pending.size === 1);
+  emit({ type: 'input_audio_buffer.speech_started' });
+  emit({ type: 'response.output_audio.delta', delta: 'STALE' });
+  emit({ type: 'response.done', response: { id: 'old', status: 'cancelled' } });
+  emit({ type: 'input_audio_buffer.speech_stopped' });
+  emit({ type: 'response.created', response: { id: 'new' } });
+  // Late response.done for a cancelled response must not poison the new response.
+  emit({ type: 'response.done', response: { id: 'old', status: 'cancelled' } });
+  emit({ type: 'error', error: { code: 'response_cancel_not_active', message: 'PRIVATE PROVIDER DETAIL' } });
+  emit({ type: 'response.output_audio.delta', delta: 'NEW=' });
+  await until(() => events.some(e => e.audio === 'NEW='));
+  assert.equal(events.some(e => e.audio === 'STALE'), false);
+  assert.equal(bridge.sessions.get(sessionId).pending.size, 0);
+  assert.equal(events.find(e => e.code === 'response_cancel_not_active').fatal, false);
+  assert.equal(client.readyState, WebSocket.OPEN);
+  assert.equal(JSON.stringify(logs).includes('PRIVATE PROVIDER DETAIL'), false);
+  emit({ type: 'input_audio_buffer.speech_started' });
+  await until(() => bridge.sessions.get(sessionId).recording === true);
+  client.send(JSON.stringify({ type: 'mute', muted: true }));
+  await until(() => bridge.sessions.get(sessionId).muted === true);
+  assert.equal(bridge.sessions.get(sessionId).recording, false);
+  assert.ok(received.some(e => e.type === 'input_audio_buffer.clear'));
+  client.send(JSON.stringify({ type: 'mute', muted: false }));
+  await until(() => bridge.sessions.get(sessionId).muted === false);
+  emit({ type: 'input_audio_buffer.speech_started' });
+  emit({ type: 'input_audio_buffer.speech_stopped' });
+  emit({ type: 'response.created', response: { id: 'unmuted' } });
+  emit({ type: 'response.output_audio.delta', delta: 'RESUMED=' });
+  await until(() => events.some(e => e.audio === 'RESUMED='));
+  upstream.close(1013, 'PRIVATE CLOSE DETAIL');
+  await until(() => !bridge.sessions.has(sessionId));
+  assert.ok(logs.some(e => e.event === 'session_closed' && e.reason === 'upstream_closed' && e.code === 1013));
+  assert.equal(JSON.stringify(logs).includes('PRIVATE CLOSE DETAIL'), false);
 });

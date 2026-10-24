@@ -23,7 +23,9 @@ import java.util.concurrent.CompletableFuture;
 
 public final class HiggsVillagers implements ModInitializer {
     private static final Gson GSON = new Gson();
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
+    // The Node bridge serves HTTP/1.1; an h2c upgrade would enter its WebSocket handler.
+    private final HttpClient http = HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1)
+        .connectTimeout(Duration.ofSeconds(3)).build();
     // Accessed only on Minecraft's server thread, including HTTP completion callbacks.
     private final Map<UUID, Session> sessions = new HashMap<>();
     private final Map<UUID, Long> lastStart = new HashMap<>();
@@ -34,6 +36,7 @@ public final class HiggsVillagers implements ModInitializer {
         final Villager villager;
         String id;
         boolean polling;
+        int pollFailures;
         final Map<String, JsonObject> toolResults = new HashMap<>();
         Session(ServerPlayer player, Villager villager) { this.player = player; this.villager = villager; }
     }
@@ -52,7 +55,7 @@ public final class HiggsVillagers implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (++ticks % 10 != 0) return;
             for (Session s : List.copyOf(sessions.values())) {
-                if (!valid(s)) end(s.player, true);
+                if (!valid(s, 144)) end(s.player, true, "Conversation ended: stay within 12 blocks of an awake villager.");
                 else if (s.id != null && !s.polling) poll(server, s);
             }
         });
@@ -106,16 +109,24 @@ public final class HiggsVillagers implements ModInitializer {
         } catch (RuntimeException ex) { error(player, "Invalid villager request."); }
     }
     private boolean valid(Session s) {
+        return valid(s, 64);
+    }
+    private boolean valid(Session s, double maximumDistanceSquared) {
         return s.player.isAlive() && !s.player.isSpectator() && s.villager.isAlive() && !s.villager.isBaby() && !s.villager.isSleeping()
-            && s.player.level() == s.villager.level() && s.player.distanceToSqr(s.villager) <= 64;
+            && s.player.level() == s.villager.level() && s.player.distanceToSqr(s.villager) <= maximumDistanceSquared;
     }
     private void poll(MinecraftServer server, Session s) {
         s.polling = true;
         request("GET", "/sessions/" + s.id + "/tools", null).whenComplete((reply, failure) -> server.execute(() -> {
             s.polling = false;
             if (sessions.get(s.player.getUUID()) != s) return;
-            if (failure != null) { end(s.player, true); error(s.player, "Voice bridge disconnected."); return; }
-            if (!valid(s)) { end(s.player, true); return; }
+            if (failure != null) {
+                // A single transient HTTP failure must not tear down a healthy audio session.
+                if (++s.pollFailures >= 3) end(s.player, true, "Voice bridge unreachable after three attempts. Press V to reconnect.");
+                return;
+            }
+            s.pollFailures = 0;
+            if (!valid(s, 144)) { end(s.player, true, "Conversation ended: villager is no longer nearby or available."); return; }
             try {
                 for (JsonElement element : reply.getAsJsonArray()) {
                     JsonObject call = element.getAsJsonObject();
@@ -131,7 +142,8 @@ public final class HiggsVillagers implements ModInitializer {
                             JsonObject arguments = args.isJsonPrimitive() ? JsonParser.parseString(args.getAsString()).getAsJsonObject() : args.getAsJsonObject();
                             int index = arguments.get("offerIndex").getAsInt();
                             var offers = s.villager.getOffers();
-                            if (index < 0 || index >= offers.size() || offers.get(index).isOutOfStock()) result.addProperty("error", "Offer unavailable.");
+                            if (!valid(s)) result.addProperty("error", "Move within 8 blocks of the villager to open trading.");
+                            else if (index < 0 || index >= offers.size() || offers.get(index).isOutOfStock()) result.addProperty("error", "Offer unavailable.");
                             else if (s.villager.isTrading()) result.addProperty("error", "Villager already has a trade screen open.");
                             else if (s.player.getMainHandItem().is(Items.VILLAGER_SPAWN_EGG)) result.addProperty("error", "Put away the villager spawn egg before trading.");
                             else {
@@ -167,9 +179,12 @@ public final class HiggsVillagers implements ModInitializer {
         item.addProperty("name", stack.getHoverName().getString()); item.addProperty("count", stack.getCount()); return item;
     }
     private void end(ServerPlayer player, boolean notify) {
+        end(player, notify, "Conversation ended.");
+    }
+    private void end(ServerPlayer player, boolean notify, String reason) {
         Session s = sessions.remove(player.getUUID()); if (s == null) return;
         if (s.id != null) delete(s.id);
-        if (notify) { JsonObject message = new JsonObject(); message.addProperty("type", "end"); send(player, message); }
+        if (notify) { JsonObject message = new JsonObject(); message.addProperty("type", "end"); message.addProperty("message", reason); send(player, message); }
     }
     private void delete(String id) { request("DELETE", "/sessions/" + id, null).exceptionally(ex -> null); }
     private void error(ServerPlayer player, String message) {

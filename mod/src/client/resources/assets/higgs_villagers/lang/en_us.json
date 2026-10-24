@@ -1,5 +1,5 @@
 {
   "key.category.higgs_villagers.voice": "Higgs Villager Voice",
   "key.higgs_villagers.conversation": "Start / end villager conversation",
-  "key.higgs_villagers.talk": "Push to talk"
+  "key.higgs_villagers.mute": "Mute / unmute villager microphone"
 }

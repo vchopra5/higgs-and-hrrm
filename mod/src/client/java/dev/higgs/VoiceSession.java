@@ -21,8 +21,8 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private final Consumer<String> status;
     private final Runnable ended;
     private final ArrayBlockingQueue<String> outgoing = new ArrayBlockingQueue<>(64);
-    private record AudioChunk(byte[] bytes, long generation) {}
-    private final ArrayBlockingQueue<AudioChunk> playback = new ArrayBlockingQueue<>(64);
+    private record AudioChunk(byte[] bytes, long generation) { int byteCount() { return bytes.length; } }
+    private final AudioPlaybackQueue<AudioChunk> playback = new AudioPlaybackQueue<>(24000 * 2 * 30, AudioChunk::byteCount);
     private volatile long playbackGeneration;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean microphoneStarted = new AtomicBoolean();
@@ -31,7 +31,11 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private volatile boolean ready;
     private volatile TargetDataLine microphone;
     private volatile SourceDataLine speaker;
-    private boolean recording;
+    private volatile boolean muted;
+    private volatile boolean speaking;
+    private long microphoneGeneration;
+    private volatile Thread capture;
+    private long lastOverflowNotice;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final Thread sender;
     private final Thread player;
@@ -66,19 +70,28 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
 
     boolean isReady() { return ready && !closed.get(); }
 
-    synchronized void beginTalking() {
-        if (!isReady()) return;
-        recording = true;
-        clearPlayback();
-        enqueue("{\"type\":\"interrupt\"}");
-        if (microphoneStarted.compareAndSet(false, true))
-            Thread.ofVirtual().name("higgs-microphone").start(this::captureLoop);
+    boolean isTransmitting() {
+        TargetDataLine line = microphone;
+        return !muted && isReady() && line != null && line.isActive();
     }
 
-    synchronized void endTalking() {
-        if (!recording) return;
-        recording = false;
-        enqueue("{\"type\":\"commit\"}");
+    boolean isMuted() { return muted; }
+    boolean isSpeaking() { return speaking && !muted; }
+
+    synchronized void toggleMute() {
+        muted = !muted;
+        microphoneGeneration++;
+        if (muted) speaking = false;
+        if (isReady()) enqueue("{\"type\":\"mute\",\"muted\":" + muted + "}");
+        notifyAll();
+        status.accept(muted ? "Microphone muted. Press B to unmute." : "Listening. Press B to mute; V to leave.");
+    }
+
+    private void startMicrophone() {
+        if (microphoneStarted.compareAndSet(false, true)) {
+            capture = Thread.ofVirtual().name("higgs-microphone").unstarted(this::captureLoop);
+            capture.start();
+        }
     }
 
     private void captureLoop() {
@@ -87,12 +100,22 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
             microphone = line;
             line.open(FORMAT, 9600);
             if (closed.get()) { line.close(); return; }
-            line.start();
             byte[] frame = new byte[1920]; // 40 ms
             while (!closed.get()) {
+                if (muted) {
+                    line.stop();
+                    line.flush();
+                    synchronized (this) {
+                        while (muted && !closed.get()) wait();
+                    }
+                    continue;
+                }
+                if (!line.isRunning()) { line.flush(); line.start(); }
+                long frameGeneration;
+                synchronized (this) { frameGeneration = microphoneGeneration; }
                 int count = line.read(frame, 0, frame.length);
                 synchronized (this) {
-                    if (recording && count > 0) {
+                    if (!muted && !closed.get() && frameGeneration == microphoneGeneration && count > 0) {
                         String audio = Base64.getEncoder().encodeToString(java.util.Arrays.copyOf(frame, count));
                         enqueue("{\"type\":\"audio\",\"audio\":\"" + audio + "\"}");
                     }
@@ -149,6 +172,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     }
 
     @Override public CompletionStage<?> onText(WebSocket ws, CharSequence text, boolean last) {
+        if (closed.get()) return null;
         if (incoming.length() + text.length() > 2_000_000) { fail("Voice response exceeded the size limit."); return null; }
         incoming.append(text);
         if (last) {
@@ -159,18 +183,34 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                     case "audio" -> {
                         byte[] bytes = Base64.getDecoder().decode(event.get("audio").getAsString());
                         if ((bytes.length & 1) != 0) throw new IllegalArgumentException("Invalid PCM");
-                        if (!playback.offer(new AudioChunk(bytes, playbackGeneration))) fail("Audio playback fell behind. Please reconnect.");
+                        if (bytes.length > 0 && !playback.offer(new AudioChunk(bytes, playbackGeneration))) {
+                            // Keep the conversation alive if output arrives faster than the speaker can play.
+                            if (System.currentTimeMillis() - lastOverflowNotice > 10_000) {
+                                lastOverflowNotice = System.currentTimeMillis();
+                                status.accept("Audio backlog exceeded 30 seconds; skipping older speech.");
+                            }
+                        }
                     }
                     case "clear" -> clearPlayback();
+                    case "speech" -> speaking = event.get("active").getAsBoolean();
                     case "status" -> {
                         String message = event.get("message").getAsString();
                         if ("Ready".equalsIgnoreCase(message)) {
                             ready = true;
-                            status.accept("Ready. Hold B to talk; V to leave.");
+                            if (muted) enqueue("{\"type\":\"mute\",\"muted\":true}");
+                            startMicrophone();
+                            status.accept(muted ? "Microphone muted. Press B to unmute." : "Listening. Press B to mute; V to leave.");
                         } else status.accept(message);
                     }
-                    case "error" -> fail(event.has("message") ? event.get("message").getAsString() : "Voice error");
-                    case "end" -> close();
+                    case "error" -> {
+                        String message = event.has("message") ? event.get("message").getAsString() : "Voice error";
+                        if (event.has("fatal") && event.get("fatal").getAsBoolean()) fail(message);
+                        else status.accept(message);
+                    }
+                    case "end" -> {
+                        status.accept(event.has("message") ? event.get("message").getAsString() : "Voice session ended by backend.");
+                        close();
+                    }
                     default -> { }
                 }
             } catch (Exception e) { fail("Invalid response from voice backend."); }
@@ -181,7 +221,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     }
 
     @Override public CompletionStage<?> onClose(WebSocket ws, int code, String reason) {
-        if (!closed.get()) { status.accept("Villager conversation ended."); close(); }
+        if (!closed.get()) { status.accept("Voice connection closed (" + code + ")" + (reason.isBlank() ? "." : ": " + reason)); close(); }
         return null;
     }
     @Override public void onError(WebSocket ws, Throwable error) { fail("Voice connection failed."); }
@@ -192,6 +232,8 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         if (!closed.compareAndSet(false, true)) return;
         sender.interrupt();
         player.interrupt();
+        Thread captureThread = capture;
+        if (captureThread != null) captureThread.interrupt();
         // Device closure can block briefly; never perform it on the game thread.
         Thread.ofVirtual().name("higgs-audio-close").start(() -> {
             if (microphone != null) { microphone.stop(); microphone.close(); }

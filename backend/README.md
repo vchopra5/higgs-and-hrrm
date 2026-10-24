@@ -22,19 +22,26 @@ All REST endpoints require `Authorization: Bearer <HIGGS_BRIDGE_TOKEN>`.
 
 Connect the client to `ws://127.0.0.1:8787/audio?ticket=...` within 30 seconds. Tickets are single-use and grant access to one voice session, never the server REST API. Wait for `{type:"status",message:"Ready"}` before sending microphone audio.
 
-Client messages are `{type:"audio",audio:"BASE64"}`, `{type:"commit"}`, `{type:"interrupt"}`, or `{type:"end"}`. Both audio directions use raw signed PCM16, little-endian, mono, 24 kHz. Releasing push-to-talk sends `commit`; press sends `interrupt` and clears local playback. Output messages are `audio`, `clear`, `status`, and `error`.
+Client messages are `{type:"audio",audio:"BASE64"}`, `{type:"commit"}`, `{type:"interrupt"}`, or `{type:"end"}`. Both audio directions use raw signed PCM16, little-endian, mono, 24 kHz. The default is hands-free: stream microphone audio continuously after `Ready`. Higgs detects turn boundaries and starts responses automatically. The bridge emits `{type:"speech",active:true/false}` on speech start/stop and `clear` on interruption to flush local playback. Output messages are `audio`, `speech`, `clear`, `status`, and `error`. Recoverable errors have `fatal:false` and a sanitized `code`; the client should display them without closing the session. Transport failure has `fatal:true`.
 
-Sessions last at most ten minutes. Individual turns are capped at sixty seconds. Turns under 100 ms are discarded. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. There is no persistent audio recording or conversation storage.
+Legacy push-to-talk clients can connect with `&mode=ptt`, send `interrupt` on press and `commit` on release. In default hands-free mode, `commit` is ignored to avoid duplicate responses.
+
+Sessions last at most ten minutes. Hands-free streaming has no cumulative audio-byte cap: silence and repeated turns do not exhaust an input counter. Legacy push-to-talk turns are capped at sixty seconds; PTT turns under 100 ms are discarded. The ten-minute session limit is reported explicitly. Sessions never restart automatically. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. There is no persistent audio recording or conversation storage.
 
 ## Higgs mapping
 
 The implementation follows Boson's [official session configuration](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/src/realtime/sessionConfig.ts), [event definitions](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/src/realtime/events.ts), and [tool calling guide](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/docs/part-4.md):
 
 - `session.update` configures `higgs-realtime`, audio formats, voice and tools.
-- Manual push-to-talk sets `audio.input.turn_detection` to `null` and sends `input_audio_buffer.commit`, then `response.create`.
+- Hands-free mode sets `audio.input.turn_detection` to `{type:"server_vad",silence_duration_ms:900}`. It sends only `input_audio_buffer.append`; Higgs owns commits, automatic replies and interruption of active generation. See Boson’s [turn-detection guide](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/docs/part-2.md).
+- Optional manual push-to-talk sets `audio.input.turn_detection` to `null` and sends `input_audio_buffer.commit`, then `response.create`.
 - `response.output_audio.delta` is relayed to the Minecraft client.
 - Tool results are serialized into `conversation.item.create` function-call outputs. One `response.create` follows the completed tool batch.
 
 `get_trades` queries authoritative game state. `propose_trade` opens the native trading screen; it never purchases anything or changes prices. The game server validates proximity, villager identity and offer availability.
 
 Live API behavior and Minecraft microphone/playback still require testing with a real Boson key and game client. Interruption cancels generation and clears playback; precise conversation truncation to the last heard sample is not implemented in this MVP.
+
+Closure logs include a session ID, stable reason and WebSocket code, never tickets, credentials, audio, transcripts or provider-supplied close text. Nonfatal provider errors log only a sanitized code. For hands-free use, headphones prevent speaker audio being recaptured as user speech; this native audio path does not yet implement echo cancellation.
+
+The client can send `{type:"mute",muted:true/false}` even before Ready. Muting pauses capture, clears the upstream input buffer and discards any unfinished utterance. Unmuting clears stale input before the next speech turn. Neither action cancels an existing assistant reply. The bridge sends `{type:"end",code,message}` on closure; session setup rejection is fatal, while ordinary provider errors after Ready are recoverable.

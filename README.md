@@ -10,7 +10,7 @@ Exact mod versions, download URLs, and checksums are in
 ## Villager voice prototype
 
 See the [build architecture and diagram](docs/architecture.md). The first pass
-implements Fabric client/server code, push-to-talk audio, a Higgs backend,
+implements Fabric client/server code, hands-free realtime audio, a Higgs backend,
 live trade lookup, and the native merchant-screen handoff.
 
 1. Put your Boson key in the root `.env` as `BOSON_API_KEY=...`. Keep the generated
@@ -27,18 +27,22 @@ live trade lookup, and the native merchant-screen handoff.
    directory. Cardboard and iCommon are server-side dependencies, not client
    requirements for this mod.
 5. Start the server and join. Look at an adult villager and press **V**.
-   Wait for **Ready**, hold **B** to speak, then release to get a reply.
-   Press **V** again to leave. Key bindings can be changed in Minecraft controls.
+   Wait for **Ready**, then speak naturally; Higgs detects speech and pauses.
+   Press **B** to mute/unmute or **V** again to leave. Key bindings can be changed in Minecraft controls.
 
-Allow microphone access for the Minecraft/Java process when macOS asks. Audio
-is sent only while B is held; after the first press, the microphone device stays
-open until the conversation ends. Speech currently plays through the default
+Allow microphone access for the Minecraft/Java process when macOS asks. The microphone streams while a conversation is active and unmuted; the HUD shows
+Listening, Speaking, or Muted. Press B to stop sending audio and V to close the
+microphone and conversation. Hands-free streaming starts after Ready, so only
+start a conversation when you want your microphone sent to Higgs. Speech currently plays through the default
 system audio device, not Minecraft's positional audio or volume sliders.
-Use headphones to avoid feedback.
+Use headphones to avoid speaker audio triggering voice detection; acoustic echo
+cancellation is not implemented.
 
 Ask “What can I buy?” or “Show me the bread trade.” The model can open the native
 trading screen; you choose and complete the trade there. It cannot change prices
-or spend items by voice. Sessions end when you leave the villager's range.
+or spend items by voice. Start within 8 blocks; conversations stay active within 12 blocks. Opening a
+trade still requires being within 8 blocks. Sessions have a ten-minute limit,
+with an explicit message when they expire.
 
 Validation: `npm --prefix backend test` tests against a local fake Higgs endpoint;
 `./scripts/build-mod.sh` compiles both mod entrypoints. These checks do not prove
