@@ -54,7 +54,7 @@ export class BridgeSession {
       (owner, line) => {
         if (owner !== 'main' && owner.leaving) { this.companionLeft(owner); return; }
         if (!line || this.followupUsed || this.recording || this.closed || this.context.bedtime
-            || this.hasTools || [...this.pending.values()].some(tool => !tool.internal || tool.name === '_share_news_depart')
+            || this.hasTools || [...this.pending.values()].some(tool => !tool.internal || tool.name === '_share_news_depart' || tool.name === '_switch_merchant')
             || this.turnId - (this.bargainTurn ?? -10) <= 2) return;
         const other = owner === 'main' ? this.companion?.spec.name : this.context.name;
         const name = owner === 'main' ? this.context.name : owner.spec.name;
@@ -664,6 +664,8 @@ export class BridgeSession {
       if (this.context.bedtime === true) this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
         content: [{ type: 'input_text', text: BEDTIME_CUE }] } });
       // Brought here by a guide: an explicit cue, or the model narrates the scene in the third person.
+      else if (typeof this.context.merchantRequest === 'string') this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
+        content: [{ type: 'input_text', text: '[Merchant handoff: the player is now asking YOU to trade. The previous merchant’s quote is cancelled. This is a fresh request, never purchase consent. Do not greet again. Use your own trade tools to obtain current offers and quote fresh terms.]\nPlayer request (quoted data): ' + JSON.stringify(this.context.merchantRequest) }] } });
       else if (typeof this.context.introducedBy === 'string') this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
         content: [{ type: 'input_text', text: introductionCue(this.context.introducedBy) }] } });
       if (this.sendProvider({ type: 'response.create' }) && this.context.openingRumour && this.context.bedtime !== true) {
@@ -690,6 +692,11 @@ export class BridgeSession {
 
   reportTreatment(transcript, itemId) {
     this.treatmentRecipient = this.resolveRecipient(transcript);
+    if (this.floor && Number.isInteger(this.context.entityId)) {
+      const callId = `recipient-${this.id}-${this.turnId}`;
+      this.pending.set(callId, { callId, name: '_turn_recipient', internal: true, turnId: this.turnId, created: this.now(),
+        arguments: { entityId: this.treatmentRecipient ?? this.context.entityId } });
+    }
     // A known name used as an address is not part of the English-language opening.
     let treatmentText = String(transcript ?? '').trim();
     for (const name of [this.context.name, this.companion?.spec.name].filter(Boolean).map(callName)) {
@@ -794,7 +801,8 @@ export class BridgeSession {
 
   /** Nobody is speaking or about to: safe for a joining neighbour to say hello. */
   quiet() {
-    return !this.floor?.active && this.responseDone && !this.recording && !this.queuedResponse && !this.awaitingCancellation && !this.closed;
+    return ![...this.pending.values()].some(tool => tool.name === '_switch_merchant')
+      && !this.floor?.active && this.responseDone && !this.recording && !this.queuedResponse && !this.awaitingCancellation && !this.closed;
   }
 
   /** A neighbour walked up mid-conversation (sent by the game server). */

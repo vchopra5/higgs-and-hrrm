@@ -1,4 +1,5 @@
 import { CONVERSATION_LANGUAGE } from './language.js';
+import { requestMerchant } from './merchant.js';
 import { EXPRESSIVE_DELIVERY } from './vocal-delivery.js';
 import { WebSocket } from 'ws';
 import { ambientCharacter, isVoiceSelectionError } from './personalities.js';
@@ -138,6 +139,12 @@ export class Companion {
 
   configure() {
     const config = companionConfig(this.spec, this.partner, this.playerName, this.session.voiceOverrides);
+    if (this.session.floor) {
+      config.session.tools = [{ type: 'function', name: 'request_trade',
+        description: 'When the player directly asks to browse or trade with YOU, call this before quoting anything. It makes you the merchant and fetches your real offers. Never call for someone else, an aside, a mention, or mere acceptance of another villager’s quote.',
+        parameters: { type: 'object', properties: {}, additionalProperties: false } }];
+      config.session.instructions += ' If the player directly requests your wares or a trade with you, use request_trade instead of refusing or inventing offers. This cancels the previous merchant’s quote. Do not speak before the handoff.';
+    }
     if (this.fallback) config.session.audio.output.voice = 'default';
     this.requested = config.session.instructions;
     sendJson(this.upstream, config);
@@ -176,6 +183,15 @@ export class Companion {
         else { this.hear(`${this.spec.name} (you)`, line); this.session.hearCompanion(this.spec.name, line); }
         break;
       }
+      case 'response.function_call_arguments.done':
+        if (event.name === 'request_trade' && this.speaking && !this.cancelling
+            && (!event.response_id || event.response_id === this.responseId)) {
+          const accepted = requestMerchant(this.session, this);
+          sendJson(this.upstream, { type: 'conversation.item.create', item: { type: 'function_call_output',
+            call_id: event.call_id, output: JSON.stringify({ status: accepted ? 'switching_merchant' : 'unavailable' }) } });
+          if (accepted) this.answerTurn = null;
+        }
+        break;
       case 'response.done':
         if (event.response?.id && this.finishedIds.has(event.response.id)) break;
         if (event.response?.id) this.finishedIds.add(event.response.id);
@@ -275,6 +291,7 @@ export class Companion {
     if (!this.available()) return false;
     if (this.session.floor && !this.session.floor.acquire(this)) return false;
     this.speaking = true;
+    this.routedTurn = routed ? this.session.turnId : null;
     this.responseId = null;
     this.cancelledId = null;
     try {
@@ -295,6 +312,7 @@ export class Companion {
 
   /** The player pressed talk: stop mid-sentence like the main villager does. */
   cancel() {
+    this.routedTurn = null;
     if (!this.speaking) return;
     this.speaking = false;
     this.answerTurn = null;

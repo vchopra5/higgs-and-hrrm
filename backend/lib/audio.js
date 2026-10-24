@@ -4,7 +4,7 @@ import { interruptTools } from './tools.js';
 export function interruptAudio(session, cancelProvider) {
   clearTimeout(session.newsDepartureTimer);
   session.newsDeparture = null;
-  for (const [id, tool] of session.pending) if (tool.name === '_share_news_depart') session.pending.delete(id);
+  for (const [id, tool] of session.pending) if (tool.name === '_share_news_depart' || tool.name === '_switch_merchant') session.pending.delete(id);
   if (session.floor && !(session.floor.active?.owner === 'main' && !session.floor.active.ended)) session.responseDone = true;
   session.floor?.interrupt();
   session.followupUsed = false;
