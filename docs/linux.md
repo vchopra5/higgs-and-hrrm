@@ -1,157 +1,141 @@
 # HIGGS HRRM on Linux and CachyOS
 
-This guide starts with a fresh clone on a CachyOS or Arch Linux desktop. The game,
-server and voice bridge run on the same computer. You need a Minecraft Java
-account and a Boson API key. Other Linux distributions can use the same build and
-launch commands after installing equivalent tools.
+From a fresh clone to talking with villagers on a CachyOS or Arch desktop. The
+game, server and voice bridge all run on this computer. You need a Minecraft Java
+account and a Boson API key. Run every command from the repository root; they
+work in bash, zsh and fish.
+
+Every file the setup installs is pinned by SHA-512 in `scripts/server.lock` or
+`scripts/client.lock` and checked before use. The server and the client each
+refuse to start if a jar changes afterwards.
 
 ## Install the tools
-
-Install the desktop prerequisites using your package manager:
 
 ```sh
 sudo pacman -Syu --needed git curl unzip python openssl jdk25-openjdk nodejs-lts-jod npm alsa-lib prismlauncher
 ```
 
-This selects Node.js 22 LTS; an existing Node.js 22 or newer installation is also
-suitable. If the package manager offers to replace another Node package, keep
-your existing supported installation and omit `nodejs-lts-jod` from the command.
-The [Arch Java 25 package](https://archlinux.org/packages/extra/x86_64/jdk25-openjdk/)
-provides the JDK; its optional `alsa-lib` sound dependency is included above for Java Sound. The [Node.js 22 LTS package](https://archlinux.org/packages/extra/x86_64/nodejs-lts-jod/) supplies the backend runtime. Prism documents its
-[Arch package](https://prismlauncher.org/download/linux/#arch-linux--manjaro).
+Leave out `prismlauncher` if you use the Flatpak build, and `nodejs-lts-jod` if you
+already have Node.js 22 or newer.
+
+## 1. Clone and configure
 
 ```sh
 git clone https://github.com/vchopra5/higgs-and-hrrm.git
 cd higgs-and-hrrm
 git switch dev
 export JAVA_HOME=/usr/lib/jvm/java-25-openjdk
-"$JAVA_HOME/bin/java" -version
-"$JAVA_HOME/bin/javac" -version
-node --version
-npm --version
-```
-
-Both Java commands should report version 25 or newer; this project targets Java
-25 bytecode. `JAVA_HOME` selects Java for the build and server in the current
-terminal. Configure the client separately in Prism. Do not copy a macOS runtime
-onto Linux: use a runtime built for your OS and CPU. If you use a different JDK,
-point `JAVA_HOME` at its directory containing `bin/java` and `bin/javac`.
-
-The repository includes the Gradle wrapper, pinned to **9.8.2** with a SHA-256
-checksum. You do not need to install system Gradle. The first build needs internet
-access to download Gradle, Minecraft and Fabric dependencies. `--offline` works
-only after those files have been cached.
-
-## Configure and build
-
-```sh
 cp .env.example .env
+sed -i "s/^HIGGS_BRIDGE_TOKEN=.*/HIGGS_BRIDGE_TOKEN=$(openssl rand -hex 32)/" .env
 ```
 
-Edit `.env`: fill in `BOSON_API_KEY` and set `HIGGS_BRIDGE_TOKEN` to a random
-secret of at least 32 characters. Generate a token with:
+Open `.env` and fill in `BOSON_API_KEY=`. Keep `.env` private; never commit it.
+
+## 2. Create the Prism instance
+
+In Prism Launcher, sign in, then:
+
+1. **Add Instance** → Vanilla **26.1.2**.
+2. **Edit → Version → Install Fabric** → loader **0.20.1**.
+3. Use Java 25: Prism's own runtime, or `/usr/lib/jvm/java-25-openjdk/bin/java`
+   for native Prism (the Flatpak cannot see `/usr/lib/jvm`).
+4. Close Prism.
+
+Point `INST` at the instance's Minecraft folder (Prism's **Folder** button shows it;
+older instances name it `.minecraft`):
 
 ```sh
-openssl rand -hex 32
+# Native Prism (in fish: set INST ~/.local/share/...)
+INST=~/.local/share/PrismLauncher/instances/YOUR_INSTANCE/minecraft
+# Flatpak Prism
+INST=~/.var/app/org.prismlauncher.PrismLauncher/data/PrismLauncher/instances/YOUR_INSTANCE/minecraft
 ```
 
-Keep both values private. The backend and game server read this same root `.env`
-when launched using the repository commands; environment variables take priority.
-Keep the default loopback addresses for this local setup.
-
-## Install mods, build the bridge and the mod
-
-Open the Prism instance's Minecraft folder (see [client setup](#set-up-the-minecraft-client))
-and pass its `mods/` directory to the setup script:
+## 3. Install everything
 
 ```sh
-./scripts/setup-linux.sh ~/.local/share/PrismLauncher/instances/YOUR_INSTANCE/.minecraft/mods
+./scripts/setup-linux.sh "$INST/mods"
+python3 scripts/install-villager-visuals.py "$INST"
 ```
 
-The script:
+The first command installs the server jars, the bridge and the mod, then copies the
+mod and Fabric API into the client. The second adds the client-only visuals: EMF,
+ETF, Fresh Animations and the generated Higgs reputation overlay. Run it with
+Minecraft closed.
 
-1. Puts every jar in the server lockfile, `scripts/server.lock`, into
-   `server-cardboard/`: the Fabric launcher, loader and libraries, the vanilla
-   server and its libraries, Cardboard's runtime libraries, Cardboard, Fabric API
-   and iCommon. It rejects any file whose SHA-512 does not match the lock, and
-   already verified files are not downloaded again. The first server start then
-   needs no further downloads.
-2. Builds the bridge with `npm ci`, which verifies `package-lock.json` integrity hashes.
-3. Checks the Gradle wrapper JAR's SHA-256 and builds the mod. Gradle verifies its
-   distribution and every dependency against `mod/gradle/verification-metadata.xml`.
-4. Copies `higgs-villagers-0.1.0.jar` into `server-cardboard/mods/`, and the mod
-   plus Fabric API into the client `mods/` directory. Cardboard and iCommon stay
-   on the server.
-
-Omit the argument to set up only the server. Re-run the script after changing the
-mod, with the server and client stopped. It also creates `server.properties` from
-the example if missing. `npm --prefix backend test` runs bridge tests without a
-Boson key; neither the build nor the tests validate real audio hardware.
-
-## Prepare the server
-
-Server binaries, libraries, worlds and EULA acceptance are not included in Git.
-Read the [Minecraft EULA](https://aka.ms/MinecraftEULA). If you agree, create
-`server-cardboard/eula.txt` containing `eula=true`. Then start the server:
+## 4. Check the client before each launch
 
 ```sh
-./server-cardboard/start.command
+python3 -I scripts/verify-client.py "$INST"
 ```
 
-The `.command` filename also runs on Linux; it is a Bash script. The first launch
-downloads additional server libraries and creates a new world. Wait for the
-server to finish starting, then enter this in its console:
+It should print `Verified client mods…`. To run it on every launch, open the
+instance's **Edit → Settings → Custom commands**, enable them, and set the
+pre-launch command to the absolute path of the checker:
 
 ```text
-whitelist add YOUR_MINECRAFT_USERNAME
+python3 -I /absolute/path/to/higgs-and-hrrm/scripts/verify-client.py
 ```
 
-The example configuration enables authentication and a whitelist, and listens
-on `127.0.0.1:25565`. Leave the server running. Use `stop` in its console to save
-and shut down before replacing JARs. Do not run the original `server/` alongside
-it, because both use the same port.
-
-## Set up the Minecraft client
-
-1. Open Prism Launcher, sign in with your Minecraft account and add an instance
-   for **Minecraft 26.1.2**.
-2. Edit the instance, select **Version → Install Fabric**, and select loader
-   **0.20.1**. Minecraft and loader versions must match the server manifest.
-3. In the instance's **Settings → Java**, enable the Java installation override
-   if needed, and select `/usr/lib/jvm/java-25-openjdk/bin/java`. Use Prism's Java
-   test to check it. Native Linux packages may require manual Java selection;
-   see [Prism's Java setup](https://prismlauncher.org/wiki/getting-started/installing-java/).
-4. Open the instance's Minecraft folder through Prism and note its `mods/` path.
-   `./scripts/setup-linux.sh` copies `higgs-villagers-0.1.0.jar` and the verified
-   Fabric API there. Cardboard and iCommon belong on the server only.
-5. In the instance's **Settings → Custom commands**, enable them and set the
-   pre-launch command to
-   `python3 -I /absolute/path/to/higgs-and-hrrm/scripts/verify-client.py`. It
-   stops the launch if a client mod differs from `scripts/client.lock` or your
-   build. For Flatpak Prism, first grant it read-only access to the repository:
-   `flatpak override --user --filesystem="$PWD:ro" org.prismlauncher.PrismLauncher`
-   (from the repository root). See [client check](setup.md#check-the-client-before-each-launch).
-6. Launch the instance. Select **Multiplayer → Direct Connection** and enter
-   `localhost:25565`.
-
-Prism creates and manages the instance; the setup script only writes to the
-`mods/` directory you pass it. For a Flatpak installation,
-select a Java runtime available inside its sandbox and check its audio
-permissions. Native Prism avoids that additional sandbox layer during diagnosis.
-
-## Start the voice conversation
-
-In another terminal at the repository root:
+For Flatpak Prism, first let it read the repository:
 
 ```sh
-npm --prefix backend start
+flatpak override --user --filesystem="$PWD:ro" org.prismlauncher.PrismLauncher
 ```
 
-Face an awake adult villager within eight blocks. Wait for **Ready** and its
-greeting. Hold **B**, speak, then release **B** to send the turn. Press **F8** for
-diagnostics. Look at another villager and press B to switch; walking away ends
-the connection. Ask what it sells, request an available offer, then say yes in
-a new turn to buy. See the [full setup guide](setup.md) for controls and limits.
+## 5. Accept the EULA
+
+Read the [Minecraft EULA](https://aka.ms/MinecraftEULA). If you agree:
+
+```sh
+echo eula=true > server-cardboard/eula.txt
+```
+
+## 6. Run
+
+In two terminals:
+
+```sh
+npm --prefix backend start          # voice bridge
+./server-cardboard/start.command    # game server
+```
+
+The first time, enter `whitelist add YOUR_MINECRAFT_USERNAME` in the server
+console. Then launch the instance in Prism, choose **Multiplayer → Direct
+Connection** and enter `localhost:25565`.
+
+Face an awake adult villager within eight blocks and wait for **Ready** and its
+greeting. Hold **B**, speak, and release **B** to send. Press **F8** for
+diagnostics. Ask what it sells, request an offer, then say yes in a new turn to
+buy. See the [full setup guide](setup.md) for controls and limits.
+
+Type `stop` in the server console to shut down. Run only one server at a time:
+the original `server/` uses the same port.
+
+## After changing the code
+
+| Changed | Do this |
+| --- | --- |
+| Mod (`mod/`) | Stop the server and Minecraft, then run `./scripts/setup-linux.sh "$INST/mods"`, or build and copy by hand (below) |
+| Bridge (`backend/`) | Restart `npm --prefix backend start` |
+| `.env` | Restart the bridge; also restart the server after changing `HIGGS_BRIDGE_TOKEN` or the memory/gossip settings |
+| Overlay code in `install-villager-visuals.py` | `python3 scripts/install-villager-visuals.py --overlay-only "$INST"`, then F3+T in game |
+
+Building and copying the mod by hand:
+
+```sh
+./scripts/build-mod.sh
+cp mod/build/libs/higgs-villagers-0.1.0.jar server-cardboard/mods/
+cp mod/build/libs/higgs-villagers-0.1.0.jar "$INST/mods/"
+```
+
+Both copies must match your latest build. If one is stale, the server or the
+client refuses to start and says which. Replacing the jar while either is running
+can crash it.
+
+To add another mod, check it upstream and add its SHA-512 and source to
+`scripts/server.lock` or `scripts/client.lock`; unlisted jars are refused.
+`npm --prefix backend test` runs the bridge tests without a Boson key.
 
 ## Microphone and playback
 
