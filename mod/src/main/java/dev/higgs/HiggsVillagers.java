@@ -441,6 +441,9 @@ public final class HiggsVillagers implements ModInitializer {
         }
         send(s.player, message);
     }
+    private static final String RESTATE_QUOTE = "The player has not just heard this quote and may expect a different price. "
+        + "Say these exact costs and received quantity, correcting any other price mentioned, then ask Confirm trade? "
+        + "Do not call confirm_trade until the player answers.";
     private JsonObject outcome(String status, String message) {
         JsonObject result = new JsonObject(); result.addProperty("status", status); result.addProperty("message", message); return result;
     }
@@ -495,7 +498,12 @@ public final class HiggsVillagers implements ModInitializer {
                 && ItemStack.matches(previous.result(), p.result()) && ItemStack.matches(previous.baseA(), p.baseA())
                 && ItemStack.matches(previous.baseB(), p.baseB()) && ItemStack.matches(previous.baseResult(), p.baseResult())) {
                 s.proposal = previous;
-                return quote(previous, "quote_unchanged", "This is the same active quote, not a new offer. If the player's latest utterance accepts it, call confirm_trade with this proposalId now. Do not ask for another yes. Otherwise keep this quote and answer their question.");
+                if (previous.confirmation().stale(turn)) {
+                    // Turns passed since the player heard this price; they may believe a different one.
+                    previous.confirmation().represent(turn);
+                    return quote(previous, "awaiting_confirmation", RESTATE_QUOTE);
+                }
+                return quote(previous, "quote_unchanged","This is the same active quote, not a new offer. If the player's latest utterance accepts it, call confirm_trade with this proposalId now. Do not ask for another yes. Otherwise keep this quote and answer their question.");
             }
             s.proposal = p;
             JsonObject result = quote(p, bundle.counteroffer() ? "counteroffer" : "awaiting_confirmation",
@@ -514,6 +522,10 @@ public final class HiggsVillagers implements ModInitializer {
         }
         VoiceConfirmation.Result confirmation = p.confirmation().advance(turn, System.currentTimeMillis());
         if (confirmation == VoiceConfirmation.Result.WAIT) return outcome("wait_for_player", "Wait for a new explicit spoken confirmation. Do not call again until the player answers.");
+        if (confirmation == VoiceConfirmation.Result.STALE) {
+            p.confirmation().represent(turn);
+            return quote(p, "restate_quote", "Nothing was purchased. " + RESTATE_QUOTE);
+        }
         if (confirmation == VoiceConfirmation.Result.EXPIRED || confirmation == VoiceConfirmation.Result.CONSUMED) {
             s.proposal = null; return outcome("unavailable", "Ask for a fresh proposal. Nothing was purchased.");
         }

@@ -17,6 +17,14 @@ public final class VoiceConfirmationTest {
         VoiceConfirmation changedQuote = new VoiceConfirmation(21, 5000);
         check(changedQuote.advance(21, 2000) == VoiceConfirmation.Result.WAIT, "changed terms cannot inherit old consent");
         check(changedQuote.advance(22, 2001) == VoiceConfirmation.Result.CONFIRMED, "changed terms accept one fresh yes");
+        // Quote at 6, price talk at 7–8 without a tool, yes at 9: the player may have agreed to another price.
+        VoiceConfirmation drifted = new VoiceConfirmation(6, 5000);
+        check(drifted.stale(9), "later turns are stale");
+        check(drifted.advance(9, 100) == VoiceConfirmation.Result.STALE, "stale yes does not purchase");
+        drifted.represent(9);
+        check(drifted.advance(9, 101) == VoiceConfirmation.Result.WAIT, "re-presented quote cannot be accepted in the same turn");
+        check(drifted.advance(10, 102) == VoiceConfirmation.Result.CONFIRMED, "yes right after the re-presented quote purchases");
+        check(!new VoiceConfirmation(6, 5000).stale(7), "the turn right after the quote is not stale");
         System.out.println("Voice confirmation regression checks passed");
     }
     private static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }
