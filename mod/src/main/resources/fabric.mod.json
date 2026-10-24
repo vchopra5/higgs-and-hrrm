@@ -21,6 +21,7 @@
   },
   "icon": "assets/higgs_villagers/icon.png",
   "mixins": [
-    "higgs_villagers.mixins.json"
+    "higgs_villagers.mixins.json",
+    {"config": "higgs_villagers.client.mixins.json", "environment": "client"}
   ]
 }

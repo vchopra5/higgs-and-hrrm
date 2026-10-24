@@ -171,6 +171,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         request.addProperty("type", "start");
         request.addProperty("entityId", target.getId());
         targetId = target.getId();
+        ConversationOutline.set(targetId);
         nextConnectAt = System.currentTimeMillis() + 5000;
         pending = true;
         lastVoice = null;
@@ -195,6 +196,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 case "reaction_start" -> {
                     stop(false);
                     targetId = message.get("entityId").getAsInt();
+                    ConversationOutline.set(targetId);
                     pending = true;
                     requestTime = System.currentTimeMillis();
                 }
@@ -229,6 +231,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         generation++;
         pending = false;
         targetId = -1;
+        ConversationOutline.clear();
         activeSessionId = null;
         tracker.clear();
         VoiceSession previous = voice;
