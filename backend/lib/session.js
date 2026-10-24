@@ -344,7 +344,7 @@ export class BridgeSession {
       : this.queuedResponse ? 'queued' : !this.responseDone ? 'responding'
         : [...this.pending.values()].some(tool => !tool.internal) ? 'tools' : 'idle';
     return {
-      sessionId: this.id, model: 'higgs-realtime', mode: this.mode ?? null, state, turnId: this.turnId,
+      sessionId: this.id, model: 'higgs-realtime-1.5-preview', mode: this.mode ?? null, state, turnId: this.turnId,
       elapsedMs: now - this.created, limitMs: LIMITS.sessionMs,
       events: this.debugEvents.map(({ at, ...event }) => ({ ...event, ageMs: now - at })),
       tools: this.debugTools.map(({ at, ...tool }) => ({ ...tool, ageMs: now - at })),

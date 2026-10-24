@@ -89,7 +89,7 @@ export function chatterConfig(scene, index, overrides = {}) {
   return {
     type: 'session.update',
     session: {
-      model: 'higgs-realtime',
+      model: 'higgs-realtime-1.5-preview',
       instructions: `You are ${speaker.name}, a Minecraft villager who works as a ${speaker.profession}. `
         + `You are chatting casually with ${others.length > 1 ? 'your neighbours' : 'your neighbour'} ${company}. `
         + 'Your facts say how you feel and what is on your mind today, and how you relate to each neighbour; let that colour what you say. '

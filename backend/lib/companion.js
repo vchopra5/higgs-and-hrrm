@@ -65,7 +65,7 @@ export function companionConfig(spec, partner, playerName, overrides = {}) {
   return {
     type: 'session.update',
     session: {
-      model: 'higgs-realtime',
+      model: 'higgs-realtime-1.5-preview',
       instructions: `You are ${spec.name}, a Minecraft villager who works as a ${spec.profession}. `
         + `You are standing with your neighbour ${partner.name}, the village ${partner.profession}, while the player ${playerName} talks with ${partner.name}. `
         + 'You join in now and then. Speak only for yourself, in one or two short sentences of warm old-world village speech. '

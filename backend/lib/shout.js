@@ -123,7 +123,7 @@ export class ShoutScene {
     this.requested = `You are ${this.speaker.name}, a Minecraft villager who works as a ${this.speaker.profession}. `
       + 'You react out loud to danger in short, raw, in-character cries. ' + (this.character?.instructions ?? '');
     sendJson(this.upstream, { type: 'session.update', session: {
-      model: 'higgs-realtime', instructions: this.requested, output_modalities: ['audio'],
+      model: 'higgs-realtime-1.5-preview', instructions: this.requested, output_modalities: ['audio'],
       audio: {
         input: { format: { type: 'audio/pcm', rate: 24000 }, turn_detection: null },
         output: { format: { type: 'audio/pcm', rate: 24000 }, voice: this.voice },

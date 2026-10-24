@@ -162,7 +162,7 @@ test('whisper visits use the literal style tag only in Realtime instructions and
   assert.equal(status.lines, 2);
   assert.ok(status.playbackRemainingMs > 0, 'generation finishing must not release villagers before audio plays');
   for (const update of f.received.filter(e => e.type === 'session.update')) {
-    assert.equal(update.session.model, 'higgs-realtime');
+    assert.equal(update.session.model, 'higgs-realtime-1.5-preview');
     assert.match(update.session.instructions, /<\|style:whispering\|>$/);
     assert.match(update.session.instructions, /Discuss only shared.story/);
     assert.equal(update.session.tools, undefined);
