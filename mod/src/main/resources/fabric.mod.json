@@ -2,12 +2,22 @@
   "schemaVersion": 1,
   "id": "higgs_villagers",
   "version": "${version}",
-  "name": "Higgs Villagers",
-  "description": "Speak to villagers through a local Higgs bridge and inspect native trades.",
+  "name": "HIGGS HRRM",
+  "description": "Give the hrrm a voice. Talk to Minecraft villagers and discover their real trades with Boson Higgs Realtime.",
   "environment": "*",
   "entrypoints": {
-    "main": ["dev.higgs.HiggsVillagers"],
-    "client": ["dev.higgs.HiggsVillagersClient"]
+    "main": [
+      "dev.higgs.HiggsVillagers"
+    ],
+    "client": [
+      "dev.higgs.HiggsVillagersClient"
+    ]
   },
-  "depends": {"fabricloader": ">=0.18.0", "minecraft": "26.1.2", "java": ">=25", "fabric-api": "*"}
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "26.1.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  },
+  "icon": "assets/higgs_villagers/icon.png"
 }

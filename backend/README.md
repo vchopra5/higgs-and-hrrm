@@ -1,4 +1,8 @@
-# Higgs voice bridge
+<p><a href="../README.md"><img src="../docs/assets/logo.png" alt="HIGGS HRRM" width="64" /></a></p>
+
+# HIGGS HRRM · Voice bridge
+
+[← HIGGS HRRM](../README.md) · [Visual identity](../docs/brand.md)
 
 Requires Node.js 22+ (24 recommended). From the repository root:
 

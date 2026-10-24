@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="195" height="24" viewBox="0 0 195 24" role="img" aria-label="Status: Hackathon prototype">
+  <title>Status: Hackathon prototype</title>
+  <path fill="#10251F" d="M0 0h55v24H0z"/>
+  <path fill="#D8A374" d="M55 0h140v24H55z"/>
+  <g font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" text-anchor="middle">
+    <text x="27.5" y="15.5" fill="#F6EDCF">Status</text>
+    <text x="125.0" y="15.5" fill="#10251F">Hackathon prototype</text>
+  </g>
+</svg>
