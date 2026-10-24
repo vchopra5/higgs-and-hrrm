@@ -74,6 +74,20 @@ final class Wilds {
     }
 
     /** A spoken distance: rounded the way someone passing on a rumour would. */
+    /**
+     * How far a villager will walk the player out to a place it knows of: the better it likes them, the farther. Even a
+     * stranger walks them a short way; a confidant, or one with the highest opinion of them, goes anywhere it knows of.
+     */
+    static int escortBlocks(RelationshipStage stage, int standing) {
+        if (stage == RelationshipStage.CONFIDANT || standing >= 5) return Integer.MAX_VALUE;
+        return switch (stage) {
+            case STRANGER -> 64;
+            case ACQUAINTANCE -> 128;
+            case FRIEND -> 320;
+            default -> 640;
+        };
+    }
+
     static String distance(double blocks) {
         long rounded = blocks < 100 ? Math.max(10, Math.round(blocks / 10) * 10) : Math.round(blocks / 50) * 50;
         return "about " + rounded + " blocks";

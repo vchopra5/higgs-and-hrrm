@@ -976,11 +976,9 @@ public final class HiggsVillagers implements ModInitializer {
     }
 
     private final Wilderness wilderness = new Wilderness();
-    /** Farthest a villager will walk a friend out of the village. */
-    private static final int ESCORT_BLOCKS = 320;
     /**
-     * A place beyond the village, known by rumour. The villager says where to look; one that counts the player as a
-     * friend walks them there when it is near enough, then heads home.
+     * A place beyond the village, known by rumour. The villager walks the player there when it is within the distance its
+     * regard for them allows ({@link Wilds#escortBlocks}), then heads home; otherwise it says where to look.
      */
     private JsonObject rumour(Session s, Wilds.Place place, VillageTracker.Village village) {
         Villager guide = s.villager;
@@ -997,9 +995,8 @@ public final class HiggsVillagers implements ModInitializer {
         double dx = at.getX() - guide.getX(), dz = at.getZ() - guide.getZ(), far = Math.hypot(dx, dz);
         if (far < 24) return outcome("here", "You are right by " + place.label() + " already. Say so and point it out.");
         String direction = Wilds.distance(far) + " " + Errands.compass(dx, dz);
-        boolean friend = memory.stage(guide, s.player).ordinal() >= RelationshipStage.FRIEND.ordinal();
-        String why = !friend ? "If they ask you to take them, you will not: you have your work in the village."
-            : far > ESCORT_BLOCKS ? "It is too far for you to walk there with them; say so if they ask." : null;
+        String why = far > Wilds.escortBlocks(memory.stage(guide, s.player), standing(s))
+            ? "It is farther than you would walk with them yet; you would go that far for a closer friend. Say so warmly if they ask." : null;
         if (why == null) {
             String refusal = outings.expedition(s.player, guide, at, place.label());
             if (refusal == null) {

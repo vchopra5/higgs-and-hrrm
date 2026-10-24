@@ -21,6 +21,14 @@ public final class WildsTest {
         if (!Wilds.distance(37).equals("about 40 blocks") || !Wilds.distance(412).equals("about 400 blocks") || !Wilds.distance(3).equals("about 10 blocks"))
             throw new AssertionError("distance rounding");
         if (!Wilds.interpret("Do you know of any pyramids?").label().equals("a desert temple")) throw new AssertionError("label");
+        int[] reach = {Wilds.escortBlocks(RelationshipStage.STRANGER, 0), Wilds.escortBlocks(RelationshipStage.ACQUAINTANCE, 0),
+            Wilds.escortBlocks(RelationshipStage.FRIEND, 1), Wilds.escortBlocks(RelationshipStage.CLOSE_FRIEND, 2)};
+        for (int i = 0; i < reach.length; i++) if (reach[i] <= 0 || i > 0 && reach[i] <= reach[i - 1]) throw new AssertionError("closer friends walk farther");
+        if (Wilds.escortBlocks(RelationshipStage.CONFIDANT, 3) != Integer.MAX_VALUE || Wilds.escortBlocks(RelationshipStage.ACQUAINTANCE, 5) != Integer.MAX_VALUE)
+            throw new AssertionError("the highest regard has no limit");
+        // Playtest: the forest was ~346 blocks out. Faye (confidant) and Lena (friend, opinion 5) both refused under a flat cap.
+        if (Wilds.escortBlocks(RelationshipStage.CONFIDANT, 3) < 346 || Wilds.escortBlocks(RelationshipStage.FRIEND, 5) < 346)
+            throw new AssertionError("a villager who likes you most walks you to the forest");
         System.out.println("Wilds matching checks passed");
     }
 

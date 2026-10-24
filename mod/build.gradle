@@ -117,7 +117,7 @@ tasks.register('testDestinations', JavaExec) {
 tasks.named('check') { dependsOn 'testDestinations' }
 
 tasks.register('compileWildsTest', JavaCompile) {
-    source = files('src/main/java/dev/higgs/Wilds.java', 'src/test/dev/higgs/WildsTest.java')
+    source = files('src/main/java/dev/higgs/Wilds.java', 'src/main/java/dev/higgs/RelationshipStage.java', 'src/test/dev/higgs/WildsTest.java')
     classpath = files()
     destinationDirectory = layout.buildDirectory.dir('wilds-test')
 }
