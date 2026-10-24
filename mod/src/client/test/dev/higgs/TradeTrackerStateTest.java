@@ -7,8 +7,8 @@ public final class TradeTrackerStateTest {
         check(state.active && state.opacity(999) == 1, "quote stays actionable until expiry");
         state.opacity(1000);
         check(!state.active && state.status.equals("expired"), "expired quote must not invite yes");
-        state.update("Farmer", "counteroffer", new TradeTrackerState.Quote("b", "4 emeralds", "15 bread", 3000), 1500);
-        check(state.previous.contains("12 bread") && state.quote.received().equals("15 bread"), "counteroffer replaces active deal");
+        state.update("Farmer", "awaiting_confirmation", new TradeTrackerState.Quote("b", "4 emeralds", "15 bread", 3000), 1500);
+        check(state.previous.contains("12 bread") && state.quote.received().equals("15 bread"), "new quote replaces active deal");
         state.update("Farmer", "purchased", null, 2000);
         check(!state.active && state.quote.received().equals("15 bread"), "receipt retains purchased terms without inviting another acceptance");
         check(state.opacity(8000) == 0 && state.status.equals("purchased"), "success fades without becoming expired");

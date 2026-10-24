@@ -133,7 +133,7 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and w
 
 This is a hackathon prototype. The voice bridge, Fabric integration, and trade tools are implemented. Full microphone, playback, and in-game trade validation still need confirmation on the target setup; local mock tests and synthetic voice probes cover only part of that path.
 
-Current scope includes push-to-talk, system audio for the speaking player, persistent conversation summaries, automatic story selection, and local gossip with a particle indicator. Voice-confirmed trading, bounded negotiation, relationship scores, captions, automatic targeting, and hit reactions are also implemented. Memory and gossip have local regression coverage; live story judgments, recall, and particle visibility still need in-game validation. Distinct saved personalities, per-character voices, familiarity and different gossip habits are implemented with local regression coverage. Live voice auditions and the three-character demo still need rehearsal; spatial or shared audio remains a future direction.
+Current scope includes push-to-talk, system audio for the speaking player, persistent conversation summaries, automatic story selection, and local gossip with a particle indicator. Voice-confirmed trading, reputation-based prices, relationship scores, captions, automatic targeting, and hit reactions are also implemented. Memory and gossip have local regression coverage; live story judgments, recall, and particle visibility still need in-game validation. Distinct saved personalities, per-character voices, familiarity and different gossip habits are implemented with local regression coverage. Live voice auditions and the three-character demo still need rehearsal; spatial or shared audio remains a future direction.
 
 <details>
 <summary><strong>Development checks</strong></summary>
@@ -172,39 +172,41 @@ Each finished turn from you and the villager is added to Minecraft chat, so the 
 
 Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
 
-## Voice negotiation
+## Voice trading
 
-Ask for an item, a quantity, a budget, or a better deal: “I only have two emeralds,”
-“Could I get fifteen bread for four emeralds?” or “Could you give me a better price, please?”
-The server quotes exact whole-item amounts; say yes in a new turn to buy. A changed
-or counteroffered bundle always needs a fresh yes.
+Ask for an item, a quantity, or a budget: “I would like fifteen bread” or “How much
+bread can I buy with four emeralds?” The server quotes exact whole-item amounts at
+your current reputation; say yes in a new turn to buy. A changed bundle always
+needs a fresh yes.
 
 Each villager keeps one reputation score towards you, from -5 to +5, starting at 0
 (the middle of the bar above its head). A compliment adds 1; a hit or insult takes 2.
-Bargaining or declining alone is neutral. Each point moves prices 4% from the villager's
-base price: +5 is about 80%, 0 is 100%, -5 is about 120%, and asking for a discount can
-go 5% lower. Vanilla Minecraft reputation does not affect these voice quotes. Scores
-persist per player and villager in the world data folder. Higgs classifies the
-utterance, while the server enforces every limit. Quotes remain valid for two minutes.
+The price rate is `100 − 5 × score` percent of the base price: +5 is 75%, 0 is 100%,
+and -5 is 125%, with payments rounded to whole items and never below 1. Reputation
+changes cancel any open quote; ask again for the current price. Vanilla Minecraft
+reputation does not affect these voice quotes. Scores persist per player and
+villager in the world data folder. Higgs classifies the utterance, while the server
+decides every price and enforces every limit. Quotes expire after two minutes.
 
 Bundles are limited to one stack per item (at most 64); secondary payments scale
-proportionally, rounding up to whole items. Unrepresentable prices receive a nearby
-valid counteroffer. Larger quantities consume proportional stock, rounded up to
-native trade uses; small purchases still use one stock unit. The native inventory
-transaction handles item components, space, trade statistics and rewards. Price
-negotiation cannot bypass missing payment, stock, proximity or inventory checks.
+proportionally, rounding up to whole items. A budget buys the most items it can
+afford at the current rate, within stack and stock limits. Larger quantities
+consume proportional stock, rounded up to native trade uses; small purchases
+still use one stock unit. The native inventory transaction handles item
+components, space, trade statistics and rewards. Every purchase checks payment,
+stock, proximity and inventory space.
 
 A compact, non-interactive trade tracker shows the villager and the current server quote: YOU GIVE, YOU GET, and “Say yes to accept.” Revised amounts briefly show the previous deal crossed out. Expired or cancelled offers stop inviting acceptance, and success or failure fades after six seconds. Switching villagers clears the tracker; all choices still use voice.
 
-Repeated quotes with identical terms retain the original proposal ID, confirmation turn, and expiry. A repeated confirmation returns the existing purchase receipt without buying again. Trade diagnostics log tool names, turn numbers, and outcomes without speech content.
+Every quote uses the current reputation. If the villager repeats identical terms in the acceptance turn, the player's yes can still confirm that purchase. A repeated confirmation returns the existing purchase receipt without buying again. Trade diagnostics log tool names, turn numbers, and outcomes without speech content.
 
-Trade suggestions now use an optional “Interested?” preview, which cannot be purchased. Interest leads to an exact “Confirm trade?” quote; one yes then completes it. Direct purchase requests skip browsing. The tracker sits at the right edge, and conversation lines appear in Minecraft chat. Villagers are instructed to keep trading replies to one short sentence.
+Trade suggestions use an optional “Interested?” preview, which cannot be purchased. Interest leads to an exact quote at the player's current reputation and “Confirm trade?”; one yes then completes it. Direct purchase requests skip browsing. The tracker sits at the right edge, and conversation lines appear in Minecraft chat. Villagers use short, warm fantasy language while saying item names and numbers exactly as the server provides them, with one short sentence per trading turn.
 
 ### Environmental reactions
 
 Hitting a nearby adult villager starts voice automatically, including invulnerable demo villagers. A rolling 30-second window records attack count, elapsed time between the first and latest hits, and time since the previous hit. Higgs chooses the wording and emotional delivery from these statistics and the conversation; there are no fixed reaction tiers or scripted lines. These are attack attempts, not measured damage.
 
-A hit cancels an active quoted trade and costs 2 reputation. Only an active trade shows cancellation feedback, which fades after six seconds; repeated hits do not restart the fade. Hits outside a trade do not open the tracker. Reactions cannot execute trade tools or count as spoken confirmation.
+A hit costs 2 reputation, down to the minimum of -5; a changed score cancels an active quoted trade. Only an active trade shows cancellation feedback, which fades after six seconds; repeated hits do not restart the fade. Hits outside a trade do not open the tracker. Reactions cannot execute trade tools or count as spoken confirmation.
 
 The bridge keeps only the latest queued statistics, waits until player speech/provider work finishes, and drops events older than 10 seconds. Higgs delivery uses per-response `instructions` for tone and energy: https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices.
 

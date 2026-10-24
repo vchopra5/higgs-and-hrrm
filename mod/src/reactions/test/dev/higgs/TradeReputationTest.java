@@ -11,7 +11,7 @@ public final class TradeReputationTest {
         check(hurt.hit(1800).hit(2600).score() == -5, "negative cap");
         check(hurt.treatment("polite", 2000).score() == -1, "compliment right after a hit counts");
         var liked = neutral.treatment("polite", 1000);
-        check(liked.score() == 1 && Negotiation.band(liked.score()).min() < Negotiation.band(0).min(), "one compliment improves pricing");
+        check(liked.score() == 1 && Negotiation.band(liked.score()).rate() < Negotiation.band(0).rate(), "one compliment improves pricing");
         check(liked.treatment("polite", 2000).score() == 2, "back-to-back compliments each count");
         var charmed = liked;
         for (int turn = 0; turn < 10; turn++) charmed = charmed.treatment("polite", 3000 + turn);

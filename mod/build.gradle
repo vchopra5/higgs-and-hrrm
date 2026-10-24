@@ -82,6 +82,7 @@ tasks.named('check') { dependsOn 'testMemory' }
 
 tasks.register('compileVoiceConfirmationTest', JavaCompile) {
     source = files('src/main/java/dev/higgs/VoiceConfirmation.java',
+        'src/main/java/dev/higgs/QuoteConfirmation.java',
         'src/confirmation/test/dev/higgs/VoiceConfirmationTest.java')
     classpath = files()
     destinationDirectory = layout.buildDirectory.dir('voice-confirmation-test')

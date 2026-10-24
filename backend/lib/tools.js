@@ -52,8 +52,8 @@ function validArguments(name, args) {
   if (name === 'preview_trade') return Number.isInteger(args.offerIndex) && args.offerIndex >= 0;
   if (name === 'report_treatment') return ['polite', 'neutral', 'rude'].includes(args.treatment);
   return name === 'propose_trade' && Number.isInteger(args.offerIndex) && args.offerIndex >= 0
-    && ['quantity', 'payment'].every(key => args[key] === undefined || (Number.isInteger(args[key]) && args[key] >= 1 && args[key] <= 64))
-    && (args.discount === undefined || typeof args.discount === 'boolean');
+    && Object.keys(args).every(key => ['offerIndex', 'quantity', 'payment'].includes(key))
+    && ['quantity', 'payment'].every(key => args[key] === undefined || (Number.isInteger(args[key]) && args[key] >= 1 && args[key] <= 64));
 }
 
 export function receiveToolCall(session, event) {

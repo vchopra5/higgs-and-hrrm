@@ -75,9 +75,12 @@ public final class HiggsVillagers implements ModInitializer {
             s = sessions.get(player.getUUID());
         }
         if (s == null || s.villager != villager) return;
-        boolean wasTrading = s.proposal != null && s.proposal.expires() > now;
-        s.proposal = null;
-        if (wasTrading) tradeStatus(s, outcome("cancelled", "Trade cancelled after being hit."));
+        boolean changed = hurtOpinion.score() != previousOpinion.score();
+        boolean wasTrading = changed && s.proposal != null && s.proposal.expires() > now;
+        if (changed) {
+            s.proposal = null;
+            tradeStatus(s, outcome("cancelled", "Reputation changed; ask again for the new price."));
+        }
         JsonObject event = new JsonObject(); event.addProperty("type", "hit");
         event.addProperty("windowMs", RecentHits.WINDOW_MS);
         event.addProperty("count", stats.count());
@@ -123,12 +126,19 @@ public final class HiggsVillagers implements ModInitializer {
             relationships.put(key, next);
             saveTradeReputations();
         }
+        boolean changed = next.score() != previous.score();
+        if (changed) {
+            s.proposal = null;
+            tradeStatus(s, outcome("cancelled", "Reputation changed; ask again for the new price."));
+        }
         Negotiation.Band limits = band(s);
         org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Treatment turn={} tone={} relationship={} band={}",
             turn, tone, next.score(), limits.name());
-        JsonObject result = outcome("assessed","Treatment affects future quotes; existing quotes keep their agreed price.");
+        JsonObject result = outcome("assessed", changed
+            ? "Reputation changed. Any earlier price is outdated: call propose_trade again before saying a price."
+            : "Reputation unchanged. Call get_trades or propose_trade for the current price before saying it.");
         result.addProperty("relationship", limits.name());
-        result.addProperty("minPricePercent", limits.min()); result.addProperty("maxPricePercent", limits.max());
+        result.addProperty("pricePercent", limits.rate());
         return result;
     }
     private static final class Session {
@@ -150,8 +160,12 @@ public final class HiggsVillagers implements ModInitializer {
         final Set<String> pendingTools = new HashSet<>();
         Session(ServerPlayer player, Villager villager) { this.player = player; this.villager = villager; }
     }
-    private record Proposal(String id, int index, long expires, ItemStack costA,
-                            ItemStack costB, ItemStack result, VoiceConfirmation confirmation, ItemStack baseA, ItemStack baseB, ItemStack baseResult, int stockUses) { }
+    private record Proposal(QuoteConfirmation approval, int index, ItemStack costA,
+                            ItemStack costB, ItemStack result, ItemStack baseA, ItemStack baseB, ItemStack baseResult, int stockUses) {
+        String id() { return approval.id(); }
+        long expires() { return approval.expires(); }
+        VoiceConfirmation confirmation() { return approval.gate(); }
+    }
     @Override public void onInitialize() {
         Map<String, String> config = config();
         backend = config.getOrDefault("HIGGS_BACKEND_URL", "http://127.0.0.1:8787").replaceAll("/+$", "");
@@ -299,7 +313,7 @@ public final class HiggsVillagers implements ModInitializer {
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
-            context.add("offers", offers(villager)); body.add("context", context);
+            context.add("offers", offers(s)); body.add("context", context);
             s.openingContext = autoGreeting && context.has("openingRumour") ? context : null;
             request("POST", "/sessions", body).whenComplete((reply, failure) -> server.execute(() -> {
                 if (failure != null) {
@@ -396,7 +410,7 @@ public final class HiggsVillagers implements ModInitializer {
                             });
                             continue;
                         }
-                        if (name.equals("get_trades")) result.add("offers", offers(s.villager));
+                        if (name.equals("get_trades")) result.add("offers", offers(s));
                         else if (name.equals("report_treatment")) {
                             result = treatment(s, call.getAsJsonObject("arguments").get("treatment").getAsString(), call.get("turnId").getAsInt());
                         } else if (name.equals("cancel_trade")) {
@@ -447,7 +461,8 @@ public final class HiggsVillagers implements ModInitializer {
     }
     private static final String RESTATE_QUOTE = "The player has not just heard this quote and may expect a different price. "
         + "Say these exact costs and received quantity, correcting any other price mentioned, then ask Confirm trade? "
-        + "Do not call confirm_trade until the player answers.";
+        + "Wait for clear spoken acceptance, such as yes, yeah, sure, okay, sounds good, deal, or go ahead. "
+        + "Refusals, questions and changed or conditional terms do not count. Do not call confirm_trade until the player answers.";
     private JsonObject outcome(String status, String message) {
         JsonObject result = new JsonObject(); result.addProperty("status", status); result.addProperty("message", message); return result;
     }
@@ -478,7 +493,7 @@ public final class HiggsVillagers implements ModInitializer {
         if (index < 0 || index >= s.villager.getOffers().size()) return outcome("unavailable", "That offer does not exist.");
         s.villager.setTradingPlayer(s.player);
         try {
-            // Base prices only: vanilla gossip discounts would apply reputation twice.
+            // Base prices only: vanilla gossip would apply reputation twice.
             var offer = s.villager.getOffers().get(index);
             if (offer.isOutOfStock()) return outcome("unavailable", "That offer is sold out.");
             Integer quantity = arguments.has("quantity") ? arguments.get("quantity").getAsInt() : null;
@@ -486,34 +501,27 @@ public final class HiggsVillagers implements ModInitializer {
             Negotiation.Band limits = band(s);
             Negotiation.Bundle bundle;
             try {
-                bundle = Negotiation.quote(offer.getCostA().getCount(), offer.getCostB().getCount(), offer.getResult().getCount(),
-                    offer.getMaxUses() - offer.getUses(), offer.getCostA().getMaxStackSize(),
-                    offer.getCostB().isEmpty() ? 64 : offer.getCostB().getMaxStackSize(), offer.getResult().getMaxStackSize(),
-                    limits, quantity, payment, arguments.has("discount") && arguments.get("discount").getAsBoolean());
+                bundle = bundle(offer, limits, quantity, payment);
             } catch (IllegalArgumentException e) { return outcome("invalid", "Use whole quantities from one to sixty-four."); }
-            if (bundle == null) return outcome("unavailable", "No whole-item bundle fits this price range and remaining stock. Try a different offer.");
-            Proposal p = new Proposal(UUID.randomUUID().toString(), index, System.currentTimeMillis() + 120_000,
-                offer.getCostA().copyWithCount(bundle.payment()), offer.getCostB().isEmpty() ? ItemStack.EMPTY : offer.getCostB().copyWithCount(bundle.secondary()),
-                offer.getResult().copyWithCount(bundle.quantity()), new VoiceConfirmation(turn, System.currentTimeMillis() + 120_000),
+            if (bundle == null) return outcome("unavailable", "No whole-item bundle fits this budget, stack limits and remaining stock. Try a different offer.");
+            ItemStack costA = offer.getCostA().copyWithCount(bundle.payment());
+            ItemStack costB = offer.getCostB().isEmpty() ? ItemStack.EMPTY : offer.getCostB().copyWithCount(bundle.secondary());
+            ItemStack receive = offer.getResult().copyWithCount(bundle.quantity());
+            boolean sameTerms = previous != null && previous.index() == index && previous.stockUses() == bundle.stockUses()
+                && ItemStack.matches(previous.costA(), costA) && ItemStack.matches(previous.costB(), costB)
+                && ItemStack.matches(previous.result(), receive) && ItemStack.matches(previous.baseA(), offer.getCostA())
+                && ItemStack.matches(previous.baseB(), offer.getCostB()) && ItemStack.matches(previous.baseResult(), offer.getResult());
+            boolean stale = previous != null && previous.approval().stale(turn);
+            QuoteConfirmation approval = QuoteConfirmation.refresh(previous == null ? null : previous.approval(), sameTerms, turn, System.currentTimeMillis());
+            Proposal p = new Proposal(approval, index, costA, costB, receive,
                 offer.getCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(), bundle.stockUses());
-            if (previous != null && previous.expires() > System.currentTimeMillis()
-                && previous.index() == p.index() && previous.stockUses() == p.stockUses()
-                && ItemStack.matches(previous.costA(), p.costA()) && ItemStack.matches(previous.costB(), p.costB())
-                && ItemStack.matches(previous.result(), p.result()) && ItemStack.matches(previous.baseA(), p.baseA())
-                && ItemStack.matches(previous.baseB(), p.baseB()) && ItemStack.matches(previous.baseResult(), p.baseResult())) {
-                s.proposal = previous;
-                if (previous.confirmation().stale(turn)) {
-                    // Turns passed since the player heard this price; they may believe a different one.
-                    previous.confirmation().represent(turn);
-                    return quote(previous, "awaiting_confirmation", RESTATE_QUOTE);
-                }
-                return quote(previous, "quote_unchanged","This is the same active quote, not a new offer. If the player's latest utterance accepts it, call confirm_trade with this proposalId now. Do not ask for another yes. Otherwise keep this quote and answer their question.");
-            }
             s.proposal = p;
-            JsonObject result = quote(p, bundle.counteroffer() ? "counteroffer" : "awaiting_confirmation",
-                "Say the exact costs and received quantity once, then ask Confirm trade? Wait for one clear spoken acceptance, such as yes, yeah, sure, okay, sounds good, deal, or go ahead. Natural equivalents count; refusals, questions and changed or conditional terms do not. No extra explanation.");
+            boolean retained = previous != null && approval.gate() == previous.confirmation();
+            JsonObject result = quote(p, "awaiting_confirmation", retained && !stale
+                ? "These current terms match the quote just presented. If the player's latest utterance accepts it, call confirm_trade with this proposalId now. Otherwise say the exact costs and quantity, then ask Confirm trade?"
+                : RESTATE_QUOTE);
             result.addProperty("relationship", limits.name());
-            result.addProperty("minPricePercent", limits.min()); result.addProperty("maxPricePercent", limits.max());
+            result.addProperty("pricePercent", limits.rate());
             return result;
         } finally { s.villager.setTradingPlayer(null); }
     }
@@ -524,7 +532,7 @@ public final class HiggsVillagers implements ModInitializer {
         if (System.currentTimeMillis() >= p.expires() || !availableForVoiceTrade(s)) {
             s.proposal = null; return outcome("unavailable", "Proposal expired or villager unavailable. Nothing was purchased.");
         }
-        VoiceConfirmation.Result confirmation = p.confirmation().advance(turn, System.currentTimeMillis());
+        VoiceConfirmation.Result confirmation = p.approval().advance(turn, System.currentTimeMillis());
         if (confirmation == VoiceConfirmation.Result.WAIT) return outcome("wait_for_player", "Wait for a new explicit spoken confirmation. Do not call again until the player answers.");
         if (confirmation == VoiceConfirmation.Result.STALE) {
             p.confirmation().represent(turn);
@@ -615,13 +623,26 @@ public final class HiggsVillagers implements ModInitializer {
             }
         }
     }
-    private JsonArray offers(Villager villager) {
+    private Negotiation.Bundle bundle(MerchantOffer offer, Negotiation.Band rate, Integer quantity, Integer payment) {
+        return Negotiation.quote(offer.getCostA().getCount(), offer.getCostB().getCount(), offer.getResult().getCount(),
+            offer.getMaxUses() - offer.getUses(), offer.getCostA().getMaxStackSize(),
+            offer.getCostB().isEmpty() ? 64 : offer.getCostB().getMaxStackSize(), offer.getResult().getMaxStackSize(),
+            rate, quantity, payment);
+    }
+    private JsonArray offers(Session s) {
         JsonArray result = new JsonArray(); int index = 0;
-        for (var offer : villager.getOffers()) {
+        for (var offer : s.villager.getOffers()) {
             JsonObject o = new JsonObject(); o.addProperty("offerIndex", index++);
-            o.add("costA", item(offer.getCostA())); o.add("costB", item(offer.getCostB()));
-            o.add("result", item(offer.getResult())); o.addProperty("outOfStock", offer.isOutOfStock());
-            o.addProperty("priceNote", "Preview only: propose_trade returns exact player-specific prices before spoken confirmation.");
+            Negotiation.Bundle bundle = bundle(offer, band(s), null, null);
+            o.addProperty("outOfStock", offer.isOutOfStock());
+            if (bundle == null) {
+                o.add("result", item(offer.getResult()));
+                o.addProperty("unavailable", true);
+            } else {
+                o.add("costA", item(offer.getCostA().copyWithCount(bundle.payment())));
+                o.add("costB", item(offer.getCostB().isEmpty() ? ItemStack.EMPTY : offer.getCostB().copyWithCount(bundle.secondary())));
+                o.add("result", item(offer.getResult().copyWithCount(bundle.quantity())));
+            }
             result.add(o);
         }
         return result;

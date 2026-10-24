@@ -45,7 +45,7 @@ final class TradeTracker {
         graphics.fill(x, y, x + width, y + height, ((alpha * 2 / 3) << 24) | 0x101B20);
         graphics.fill(x, y, x + 2, y + height, (alpha << 24) | tint);
         String heading = state.status.equals("interest") ? "INTERESTED?"
-            : state.active ? (state.status.equals("counteroffer") ? "COUNTEROFFER" : "CONFIRM TRADE?")
+            : state.active ? "CONFIRM TRADE?"
             : state.status.equals("purchased") ? "TRADE COMPLETE" : "NO ACTIVE OFFER";
         graphics.text(client.font, heading, x + 12, y + 8, (alpha << 24) | tint, false);
         graphics.text(client.font, client.font.plainSubstrByWidth(state.villager, width - 24), x + 12, y + 21,
