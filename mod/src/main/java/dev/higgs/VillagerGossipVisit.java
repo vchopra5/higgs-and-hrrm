@@ -47,6 +47,15 @@ final class VillagerGossipVisit implements VillagerMemoryService.GossipPresentat
 
     boolean busy(Villager villager) { return active != null && (active.source == villager || active.target == villager); }
 
+    boolean readyForDeparture(Villager source) {
+        return active == null && chatter.availableForGossip()
+            && cooldowns.getOrDefault(source.getUUID(), 0L) <= System.currentTimeMillis();
+    }
+    boolean readyForListener(Villager target) {
+        return active == null && chatter.availableForGossip() && free(target)
+            && cooldowns.getOrDefault(target.getUUID(), 0L) <= System.currentTimeMillis();
+    }
+
     private boolean free(Villager villager) {
         return villager.isAlive() && !villager.isRemoved() && !villager.isBaby() && !villager.isSleeping()
             && !villager.isTrading() && !HiggsVillagers.bedtime(villager) && !VillagerAlarm.chased(villager)
@@ -141,7 +150,7 @@ final class VillagerGossipVisit implements VillagerMemoryService.GossipPresentat
         hold(visit.source); hold(visit.target);
         visit.source.setNoAi(visit.sourceNoAi); visit.target.setNoAi(visit.targetNoAi);
         visit.source.setXRot(0); visit.target.setXRot(0);
-        long next = System.currentTimeMillis() + 30_000;
+        long next = System.currentTimeMillis() + VillagerGossip.pacedDelay(visit.story.interest().score(), 30_000);
         cooldowns.put(visit.source.getUUID(), next); cooldowns.put(visit.target.getUUID(), next);
     }
     void clear() { release(); cooldowns.clear(); }

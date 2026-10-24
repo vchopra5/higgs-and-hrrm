@@ -149,3 +149,12 @@ One pass through every feature in a running game. Everything here has unit or in
 - Press B while looking at a gossiping adult villager within 8 blocks: the conversation starts; release and press again to speak after the greeting.
 - Look at a non-gossiping adult villager: it connects automatically as before. With no active partner, B can still select the nearest available villager when looking away.
 - During an active conversation, looking away does not disconnect it; B still speaks to the selected partner. A fresh B press aimed at another villager switches partners.
+
+### Expressive gossip and deliberate departures
+
+- Tell one villager meaningful public news. Higgs may save it and choose `share_news`; verify a short farewell finishes before the conversation ends and the villager approaches a free neighbour.
+- Press B during the farewell: departure must cancel. Repeat with nobody available, a trade awaiting confirmation, nighttime, a private story, and a story already known by every neighbour: no departure should occur.
+- A listener becoming unavailable before departure should leave the player conversation open. Story privacy and forwarding checks still apply on arrival.
+- Compare routine, major (75–84), and exceptional (85+) news: major/exceptional stories get earlier polling and shorter personality/pair/visit delays; no global broadcast occurs.
+- During conversation, observe occasional model-selected reactions to good news, danger, mistreatment, uncertainty, and kindness. Check head gestures and limited particles, an excitement hop, and at least eight seconds between gestures.
+- Confirm trading and movement still work after each gesture. These physical cues do not themselves change reputation.

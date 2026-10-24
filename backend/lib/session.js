@@ -260,6 +260,9 @@ export class BridgeSession {
   }
 
   noteToolResult(tool, result) {
+    if (tool.name === 'share_news' && tool.turnId === this.turnId && result?.status === 'ready')
+      this.newsDeparture = { turnId: this.turnId, memoryId: tool.arguments.memoryId };
+
     if (!TRADE_TOOLS.has(tool.name) || tool.turnId !== this.turnId || !result || typeof result !== 'object') return;
     const trade = this.tradeTurn();
     if (tool.name === 'confirm_trade' && result.status === 'purchased') trade.purchased = true;
@@ -663,6 +666,19 @@ export class BridgeSession {
       this.commitAudioTurn(turnId);
     }
     const spoken = this.responseText.trim();
+    if (this.newsDeparture && status === 'completed' && spoken && !this.hasTools && !this.recording && !this.cancelled) {
+      const departure = this.newsDeparture;
+      this.newsDeparture = null;
+      const playMs = Math.max(0, this.diagnostics.outputBytes - (this.responseStartBytes ?? 0)) / 48;
+      clearTimeout(this.newsDepartureTimer);
+      this.newsDepartureTimer = setTimeout(() => {
+        if (this.closed || this.turnId !== departure.turnId || !this.quiet() || this.cancelled) return;
+        const callId = `share-news-${this.id}-${departure.turnId}`;
+        this.pending.set(callId, { callId, name: '_share_news_depart', arguments: { memoryId: departure.memoryId },
+          internal: true, turnId: departure.turnId, created: this.now() });
+      }, playMs + 500);
+      this.newsDepartureTimer.unref?.();
+    }
     if (this.context.bedtime === true && !this.bedtimeTimer) {
       // Night: one line about heading to bed, then goodbye, once the client has played it (24 kHz PCM16 = 48 B/ms).
       // Ends even when the player cut the line off: nothing else will be said.
@@ -843,6 +859,7 @@ export class BridgeSession {
     clearTimeout(this.connectTimer);
     clearTimeout(this.bedtimeTimer);
     clearTimeout(this.bedtimeDeadline);
+    clearTimeout(this.newsDepartureTimer);
     this.memoryContext.close();
     this.companion?.close();
     for (const socket of [this.client, this.upstream]) {

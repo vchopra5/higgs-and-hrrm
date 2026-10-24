@@ -227,6 +227,9 @@ public final class VillagerMemoryTest {
     }
 
     private static void personalityGossip(Path file) throws Exception {
+        require(VillagerGossip.pacedDelay(60, 60000) == 60000, "routine news keeps its pace");
+        require(VillagerGossip.pacedDelay(80, 60000) == 20000, "major news travels three times faster");
+        require(VillagerGossip.pacedDelay(90, 60000) == 10000, "exceptional news travels six times faster");
         var eager = new VillagerGossip.Policy(55, 5000, 100, List.of("people"));
         var sceptic = new VillagerGossip.Policy(70, 30000, 150, List.of("books"));
         var guarded = new VillagerGossip.Policy(65, 60000, 200, List.of("tools"));
@@ -241,17 +244,17 @@ public final class VillagerMemoryTest {
             var third = contact(THIRD, "overworld", 10, true);
             var gossip = new VillagerGossip(16, 60000);
             var snapshot = store.gossipSnapshot(NOW).get(FARMER);
-            require(!gossip.spread(source, target, snapshot, store, NOW + 4999, eager, sceptic), "eager character still waits for its delay");
+            require(!gossip.spread(source, target, snapshot, store, NOW + 1665, eager, sceptic), "eager character still waits for its delay");
             require(!gossip.spread(source, target, snapshot, store, NOW + 5000, guarded, sceptic), "guarded character waits longer for the same story");
             require(gossip.spread(source, target, snapshot, store, NOW + 5000, eager, sceptic), "eager character shares first");
             store.flush().join();
             require(store.has(LIBRARIAN, book.rootId()), "personal interests break ties independently of profession");
             var heard = store.recall(LIBRARIAN, PLAYER, "", false, NOW + 5000).getFirst();
             require(heard.learnedAt() == NOW + 5000 && heard.createdAt() == NOW, "each holder has its own learned time");
-            require(!gossip.spread(target, third, List.of(heard), store, NOW + 30000, sceptic, guarded), "original story age cannot bypass a recipient's delay");
-            require(gossip.spread(target, third, List.of(heard), store, NOW + 35000, sceptic, guarded), "later hop waits from the actual hearing time");
-            require(!gossip.spread(source, target, List.of(low), store, NOW + 64000, eager, sceptic), "existing pair cooldown remains enforced");
-            require(gossip.spread(source, target, List.of(low), store, NOW + 65000, eager, sceptic), "pair cooldown expires at its configured boundary");
+            require(!gossip.spread(target, third, List.of(heard), store, NOW + 14999, sceptic, guarded), "original story age cannot bypass a recipient's delay");
+            require(gossip.spread(target, third, List.of(heard), store, NOW + 15000, sceptic, guarded), "later hop waits from the actual hearing time");
+            require(!gossip.spread(source, target, List.of(low), store, NOW + 24999, eager, sceptic), "existing pair cooldown remains enforced");
+            require(gossip.spread(source, target, List.of(low), store, NOW + 25000, eager, sceptic), "pair cooldown expires at its configured boundary");
             require(!gossip.spread(source, contact(UUID.randomUUID(), "overworld", 5, true), List.of(low), store, NOW + 120000, sceptic, eager), "sceptic declines lower-interest news even after waiting");
             require(!gossip.spread(source, contact(UUID.randomUUID(), "overworld", 5, true), List.of(secret), store, NOW + 120000, eager, eager), "eager traits never bypass privacy");
         }

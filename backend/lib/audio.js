@@ -2,6 +2,9 @@ import { LIMITS } from './protocol.js';
 import { interruptTools } from './tools.js';
 
 export function interruptAudio(session, cancelProvider) {
+  clearTimeout(session.newsDepartureTimer);
+  session.newsDeparture = null;
+  for (const [id, tool] of session.pending) if (tool.name === '_share_news_depart') session.pending.delete(id);
   session.recording = true;
   session.cancelled = true;
   session.companion?.cancel();

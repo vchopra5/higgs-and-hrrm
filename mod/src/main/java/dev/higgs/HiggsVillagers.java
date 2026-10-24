@@ -43,6 +43,7 @@ public final class HiggsVillagers implements ModInitializer {
     private VillageMoments moments;
     private VillagerOuting outings;
     private VillagerGossipVisit gossipVisit;
+    private final VillagerGestures gestures = new VillagerGestures();
     private final Map<String, Long> bedtimeUntil = new HashMap<>();
     private static final long BEDTIME_MS = 90_000;
     /** The clock is authoritative: REST can be stale after a time command, especially with NoAI. */
@@ -583,6 +584,7 @@ public final class HiggsVillagers implements ModInitializer {
                 if (s.companion != null && s.companion.isAlive() && s.companion.distanceToSqr(s.player) <= 144 && !outings.walking(s.companion))
                     face(s.companion, s.player);
             }
+            gestures.tick(ticks);
             if (ticks % 20 == 0) {
                 for (ServerPlayer viewer : server.getPlayerList().getPlayers()) {
                     if (!ServerPlayNetworking.canSend(viewer, ControlPayload.TYPE)) continue;
@@ -665,6 +667,7 @@ public final class HiggsVillagers implements ModInitializer {
             for (Session s : List.copyOf(sessions.values())) end(s.player, false);
             lastStart.clear();
             gossipVisit.clear();
+            gestures.clear();
             memory.stop();
             personalities.stop();
             chatter.clear();
@@ -1176,6 +1179,12 @@ public final class HiggsVillagers implements ModInitializer {
         return s.player.isAlive() && !s.player.isSpectator() && s.villager.isAlive() && !s.villager.isBaby() && !s.villager.isSleeping()
             && s.player.level() == s.villager.level() && s.player.distanceToSqr(s.villager) <= maximumDistanceSquared;
     }
+    private VillagerMemoryService.SharePlan sharePlan(Session s, String memoryId) {
+        if (!gossipVisit.readyForDeparture(s.villager) || s.proposal != null || s.villager.isTrading() || bedtime(s.villager) || outings.walking(s.villager)
+                || VillagerAlarm.chased(s.villager)) return null;
+        return memory.planShare(s.villager, memoryId, gossipVisit::readyForListener);
+    }
+
     private void poll(MinecraftServer server, Session s) {
         s.polling = true;
         request("GET", "/sessions/" + s.id + "/tools", null).whenComplete((reply, failure) -> server.execute(() -> {
@@ -1198,6 +1207,16 @@ public final class HiggsVillagers implements ModInitializer {
                         if (s.toolResults.size() + s.pendingTools.size() >= 256) { end(s.player, true); return; }
                         result = new JsonObject();
                         String name = call.get("name").getAsString();
+                        if (name.equals("_share_news_depart") && call.has("internal") && call.get("internal").getAsBoolean()) {
+                            var plan = sharePlan(s, call.getAsJsonObject("arguments").get("memoryId").getAsString());
+                            if (plan != null) {
+                                end(s.player, true, s.villager.getName().getString() + " is going to share the news.");
+                                memory.startShare(server, plan);
+                                return;
+                            }
+                            result = outcome("unavailable", "The neighbour is no longer available.");
+                            s.toolResults.put(callId, result); submitToolResult(s, callId, result); continue;
+                        }
                         if (name.equals("_conversation_opened") && call.has("internal") && call.get("internal").getAsBoolean()) {
                             if (s.openingContext != null) {
                                 memory.conversationOpened(s.villager, s.player, s.openingContext);
@@ -1263,7 +1282,14 @@ public final class HiggsVillagers implements ModInitializer {
                             });
                             continue;
                         }
-                        if (name.equals("get_trades")) {
+                        if (name.equals("share_news")) {
+                            var plan = sharePlan(s, call.getAsJsonObject("arguments").get("memoryId").getAsString());
+                            result = plan == null ? outcome("unavailable", "Stay with the player: no available neighbour can hear that public story yet.")
+                                : outcome("ready", "You may go tell " + plan.target().getName().getString() + ". Give a brief farewell now; you will leave after speaking. Do not claim it has been delivered.");
+                        } else if (name.equals("express_emotion")) {
+                            boolean shown = gestures.show(s.villager, call.getAsJsonObject("arguments").get("emotion").getAsString(), ticks);
+                            result = outcome(shown ? "expressed" : "cooldown", "Continue speaking naturally; do not describe the gesture.");
+                        } else if (name.equals("get_trades")) {
                             if (Negotiation.hostile(standing(s))) result = refused();
                             else if (!canTrade(s.villager)) result = noTrade(s);
                             else result.add("offers", offers(s));

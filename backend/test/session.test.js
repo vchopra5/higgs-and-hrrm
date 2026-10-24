@@ -1094,3 +1094,52 @@ test('departed companions cannot speak or hear missed dialogue on rejoining', as
   await until(() => f.received.some(e => e.type === 'response.create'));
   assert.equal(session.closed, false);
 });
+
+
+test('model-selected news departure waits for farewell and is cancelled by interruption', async t => {
+  for (const interrupted of [false, true]) {
+    const f = await fixture(t, { mode: 'ptt' });
+    const session = f.bridge.sessions.get(f.sessionId);
+    const memoryId = '12345678-1234-1234-1234-123456789abc';
+    f.emit({ type: 'response.created', response: { id: 'decision' } });
+    f.emit({ type: 'response.function_call_arguments.done', response_id: 'decision', call_id: 'share', name: 'share_news', arguments: JSON.stringify({ memoryId }) });
+    f.emit({ type: 'response.done', response: { id: 'decision', status: 'completed' } });
+    await until(() => session.pending.has('share'));
+    await f.request(`/sessions/${f.sessionId}/tools/share/result`, 'POST', { result: { status: 'ready' } });
+    assert.equal([...session.pending.values()].some(p => p.name === '_share_news_depart'), false, 'does not walk away before farewell');
+    f.emit({ type: 'response.created', response: { id: 'farewell' } });
+    f.emit({ type: 'response.output_audio_transcript.done', response_id: 'farewell', transcript: 'Ada ought to hear this. Excuse me a moment.' });
+    f.emit({ type: 'response.output_audio.delta', response_id: 'farewell', delta: 'AAAA' });
+    f.emit({ type: 'response.done', response: { id: 'farewell', status: 'completed' } });
+    await until(() => session.newsDepartureTimer);
+    if (interrupted) {
+      f.client.send(JSON.stringify({ type: 'interrupt' }));
+      await until(() => session.recording);
+      await new Promise(resolve => setTimeout(resolve, 600));
+      assert.equal([...session.pending.values()].some(p => p.name === '_share_news_depart'), false);
+    } else {
+      await until(() => [...session.pending.values()].some(p => p.name === '_share_news_depart'));
+      assert.equal([...session.pending.values()].find(p => p.name === '_share_news_depart').arguments.memoryId, memoryId);
+    }
+    assert.equal(session.closed, false, 'the game still must validate the listener before closing');
+  }
+});
+
+test('emotion and news tools validate arguments and refusals cannot schedule departure', async t => {
+  const f = await fixture(t);
+  const session = f.bridge.sessions.get(f.sessionId);
+  const config = f.received.find(e => e.type === 'session.update').session;
+  assert.ok(config.tools.some(t => t.name === 'share_news'));
+  assert.ok(config.tools.some(t => t.name === 'express_emotion'));
+  f.emit({ type: 'response.created', response: { id: 'actions' } });
+  for (const [call_id, name, args] of [
+    ['bad-id', 'share_news', { memoryId: 'invented' }],
+    ['bad-emotion', 'express_emotion', { emotion: 'fly' }],
+    ['gesture', 'express_emotion', { emotion: 'worried' }],
+    ['share-refused', 'share_news', { memoryId: '12345678-1234-1234-1234-123456789abc' }],
+  ]) f.emit({ type: 'response.function_call_arguments.done', response_id: 'actions', call_id, name, arguments: JSON.stringify(args) });
+  await until(() => session.pending.has('share-refused'));
+  assert.deepEqual([...session.pending.keys()], ['gesture', 'share-refused']);
+  await f.request(`/sessions/${f.sessionId}/tools/share-refused/result`, 'POST', { result: { status: 'unavailable' } });
+  assert.equal(session.newsDeparture, undefined);
+});

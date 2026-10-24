@@ -463,3 +463,16 @@ A hit costs 2 reputation, down to the minimum of -5; a changed score cancels an 
 The bridge keeps only the latest queued statistics, waits until player speech/provider work finishes, and drops events older than 10 seconds. Higgs delivery uses per-response `instructions` for tone and energy: https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices.
 
 Test isolated hits, then several rapid hits, and listen for context-sensitive reactions. Wait 30 seconds for previous hits to age out. Hit during an active quote to see cancellation fade; hit outside a trade to check that no trade card appears.
+
+### Expressive reactions and urgent gossip
+
+Higgs can choose a short physical reaction with `express_emotion`: excitement, worry,
+anger, thoughtfulness, or gratitude grounded in the conversation. Gestures use vanilla
+head movement and selected particles, with a hop for excitement and an eight-second cooldown.
+
+With `share_news`, a villager can choose to leave after a spoken farewell to tell a free
+neighbour a specific saved public story. The server checks privacy, relevance, proximity,
+trade state, and availability again before departure. Interrupting the farewell cancels it.
+Major news (interest 75–84) uses one-third of ordinary sharing delays; exceptional news
+(85+) uses one-sixth. High-interest stories are considered every two seconds by default.
+Spread remains person-to-person, with existing privacy and forwarding limits.

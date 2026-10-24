@@ -352,10 +352,14 @@ public final class VillagerMemoryService {
     }
 
     public void tick(MinecraftServer server, int ticks) {
-        if (store == null || stopping || ticks % intervalTicks != 0) return;
+        if (store == null || stopping || (ticks % intervalTicks != 0 && ticks % Math.min(intervalTicks, 40) != 0)) return;
         long now = System.currentTimeMillis();
         // Snapshot before any transfers: newly heard stories wait until a later pass.
         var snapshot = store.gossipSnapshot(now);
+        if (ticks % intervalTicks != 0) {
+            snapshot.replaceAll((owner, stories) -> stories.stream().filter(m -> m.interest().score() >= 75).toList());
+            snapshot.values().removeIf(List::isEmpty);
+        }
         List<UUID> owners = new ArrayList<>(snapshot.keySet());
         List<Villager[]> delivered = new ArrayList<>();
         int count = Math.min(32, owners.size());
@@ -415,6 +419,24 @@ public final class VillagerMemoryService {
                 }
             });
         });
+    }
+
+    record SharePlan(Villager source, Villager target, VillagerMemoryStore.Memory story) {}
+
+    SharePlan planShare(Villager source, String memoryId, java.util.function.Predicate<Villager> available) {
+        if (store == null || stopping || gossipPresentation == null) return null;
+        var stories = store.gossipSnapshot(System.currentTimeMillis()).getOrDefault(source.getUUID(), List.of());
+        var story = stories.stream().filter(m -> m.rootId().toString().equals(memoryId)).findFirst().orElse(null);
+        if (story == null) return null;
+        return source.level().getEntitiesOfClass(Villager.class, source.getBoundingBox().inflate(radius),
+                v -> v != source && available.test(v) && shareable(source, v, story)).stream()
+            .max(Comparator.comparingLong(v -> VillagerMemoryStore.priority(story, profession(v), null, System.currentTimeMillis())))
+            .map(target -> new SharePlan(source, target, story)).orElse(null);
+    }
+    boolean startShare(MinecraftServer server, SharePlan plan) {
+        return gossipPresentation != null && shareable(plan.source, plan.target, plan.story)
+            && gossipPresentation.offer(server, plan.source, plan.target, plan.story,
+                () -> shareable(plan.source, plan.target, plan.story), () -> deliver(server, plan.source, plan.target, plan.story));
     }
 
     private boolean shareable(Villager source, Villager target, VillagerMemoryStore.Memory story) {

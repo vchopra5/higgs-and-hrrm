@@ -46,6 +46,10 @@ export function submitToolResult(session, callId, result) {
 
 function validArguments(name, args) {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return false;
+  if (name === 'share_news') return Object.keys(args).length === 1 && typeof args.memoryId === 'string'
+    && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(args.memoryId);
+  if (name === 'express_emotion') return Object.keys(args).length === 1
+    && ['excited', 'worried', 'angry', 'thoughtful', 'grateful'].includes(args.emotion);
   if (name === 'remember_conversation') {
     return Object.keys(args).length === 5 && typeof args.summary === 'string'
       && args.summary.trim().length > 0 && args.summary.length <= 320

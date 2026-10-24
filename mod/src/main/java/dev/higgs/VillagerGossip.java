@@ -38,7 +38,7 @@ public final class VillagerGossip {
                           VillagerMemoryStore store, long now, Policy sourcePolicy, Policy targetPolicy) {
         var memory = select(source, target, snapshot, store, now, sourcePolicy, targetPolicy);
         if (memory == null || !store.receive(memory, source.id, source.name, target.id, now)) return false;
-        cooldowns.put(Pair.of(source.id, target.id), now + cooldownMs * sourcePolicy.cooldownPercent / 100);
+        cooldowns.put(Pair.of(source.id, target.id), now + pacedDelay(memory.interest().score(), cooldownMs * sourcePolicy.cooldownPercent / 100));
         return true;
     }
 
@@ -54,12 +54,16 @@ public final class VillagerGossip {
         Pair pair = Pair.of(source.id, target.id);
         if (cooldowns.containsKey(pair) || cooldowns.size() >= 4096) return null;
         for (var memory : snapshot.stream()
-            .filter(memory -> memory.interest().score() >= sourcePolicy.threshold && now - memory.learnedAt() >= sourcePolicy.delayMs)
+            .filter(memory -> memory.interest().score() >= sourcePolicy.threshold && now - memory.learnedAt() >= pacedDelay(memory.interest().score(), sourcePolicy.delayMs))
             .sorted(order(target.profession, null, now, targetPolicy.interests)).toList()) {
             if (store.canReceive(memory, source.id, target.id, now)) return memory;
         }
         return null;
     }
+    static long pacedDelay(int interest, long ordinary) {
+        return interest >= 85 ? ordinary / 6 : interest >= 75 ? ordinary / 3 : ordinary;
+    }
+
     public static Comparator<VillagerMemoryStore.Memory> order(String profession, UUID player, long now, List<String> interests) {
         return Comparator.<VillagerMemoryStore.Memory>comparingLong(memory ->
             VillagerMemoryStore.priority(memory, profession, player, now) + interestBonus(memory, interests)).reversed()
