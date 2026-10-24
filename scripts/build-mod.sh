@@ -25,5 +25,5 @@ if [[ ${#gradle_cmd[@]} -eq 0 ]]; then
 fi
 "${gradle_cmd[@]}" build "$@"
 if command -v sha1sum >/dev/null; then sha1() { sha1sum "$@"; }; else sha1() { shasum -a 1 "$@"; }; fi
-printf '%s\n' "${MOJANG_SHA1[@]}" | sha1 -c --quiet \
+printf '%s\n' "${MOJANG_SHA1[@]}" | sha1 -c - \
   || { echo "Loom's Minecraft jars differ from Mojang's; delete $LOOM_CACHE and rebuild." >&2; exit 1; }
