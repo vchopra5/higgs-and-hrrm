@@ -9,7 +9,7 @@
 
 <p align="center">
   <a href="docs/setup.md"><strong>Get started</strong></a> &nbsp;·&nbsp;
-  <a href="demo.md">Demo &amp; presentation</a> &nbsp;·&nbsp;
+  <a href="https://www.youtube.com/watch?v=D5wlctYf8L4">Watch the demo</a> &nbsp;·&nbsp;
   <a href="docs/architecture.md">Architecture</a> &nbsp;·&nbsp;
   <a href="backend/README.md">Voice bridge</a>
 </p>
@@ -43,6 +43,8 @@ The main conversation uses **`higgs-realtime-1.5-preview`**, with **`higgs-stt-3
 **Usage grows with conversations and ambient activity.** A companion adds a second session; chatter opens sessions for its participants; memory consolidation adds one short text-only session after qualifying conversations. Set `HIGGS_COMPANION_ENABLED=false`, `HIGGS_CHATTER_ENABLED=false`, or `HIGGS_CONSOLIDATION_ENABLED=false` to disable those extras. There is no fixed cost estimate here; usage depends on the demo and your Boson account. [Integration details](backend/README.md) · [Session configuration](backend/lib/protocol.js)
 
 ## See it in action
+
+**[Watch the HIGGS HRRM demo on YouTube](https://www.youtube.com/watch?v=D5wlctYf8L4).**
 
 ![Minecraft demo: three villagers with reputation bars in the game world](docs/assets/screenshots/minecraft-villagers.png)
 
@@ -195,7 +197,7 @@ npm --prefix backend test
 ./scripts/build-mod.sh
 ```
 
-Backend tests use a local fake Higgs endpoint. The build compiles the mod; live API access, microphone behavior, and end-to-end gameplay require the [playtest checklist](docs/playtest-checklist.md). Demo instructions and rehearsal notes are in [demo.md](demo.md).
+Backend tests use a local fake Higgs endpoint. The build compiles the mod; live API access, microphone behavior, and end-to-end gameplay require the [playtest checklist](docs/playtest-checklist.md). Watch the [recorded demo](https://www.youtube.com/watch?v=D5wlctYf8L4) for the project walkthrough.
 
 ## Explore the project
 
@@ -208,7 +210,6 @@ Backend tests use a local fake Higgs endpoint. The build compiles the mod; live 
 | [`docs/gameplay.md`](docs/gameplay.md) | Detailed feature behavior and limits |
 | [`docs/memory-rumours.md`](docs/memory-rumours.md) | Persistent memory and gossip demo |
 | [`docs/assets/screenshots/`](docs/assets/screenshots/) | Actual Minecraft and dashboard captures |
-| [`demo.md`](demo.md) | Presentation and rehearsal guide |
 
 ---
 
