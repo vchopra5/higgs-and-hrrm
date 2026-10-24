@@ -1,0 +1,415 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Village Dashboard</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --panel: #ffffff; --line: #e3e0d8; --text: #23211c; --muted: #6f6a5f; --accent: #2f6f4f;
+    --accent-soft: #e3efe7; --warn: #a3541b; --bad: #b3261e; --good: #2f7d32; --chip: #efece5;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #16171a; --panel: #1f2125; --line: #30333a; --text: #e8e6e1; --muted: #9a968d; --accent: #6fc196;
+      --accent-soft: #23362c; --warn: #e0a060; --bad: #ef8a80; --good: #7fcf85; --chip: #2a2c31; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 16px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--panel);
+    position: sticky; top: 0; z-index: 2; flex-wrap: wrap; }
+  header h1 { font-size: 16px; margin: 0; }
+  .status { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); }
+  .dot.live { background: var(--good); } .dot.stale { background: var(--warn); } .dot.down { background: var(--bad); }
+  nav { display: flex; gap: 4px; margin-left: auto; }
+  nav button, .btn { border: 1px solid var(--line); background: var(--panel); color: var(--text); border-radius: 6px; padding: 5px 10px;
+    font: inherit; cursor: pointer; }
+  nav button.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+  .btn:hover, nav button:hover { border-color: var(--accent); }
+  .btn.danger { color: var(--bad); } .btn.small { padding: 2px 7px; font-size: 12px; }
+  main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+  .split { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 800px) { .split { grid-template-columns: 1fr; } }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+  .panel h2 { font-size: 14px; margin: 0 0 8px; } .panel h3 { font-size: 13px; margin: 12px 0 6px; color: var(--muted); font-weight: 600; }
+  .list { max-height: calc(100vh - 140px); overflow: auto; position: sticky; top: 70px; }
+  .village { font-weight: 600; margin: 10px 0 4px; display: flex; justify-content: space-between; gap: 8px; }
+  .village small { color: var(--muted); font-weight: 400; }
+  .villager { display: flex; justify-content: space-between; gap: 6px; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+  .villager:hover { background: var(--chip); } .villager.on { background: var(--accent-soft); }
+  .muted { color: var(--muted); } .small { font-size: 12px; }
+  .chip { display: inline-block; background: var(--chip); border-radius: 999px; padding: 1px 8px; font-size: 12px; margin: 1px 3px 1px 0; }
+  .chip.good { color: var(--good); } .chip.bad { color: var(--bad); } .chip.warn { color: var(--warn); }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 4px 6px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 12px; }
+  .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 4px 0; }
+  input[type=text], input[type=search], select { background: var(--bg); color: var(--text); border: 1px solid var(--line); border-radius: 6px;
+    padding: 4px 8px; font: inherit; min-width: 0; }
+  input[type=search] { width: 100%; margin-bottom: 6px; }
+  .episodes { max-height: 260px; overflow: auto; margin: 0; padding: 0; list-style: none; }
+  .episodes li { display: flex; gap: 8px; padding: 3px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+  .episodes li span.type { min-width: 92px; color: var(--muted); font-size: 12px; }
+  .episodes li .text { flex: 1; }
+  pre { white-space: pre-wrap; word-break: break-word; background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 8px;
+    font-size: 12px; max-height: 360px; overflow: auto; margin: 6px 0 0; }
+  .standing { font-variant-numeric: tabular-nums; min-width: 2.5em; text-align: center; font-weight: 600; }
+  .empty { color: var(--muted); padding: 30px; text-align: center; }
+  #toasts { position: fixed; right: 16px; bottom: 16px; display: flex; flex-direction: column; gap: 6px; z-index: 5; }
+  .toast { background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 6px; padding: 8px 12px;
+    max-width: 360px; box-shadow: 0 4px 14px rgba(0,0,0,.12); font-size: 13px; }
+  .toast.ok { border-left-color: var(--good); } .toast.fail { border-left-color: var(--bad); }
+  details summary { cursor: pointer; color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Village dashboard</h1>
+  <div class="status"><span class="dot" id="dot"></span><span id="status">Connecting…</span></div>
+  <nav>
+    <button data-tab="villages" class="on">Villages</button>
+    <button data-tab="players">Players</button>
+    <button data-tab="live">Live conversations</button>
+  </nav>
+</header>
+<main id="main"><div class="empty">Waiting for the game server…</div></main>
+<div id="toasts"></div>
+<script>
+(() => {
+  // The token arrives once in the URL, then lives in this tab only.
+  const params = new URLSearchParams(location.search);
+  if (params.get('token')) { sessionStorage.setItem('dashboardToken', params.get('token')); history.replaceState(null, '', location.pathname); }
+  const token = sessionStorage.getItem('dashboardToken') || '';
+  const view = { tab: 'villages', villager: null, mapVillage: null, filter: '', data: null, pending: new Map(), dirty: false };
+
+  /** Builds elements from text only, so names and transcripts can never inject markup. */
+  function el(tag, props, ...children) {
+    const node = document.createElement(tag);
+    for (const [key, value] of Object.entries(props || {})) {
+      if (value === undefined || value === null || value === false) continue;
+      if (key.startsWith('on')) node.addEventListener(key.slice(2), value);
+      else if (key === 'class') node.className = value;
+      else node.setAttribute(key, value === true ? '' : value);
+    }
+    for (const child of children.flat(Infinity)) {
+      if (child === null || child === undefined || child === false) continue;
+      node.append(child instanceof Node ? child : document.createTextNode(String(child)));
+    }
+    return node;
+  }
+  const chip = (text, tone) => el('span', { class: 'chip' + (tone ? ' ' + tone : '') }, text);
+  const stack = item => item ? `${item.count} × ${item.name}` : '';
+  const toneOf = band => ({ friendly: 'good', annoyed: 'warn', hostile: 'bad' }[band]);
+
+  function toast(message, kind) {
+    const node = el('div', { class: 'toast ' + (kind || '') }, message);
+    document.getElementById('toasts').append(node);
+    setTimeout(() => node.remove(), 6000);
+  }
+
+  async function edit(body, label) {
+    try {
+      const reply = await fetch('/dashboard/edit', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) });
+      const json = await reply.json();
+      if (!reply.ok) { toast(json.error || 'Edit rejected', 'fail'); return; }
+      view.pending.set(json.id, label);
+      toast(label + ' · sent, applying on the next sync…');
+    } catch { toast('Could not reach the backend', 'fail'); }
+  }
+
+  // ---- Live data ----
+  function connect() {
+    const events = new EventSource('/dashboard/events?token=' + encodeURIComponent(token));
+    events.addEventListener('state', event => { view.data = JSON.parse(event.data); render(); });
+    events.addEventListener('result', event => {
+      const result = JSON.parse(event.data);
+      const label = view.pending.get(result.id);
+      view.pending.delete(result.id);
+      toast((label ? label + ': ' : '') + result.message, result.ok ? 'ok' : 'fail');
+    });
+    events.onerror = () => { setStatus('down', 'Disconnected · retrying'); };
+  }
+
+  function setStatus(kind, text) {
+    document.getElementById('dot').className = 'dot ' + kind;
+    document.getElementById('status').textContent = text;
+  }
+
+  setInterval(() => {
+    const data = view.data;
+    if (!data) return;
+    if (!data.snapshot) return setStatus('stale', 'No snapshot yet: is the game server running with the mod?');
+    const age = Math.round((Date.now() - data.snapshotAt) / 1000);
+    setStatus(age > 15 ? 'stale' : 'live', `Snapshot ${age}s ago · day ${data.snapshot.day} · ${data.snapshot.villagers.length} loaded villagers`);
+  }, 1000);
+
+  document.querySelectorAll('nav button').forEach(button => button.addEventListener('click', () => {
+    view.tab = button.dataset.tab;
+    document.querySelectorAll('nav button').forEach(other => other.classList.toggle('on', other === button));
+    render(true);
+  }));
+
+  // Do not redraw under someone typing; catch up when they leave the field.
+  document.addEventListener('focusout', () => { if (view.dirty) setTimeout(() => render(), 0); });
+
+  function render(force) {
+    const main = document.getElementById('main');
+    const typing = document.activeElement && main.contains(document.activeElement) && document.activeElement.tagName === 'INPUT'
+      && document.activeElement.type !== 'search';
+    if (typing && !force) { view.dirty = true; return; }
+    view.dirty = false;
+    const scroll = window.scrollY;
+    const list = main.querySelector('.list');
+    const listScroll = list ? list.scrollTop : 0;
+    const searchFocused = document.activeElement && document.activeElement.type === 'search';
+    main.replaceChildren(...(view.tab === 'villages' ? villages() : view.tab === 'players' ? players() : live()));
+    window.scrollTo(0, scroll);
+    const newList = main.querySelector('.list');
+    if (newList) newList.scrollTop = listScroll;
+    if (searchFocused) { const search = main.querySelector('input[type=search]'); search.focus(); search.setSelectionRange(search.value.length, search.value.length); }
+  }
+
+  // ---- Villages ----
+  function villages() {
+    const snapshot = view.data?.snapshot;
+    if (!snapshot) return [el('div', { class: 'empty' }, 'No snapshot yet. The game server sends one every few seconds while this page is open.')];
+    const byVillage = new Map(snapshot.villages.map(village => [village.key, { village, members: [] }]));
+    const loose = [];
+    const filter = view.filter.toLowerCase();
+    for (const villager of snapshot.villagers) {
+      if (filter && !`${villager.name} ${villager.profession}`.toLowerCase().includes(filter)) continue;
+      (byVillage.get(villager.village)?.members ?? loose).push(villager);
+    }
+    const search = el('input', { type: 'search', placeholder: 'Filter villagers…', value: view.filter,
+      oninput: event => { view.filter = event.target.value; render(true); } });
+    const groups = [];
+    for (const { village, members } of byVillage.values()) {
+      if (!members.length) continue;
+      const rep = Object.entries(village.reputation || {}).map(([name, value]) => `${name} ${value > 0 ? '+' : ''}${value}`).join(' · ');
+      groups.push(el('div', { class: 'village' }, village.name, el('small', {}, `${members.length} · ${rep || 'no players near'}`)));
+      groups.push(members.map(villagerRow));
+    }
+    if (loose.length) { groups.push(el('div', { class: 'village' }, 'Outside any village', el('small', {}, String(loose.length)))); groups.push(loose.map(villagerRow)); }
+    const selected = snapshot.villagers.find(villager => villager.id === view.villager);
+    return [el('div', { class: 'split' },
+      el('div', { class: 'panel list' }, search, groups.length ? groups : el('div', { class: 'muted' }, 'No villagers match.')),
+      el('div', {}, mapPanel(snapshot, selected),
+        selected ? villagerDetail(selected, snapshot) : el('div', { class: 'panel empty' }, 'Pick a villager on the map or in the list to see trades, memories and relationships.')))];
+  }
+
+  // ---- Map ----
+  const LANDMARKS = { meeting: ['#e2b33c', 'bell'], home: ['#a8664a', 'bed'] };
+  const WORKSTATIONS = new Set(['armorer', 'butcher', 'cartographer', 'cleric', 'farmer', 'fisherman', 'fletcher', 'leatherworker',
+    'librarian', 'mason', 'shepherd', 'toolsmith', 'weaponsmith']);
+
+  /** Top-down village map: terrain from the server, then landmarks, villagers (clickable) and players. */
+  function mapPanel(snapshot, selected) {
+    const drawable = snapshot.villages.filter(village => village.map);
+    if (!drawable.length) return el('div', { class: 'panel muted small' }, 'No village map yet: a village is drawn once a player is near enough for its chunks to load.');
+    const chosen = drawable.find(village => village.key === selected?.village) ?? drawable.find(village => village.key === view.mapVillage) ?? drawable[0];
+    view.mapVillage = chosen.key;
+    const { originX, originZ, step, cells } = chosen.map;
+    const span = cells * step, size = 640;
+    const canvas = el('canvas', { width: size, height: size, style: 'width:100%;max-width:640px;aspect-ratio:1;display:block;border-radius:8px;background:var(--bg);cursor:crosshair' });
+    const tip = el('div', { class: 'small muted', style: 'min-height:1.4em;margin-top:4px' }, 'Click a villager dot to open it.');
+    const toCanvas = (x, z) => [(x - originX) / span * size, (z - originZ) / span * size];
+    const inside = (x, z) => x >= originX && z >= originZ && x < originX + span && z < originZ + span;
+    const people = snapshot.villagers.filter(villager => villager.dimension === chosen.dimension && inside(villager.x, villager.z));
+    const players = snapshot.players.filter(player => player.dimension === chosen.dimension && inside(player.x, player.z));
+    const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+    const g = canvas.getContext('2d');
+    const terrain = document.createElement('canvas');
+    terrain.width = terrain.height = cells;
+    const bytes = Uint8ClampedArray.from(atob(chosen.map.rgba), c => c.charCodeAt(0));
+    terrain.getContext('2d').putImageData(new ImageData(bytes, cells, cells), 0, 0);
+    g.imageSmoothingEnabled = false;
+    g.drawImage(terrain, 0, 0, size, size);
+    // Village boundary.
+    const [cx, cz] = toCanvas(chosen.x, chosen.z);
+    g.setLineDash([6, 5]); g.strokeStyle = 'rgba(255,255,255,.8)'; g.lineWidth = 2;
+    g.beginPath(); g.arc(cx, cz, chosen.radius / span * size, 0, Math.PI * 2); g.stroke(); g.setLineDash([]);
+    for (const mark of chosen.landmarks || []) {
+      const [x, y] = toCanvas(mark.x + 0.5, mark.z + 0.5);
+      if (mark.type === 'meeting') { g.fillStyle = LANDMARKS.meeting[0]; g.strokeStyle = '#000'; g.lineWidth = 1.5; g.beginPath(); g.arc(x, y, 7, 0, Math.PI * 2); g.fill(); g.stroke(); }
+      else if (mark.type === 'home') { g.fillStyle = LANDMARKS.home[0]; g.fillRect(x - 3, y - 3, 6, 6); }
+      else if (WORKSTATIONS.has(mark.type)) { g.fillStyle = '#4a7fd6'; g.strokeStyle = '#fff'; g.lineWidth = 1; g.beginPath(); g.moveTo(x, y - 6); g.lineTo(x + 6, y); g.lineTo(x, y + 6); g.lineTo(x - 6, y); g.closePath(); g.fill(); g.stroke(); }
+    }
+    const dots = people.map(villager => ({ villager, at: toCanvas(villager.x + 0.5, villager.z + 0.5) }));
+    for (const { villager, at: [x, y] } of dots) {
+      const isSelected = villager.id === selected?.id;
+      g.fillStyle = villager.talkingWith ? css('--good') || '#2f7d32' : villager.noAi ? '#c9893a' : '#f4efe6';
+      g.strokeStyle = '#111'; g.lineWidth = isSelected ? 3 : 1.5;
+      g.beginPath(); g.arc(x, y, isSelected ? 8 : villager.baby ? 4 : 6, 0, Math.PI * 2); g.fill(); g.stroke();
+      if (isSelected) label(g, villager.name, x, y - 12);
+    }
+    for (const player of players) {
+      const [x, y] = toCanvas(player.x + 0.5, player.z + 0.5);
+      g.fillStyle = '#ffffff'; g.strokeStyle = '#111'; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(x, y - 9); g.lineTo(x + 7, y + 6); g.lineTo(x - 7, y + 6); g.closePath(); g.fill(); g.stroke();
+      label(g, player.name, x, y - 13);
+    }
+    const nearest = event => {
+      const box = canvas.getBoundingClientRect();
+      const mx = (event.clientX - box.left) / box.width * size, my = (event.clientY - box.top) / box.height * size;
+      let best = null, bestDistance = 14;
+      for (const dot of dots) {
+        const distance = Math.hypot(dot.at[0] - mx, dot.at[1] - my);
+        if (distance < bestDistance) { best = dot.villager; bestDistance = distance; }
+      }
+      return { villager: best, x: Math.round(originX + mx / size * span), z: Math.round(originZ + my / size * span) };
+    };
+    canvas.addEventListener('mousemove', event => {
+      const hit = nearest(event);
+      tip.textContent = hit.villager ? `${hit.villager.name} · ${hit.villager.profession} ${hit.villager.level}${hit.villager.talkingWith ? ' · talking' : ''}`
+        : `x ${hit.x}, z ${hit.z}`;
+    });
+    canvas.addEventListener('click', event => { const hit = nearest(event); if (hit.villager) { view.villager = hit.villager.id; render(true); } });
+    const picker = drawable.length > 1 && el('select', { onchange: event => { view.mapVillage = event.target.value; view.villager = null; render(true); } },
+      drawable.map(village => el('option', { value: village.key, selected: village.key === chosen.key }, village.name)));
+    const legend = el('div', { class: 'row small muted' },
+      key('#f4efe6', 'villager'), key(css('--good') || '#2f7d32', 'talking'), key('#c9893a', 'AI off'), key('#ffffff', 'player', true),
+      key(LANDMARKS.meeting[0], 'bell'), key('#4a7fd6', 'workstation'), key(LANDMARKS.home[0], 'bed'), 'North is up.');
+    return el('div', { class: 'panel' }, el('div', { class: 'row' }, el('h2', { style: 'margin:0' }, `Map · ${chosen.name}`), picker,
+      el('span', { class: 'muted small' }, `${people.length} villagers · ${(chosen.landmarks || []).length} landmarks`)), canvas, tip, legend);
+  }
+
+  function label(g, text, x, y) {
+    g.font = '600 13px system-ui, sans-serif'; g.textAlign = 'center';
+    g.lineWidth = 3; g.strokeStyle = 'rgba(0,0,0,.75)'; g.strokeText(text, x, y);
+    g.fillStyle = '#fff'; g.fillText(text, x, y);
+  }
+
+  function key(colour, text, triangle) {
+    return el('span', {}, el('span', { style: `display:inline-block;width:10px;height:10px;margin-right:4px;background:${colour};border:1px solid #333;`
+      + (triangle ? 'clip-path:polygon(50% 0,100% 100%,0 100%);' : 'border-radius:50%;') }), text);
+  }
+
+  function villagerRow(villager) {
+    const badges = [villager.talkingWith && chip('talking', 'good'), villager.sleeping && chip('asleep'), villager.noAi && chip('AI off', 'warn'),
+      villager.baby && chip('child')];
+    return el('div', { class: 'villager' + (villager.id === view.villager ? ' on' : ''), onclick: () => { view.villager = villager.id; render(true); } },
+      el('span', {}, villager.name, ' ', el('span', { class: 'muted small' }, `${villager.profession} ${villager.level}`)), el('span', {}, badges));
+  }
+
+  function villagerDetail(villager, snapshot) {
+    const village = snapshot.villages.find(entry => entry.key === villager.village);
+    const nameInput = el('input', { type: 'text', value: villager.name, maxlength: 32, size: 16 });
+    const header = el('div', { class: 'panel' },
+      el('div', { class: 'row' }, el('h2', { style: 'margin:0' }, villager.name), chip(`${villager.profession} · level ${villager.level} · ${villager.xp} xp`),
+        villager.talkingWith && chip('talking with ' + villager.talkingWith, 'good'), villager.sleeping && chip('asleep'), villager.noAi && chip('AI off', 'warn')),
+      el('div', { class: 'muted small' }, `${village ? village.name + ' · ' : ''}${villager.dimension.replace('minecraft:', '')} ${villager.x}, ${villager.y}, ${villager.z}`
+        + (villager.personality ? ` · ${villager.personality.archetype} / ${villager.personality.style}` : '')),
+      villager.mind && el('div', { class: 'row small' }, chip('mood: ' + villager.mind.mood), chip('goal: ' + villager.mind.goal),
+        villager.mind.onYourMind && el('span', { class: 'muted' }, 'on its mind: ' + villager.mind.onYourMind)),
+      el('div', { class: 'row' },
+        nameInput, el('button', { class: 'btn small', onclick: () => edit({ type: 'rename', villagerId: villager.id, name: nameInput.value }, 'Rename') }, 'Rename'),
+        el('button', { class: 'btn small', onclick: () => edit({ type: 'restock', villagerId: villager.id }, 'Restock ' + villager.name) }, 'Restock trades'),
+        el('button', { class: 'btn small', onclick: () => edit({ type: 'set_ai', villagerId: villager.id, enabled: villager.noAi }, (villager.noAi ? 'Enable' : 'Disable') + ' AI') },
+          villager.noAi ? 'Turn AI on' : 'Turn AI off')));
+    const trades = el('div', { class: 'panel' }, el('h2', {}, `Trades (${villager.trades.length})`),
+      villager.trades.length ? el('table', {}, el('tr', {}, ['#', 'Pays', 'Gets', 'Stock', 'Demand', 'XP'].map(head => el('th', {}, head))),
+        villager.trades.map(trade => el('tr', {},
+          el('td', {}, trade.index), el('td', {}, stack(trade.costA), trade.costB ? ' + ' + stack(trade.costB) : '',
+            trade.costA.count !== trade.baseCost ? el('span', { class: 'muted small' }, ` (base ${trade.baseCost})`) : ''),
+          el('td', {}, stack(trade.result)),
+          el('td', {}, trade.outOfStock ? chip('sold out', 'bad') : `${trade.maxUses - trade.uses} of ${trade.maxUses} left`),
+          el('td', {}, trade.demand), el('td', {}, trade.xp)))) : el('div', { class: 'muted' }, 'No trades.'));
+    const bonds = el('div', { class: 'panel' }, el('h2', {}, `Relationships (${villager.relationships.length})`),
+      villager.relationships.length ? el('div', { class: 'cards' }, villager.relationships.map(bond => relationship(villager, bond)))
+        : el('div', { class: 'muted' }, 'Nobody yet.'));
+    const memories = el('div', { class: 'panel' }, el('h2', {}, `Memories & rumours (${villager.memories.length})`),
+      villager.memories.length ? el('table', {}, el('tr', {}, ['About', 'Memory', 'Heard from', 'Interest'].map(head => el('th', {}, head))),
+        villager.memories.map(memory => el('tr', {}, el('td', {}, memory.about), el('td', {}, memory.summary, memory.private ? ' ' : '', memory.private && chip('private', 'warn')),
+          el('td', {}, memory.hops ? memory.from : 'the player'), el('td', {}, memory.interest ?? '')))) : el('div', { class: 'muted' }, 'Nothing heard.'));
+    return [header, trades, bonds, memories];
+  }
+
+  function relationship(villager, bond) {
+    const ids = { villagerId: villager.id, playerId: bond.playerId };
+    const who = `${villager.name} ↔ ${bond.playerName}`;
+    const nick = el('input', { type: 'text', value: bond.nickname || '', maxlength: 24, size: 12, placeholder: 'nickname' });
+    const setStanding = value => edit({ type: 'set_standing', ...ids, value: Math.max(-5, Math.min(5, value)) }, `${who} standing ${value}`);
+    const quest = bond.quest;
+    return el('div', { class: 'panel', style: 'margin:0' },
+      el('div', { class: 'row' }, el('strong', {}, bond.playerName), chip(bond.stage, bond.stage.includes('friend') || bond.stage === 'confidant' ? 'good' : ''),
+        chip(bond.band, toneOf(bond.band)), bond.keepsake && chip('keepsake given')),
+      el('div', { class: 'row' }, 'Standing',
+        el('button', { class: 'btn small', onclick: () => setStanding(bond.standing - 1) }, '−'),
+        el('span', { class: 'standing' }, bond.standing > 0 ? '+' + bond.standing : bond.standing),
+        el('button', { class: 'btn small', onclick: () => setStanding(bond.standing + 1) }, '+'),
+        el('button', { class: 'btn small', onclick: () => setStanding(0) }, 'neutral')),
+      el('div', { class: 'row' }, nick,
+        el('button', { class: 'btn small', onclick: () => edit({ type: 'set_nickname', ...ids, nickname: nick.value.trim() || null }, `${who} nickname`) }, 'Save'),
+        bond.nickname && el('button', { class: 'btn small', onclick: () => edit({ type: 'set_nickname', ...ids, nickname: null }, `${who} nickname cleared`) }, 'Clear')),
+      bond.summary && el('div', { class: 'small', style: 'margin:6px 0' }, bond.summary),
+      el('div', {}, Object.entries(bond.counts || {}).map(([type, count]) => chip(`${type} ${count}`))),
+      quest && el('div', {}, el('h3', {}, quest.delivered ? 'Earned deal (unused)' : 'Open quest'),
+        el('div', { class: 'small' }, quest.delivered ? quest.deal : `Wants ${quest.wants}, then ${quest.deal}`),
+        el('div', { class: 'row' },
+          !quest.delivered && el('button', { class: 'btn small', onclick: () => edit({ type: 'deliver_quest', ...ids }, `${who} quest delivered`) }, 'Mark delivered'),
+          el('button', { class: 'btn small danger', onclick: () => edit({ type: 'clear_quest', ...ids }, `${who} quest cleared`) }, quest.delivered ? 'Remove deal' : 'Clear quest'))),
+      bond.openPromises?.length ? el('div', {}, el('h3', {}, 'Open promises'), el('ul', { class: 'episodes' }, bond.openPromises.map(promise => episode(promise)))) : null,
+      bond.episodes?.length ? el('details', {}, el('summary', {}, `Journal (${bond.episodes.length} most recent)`),
+        el('ul', { class: 'episodes' }, bond.episodes.map(entry => episode(entry, true)))) : null,
+      el('div', { class: 'row', style: 'margin-top:8px' }, el('button', { class: 'btn small danger', onclick: () => {
+        if (confirm(`Reset ${who}? Standing goes to 0 and the journal for this relationship is cleared. Saved memories and rumours remain.`))
+          edit({ type: 'reset_relationship', ...ids }, `${who} reset`);
+      } }, 'Reset relationship')));
+  }
+
+  function episode(entry, forgettable) {
+    return el('li', {}, el('span', { class: 'type' }, `day ${entry.day} · ${entry.type}`), el('span', { class: 'text' }, entry.text, entry.witnessed ? ' (seen)' : ''),
+      forgettable && el('button', { class: 'btn small', title: 'Forget this episode',
+        onclick: () => edit({ type: 'forget_episode', episodeId: entry.id }, 'Forget episode') }, '×'));
+  }
+
+  // ---- Players ----
+  function players() {
+    const snapshot = view.data?.snapshot;
+    if (!snapshot) return [el('div', { class: 'empty' }, 'No snapshot yet.')];
+    if (!snapshot.players.length) return [el('div', { class: 'panel empty' }, 'No players online.')];
+    return [el('div', { class: 'cards' }, snapshot.players.map(player => {
+      const state = player.state || {};
+      const conversation = state.conversation || {};
+      const errand = state.errand;
+      return el('div', { class: 'panel' },
+        el('div', { class: 'row' }, el('h2', { style: 'margin:0' }, player.name), el('span', { class: 'muted small' },
+          `${player.dimension.replace('minecraft:', '')} ${player.x}, ${player.y}, ${player.z}`)),
+        el('h3', {}, 'Conversation'),
+        el('div', { class: 'small' }, `With ${conversation.with}`, conversation.companion ? ` and ${conversation.companion}` : ''),
+        conversation.openQuote && conversation.openQuote !== 'none' && el('div', { class: 'small' }, 'Open quote: ' + conversation.openQuote),
+        conversation.walk && el('div', { class: 'small' }, 'Walk: ' + conversation.walk),
+        el('h3', {}, 'Errand'),
+        typeof errand === 'object' ? el('div', {}, el('div', { class: 'small' }, `From ${errand.from} to ${errand.to}: ${errand.task}`),
+          el('div', { class: 'muted small' }, errand.age),
+          el('button', { class: 'btn small danger', onclick: () => edit({ type: 'clear_errand', playerId: player.id }, `${player.name} errand cleared`) }, 'Clear errand'))
+          : el('div', { class: 'muted small' }, 'None'),
+        el('h3', {}, 'Quests'), (state.quests || []).length ? el('ul', { class: 'episodes' }, state.quests.map(quest => el('li', {}, quest))) : el('div', { class: 'muted small' }, 'None'),
+        el('h3', {}, 'Earned deals'), (state.earnedDeals || []).length ? el('ul', { class: 'episodes' }, state.earnedDeals.map(deal => el('li', {}, deal))) : el('div', { class: 'muted small' }, 'None'),
+        el('h3', {}, 'Villagers nearby'), el('table', {}, (state.villagers || []).map(row => el('tr', {}, el('td', {}, row.name), el('td', {}, row.standing),
+          el('td', {}, row.stage), el('td', { class: 'muted' }, [row.nickname && `“${row.nickname}”`, row.openPromises && `${row.openPromises} promises`].filter(Boolean).join(' · '))))));
+    }))];
+  }
+
+  // ---- Live conversations ----
+  function live() {
+    const sessions = view.data?.live || [];
+    if (!sessions.length) return [el('div', { class: 'panel empty' }, 'No conversations right now.')];
+    return [el('div', { class: 'cards' }, sessions.map(session => el('div', { class: 'panel' },
+      el('div', { class: 'row' }, el('h2', { style: 'margin:0' }, `${session.villager ?? 'Villager'} ↔ ${session.player ?? 'player'}`),
+        chip(`${session.turns} turns`), session.companion && chip('with ' + session.companion),
+        chip(Math.round((Date.now() - session.startedAt) / 1000) + 's')),
+      el('h3', {}, 'Transcript'),
+      session.transcript.length ? el('ul', { class: 'episodes' }, session.transcript.map(line => el('li', {}, line))) : el('div', { class: 'muted small' }, 'Nothing said yet.'),
+      el('details', {}, el('summary', {}, 'Context sent to Boson'), el('pre', {}, JSON.stringify(session.context, null, 2))))))];
+  }
+
+  if (!token) { document.getElementById('main').replaceChildren(el('div', { class: 'panel empty' }, 'Open this page as /dashboard?token=<HIGGS_DASHBOARD_TOKEN>.')); return; }
+  connect();
+})();
+</script>
+</body>
+</html>

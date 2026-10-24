@@ -35,13 +35,13 @@ public final class VillagerMemoryService {
 
     void gossipPresentation(GossipPresentation presentation) { gossipPresentation = presentation; }
     private Bonds bonds = new Bonds() {
-        public int standing(Villager villager, ServerPlayer player) { return 0; }
+        public int standing(Villager villager, UUID player) { return 0; }
         public void reached(Villager villager, ServerPlayer player, RelationshipStage stage) {}
     };
 
     /** The game's side of a relationship: the villager's current opinion, and what happens when a new stage is reached. */
     public interface Bonds {
-        int standing(Villager villager, ServerPlayer player);
+        int standing(Villager villager, UUID player);
         void reached(Villager villager, ServerPlayer player, RelationshipStage stage);
     }
 
@@ -119,12 +119,15 @@ public final class VillagerMemoryService {
      * How close the pair are now. A stage once reached is kept even after the episodes that earned it expire,
      * but a villager who has turned against the player falls back to acquaintance.
      */
-    public RelationshipStage stage(Villager villager, ServerPlayer player) {
+    public RelationshipStage stage(Villager villager, ServerPlayer player) { return stage(villager, player.getUUID()); }
+
+    /** By player ID, so the dashboard can show players who are offline. */
+    public RelationshipStage stage(Villager villager, UUID player) {
         VillagerJournal current = journal();
         if (current == null) return RelationshipStage.STRANGER;
         int standing = bonds.standing(villager, player);
-        var computed = RelationshipStage.of(current.counts(villager.getUUID(), player.getUUID(), System.currentTimeMillis()), standing);
-        var summary = current.summary(villager.getUUID(), player.getUUID());
+        var computed = RelationshipStage.of(current.counts(villager.getUUID(), player, System.currentTimeMillis()), standing);
+        var summary = current.summary(villager.getUUID(), player);
         var stored = RelationshipStage.named(summary == null ? null : summary.stage());
         return standing <= -2 || stored.ordinal() <= computed.ordinal() ? computed : stored;
     }
@@ -134,7 +137,7 @@ public final class VillagerMemoryService {
         VillagerJournal current = journal();
         if (current == null) return;
         long now = System.currentTimeMillis();
-        var computed = RelationshipStage.of(current.counts(villager.getUUID(), player.getUUID(), now), bonds.standing(villager, player));
+        var computed = RelationshipStage.of(current.counts(villager.getUUID(), player.getUUID(), now), bonds.standing(villager, player.getUUID()));
         var summary = current.summary(villager.getUUID(), player.getUUID());
         if (computed.ordinal() <= RelationshipStage.named(summary == null ? null : summary.stage()).ordinal()) return;
         current.update(villager.getUUID(), player.getUUID(), record -> record.withStage(computed.label));
@@ -221,6 +224,11 @@ public final class VillagerMemoryService {
         try { store.close(); }
         catch (Exception failure) { LOG.error("Could not flush villager memories on shutdown; check world save permissions."); }
         finally { store = null; }
+    }
+
+    /** Player claims and rumours this villager holds, newest first; empty while memory is unavailable. */
+    public List<VillagerMemoryStore.Memory> memoriesOf(Villager villager) {
+        return store == null ? List.of() : store.owned(villager.getUUID(), System.currentTimeMillis());
     }
 
     public JsonArray context(Villager villager, ServerPlayer player) {

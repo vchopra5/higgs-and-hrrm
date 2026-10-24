@@ -54,6 +54,8 @@ public final class VillagerPersonalityService {
             return store.flush().thenApply(ignored -> new Prepared(profile, previous == null ? null : previous.name()));
         } catch (RuntimeException failure) { return CompletableFuture.failedFuture(failure); }
     }
+    /** The villager's assigned personality, without assigning one; null if it has none yet. */
+    public VillagerPersonalityStore.Profile profile(java.util.UUID villager) { return store == null ? null : store.profile(villager); }
     public void applyName(Villager villager, Prepared prepared) {
         if (prepared.profile == null) return;
         if (!villager.hasCustomName() || villager.getName().getString().equals(prepared.previousName)) {

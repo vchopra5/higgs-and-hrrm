@@ -147,6 +147,8 @@ final class VillageTracker {
 
     /** The village a villager lives in, if it is within a named village's radius. */
     Village villageOf(Villager villager) { return nearest(villager, radius); }
+    /** Every village discovered so far, for the dashboard. */
+    List<Village> all() { return List.copyOf(villages.values()); }
 
     /** Mean standing towards the player of the loaded villagers within the village radius. */
     double reputation(ServerPlayer player, Village village) {

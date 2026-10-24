@@ -151,6 +151,32 @@ Backend tests use a local fake Higgs endpoint. The build compiles the mod; neith
 
 </details>
 
+## Village dashboard
+
+A browser view of everything the mod tracks, with edits. Set `HIGGS_DASHBOARD_TOKEN` in `.env`,
+and restart the backend: the dashboard opens in your browser (`HIGGS_DASHBOARD_OPEN=false` stops
+that; the address is `http://localhost:8787/dashboard?token=<token>`). The token is kept in the
+tab after the first visit. The dashboard only accepts local connections.
+
+- **Villages:** loaded villagers grouped by village, with each online player's village
+  reputation. A top-down **map** draws the village like a vanilla map (terrain colours
+  from loaded chunks, redrawn each minute), with the bell, workstations and beds, villagers
+  (click one to open it) and players. A villager's page shows:
+  - profession, level, position, personality and state of mind;
+  - trades (current and base price, stock, demand);
+  - memories and rumours it holds;
+  - one card per player it knows: standing, stage, nickname, summary, episode counts, open or
+    earned quest, open promises and the journal.
+- **Players:** online players with their conversation, open quote, walk, errand, quests, earned
+  deals and nearby villagers.
+- **Live conversations:** each conversation's transcript and the exact context sent to Boson.
+- **Edits:** set standing, rename, restock, turn AI on or off, set or clear a nickname, mark a
+  quest delivered, clear a quest or earned deal, clear an errand, forget a journal episode, or
+  reset a relationship (standing 0 and its journal cleared; saved memories and rumours remain).
+
+The game server syncs every 3 seconds. It builds a full snapshot only while the page is open, and
+edits apply on the next sync. Only loaded villagers are shown.
+
 ## Explore the project
 
 | Path | Inside |
