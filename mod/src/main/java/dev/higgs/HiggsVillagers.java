@@ -34,18 +34,17 @@ public final class HiggsVillagers implements ModInitializer {
     private final Map<UUID, Long> lastStart = new HashMap<>();
     private String backend, token, publicBackend;
     private int ticks;
-    private record HitState(int level, long at) {}
-    private final Map<String, HitState> hits = new HashMap<>();
+    private final Map<String, RecentHits> hits = new HashMap<>();
     private void hit(MinecraftServer server, ServerPlayer player, Villager villager) {
         Session candidate = new Session(player, villager);
         if (!valid(candidate) || player.distanceToSqr(villager) > 25) return;
         long now = System.currentTimeMillis();
-        hits.entrySet().removeIf(entry -> now - entry.getValue().at() > 30_000);
+        hits.entrySet().removeIf(entry -> now - entry.getValue().latest() >= RecentHits.WINDOW_MS);
         String key = relationshipKey(candidate);
-        HitState previous = hits.get(key);
-        if (previous != null && now - previous.at() < 750) return;
-        int level = previous == null ? 1 : Math.min(3, previous.level() + 1);
-        hits.put(key, new HitState(level, now));
+        RecentHits history = hits.computeIfAbsent(key, ignored -> new RecentHits());
+        // At most one attack per server tick; retain rapid attacks in the statistics.
+        if (history.latest() != Long.MIN_VALUE && now - history.latest() < 50) return;
+        RecentHits.Stats stats = history.record(now);
         Session s = sessions.get(player.getUUID());
         if (s == null || s.villager != villager) {
             if (now - lastStart.getOrDefault(player.getUUID(), 0L) < 1500 || token.isBlank()) return;
@@ -57,9 +56,16 @@ public final class HiggsVillagers implements ModInitializer {
         }
         if (s == null || s.villager != villager) return;
         s.mood = -2;
+        boolean wasTrading = s.proposal != null && s.proposal.expires() > now;
         s.proposal = null;
-        tradeStatus(s, outcome("cancelled", "Trade cancelled after being hit."));
-        s.hitLevel = level;
+        if (wasTrading) tradeStatus(s, outcome("cancelled", "Trade cancelled after being hit."));
+        JsonObject event = new JsonObject(); event.addProperty("type", "hit");
+        event.addProperty("windowMs", RecentHits.WINDOW_MS);
+        event.addProperty("count", stats.count());
+        event.addProperty("spanMs", stats.spanMs());
+        event.addProperty("sincePreviousMs", stats.sincePreviousMs());
+        event.addProperty("tradeCancelled", wasTrading || (s.hitEvent != null && s.hitEvent.get("tradeCancelled").getAsBoolean()));
+        s.hitEvent = event;
         s.hitAt = now;
     }
     private final Map<String, Relationship> relationships = new HashMap<>();
@@ -106,7 +112,8 @@ public final class HiggsVillagers implements ModInitializer {
         boolean polling;
         Proposal proposal;
         int pollFailures;
-        int mood, treatmentTurn, hitLevel;
+        int mood, treatmentTurn;
+        JsonObject hitEvent;
         long hitAt;
         int lastPurchaseTurn = -1;
         JsonObject lastReceipt;
@@ -142,9 +149,8 @@ public final class HiggsVillagers implements ModInitializer {
                         s.proposal = null;
                         tradeStatus(s, outcome("expired", "Offer expired. Ask for a fresh quote."));
                     }
-                    if (s.id != null && s.hitLevel > 0) {
-                        JsonObject event = new JsonObject(); event.addProperty("type", "hit");
-                        event.addProperty("level", s.hitLevel); s.hitLevel = 0;
+                    if (s.id != null && s.hitEvent != null) {
+                        JsonObject event = s.hitEvent; s.hitEvent = null;
                         if (System.currentTimeMillis() - s.hitAt < 10_000)
                             request("POST", "/sessions/" + s.id + "/events", event).exceptionally(ex -> {
                                 org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not deliver villager hit reaction");

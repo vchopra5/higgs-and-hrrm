@@ -172,30 +172,38 @@ test('the src.js entry point still starts and shuts down as a process', async t 
 });
 
 
-test('hit reactions escalate, coalesce and cannot execute trade tools or count as consent', async t => {
+test('hit statistics guide reactions, coalesce and cannot execute trade tools or count as consent', async t => {
   let clock = 1000;
   const f = await fixture(t, { now: () => clock });
   const path = `/sessions/${f.sessionId}/events`;
+  const hit = (count, tradeCancelled = false) => ({type:'hit', count, windowMs:30000, spanMs:(count-1)*500, sincePreviousMs:count===1?-1:500, tradeCancelled});
   assert.equal((await f.request(path, 'POST', {type:'hit', level:4})).status, 400);
-  assert.equal((await f.request(path, 'POST', {type:'hit', level:1})).status, 202);
+  assert.equal((await f.request(path, 'POST', hit(1))).status, 202);
   await until(() => f.received.some(e => e.type === 'response.create'));
-  assert.match(f.received.find(e => e.type === 'response.create').response.instructions, /Startled/);
+  assert.match(f.received.find(e => e.type === 'response.create').response.instructions, /Choose your own/);
   const session = f.bridge.sessions.get(f.sessionId);
   assert.equal(session.turnId, 0);
   f.emit({ type:'response.created', response:{id:'reaction1'} });
   f.emit({ type:'response.function_call_arguments.done', response_id:'reaction1', call_id:'bad-trade', name:'confirm_trade', arguments:JSON.stringify({proposalId:'a'.repeat(36)}) });
   await until(() => f.received.some(e => e.item?.call_id === 'bad-trade'));
   assert.equal(session.pending.size, 0);
-  await f.request(path, 'POST', {type:'hit', level:2});
-  await f.request(path, 'POST', {type:'hit', level:3});
+  await f.request(path, 'POST', hit(2, true));
+  await f.request(path, 'POST', hit(8));
   assert.equal(f.received.filter(e => e.type === 'response.create').length, 1);
+  f.emit({type:'response.output_audio_transcript.done',response_id:'reaction1',transcript:'Watch where you swing that!'});
   f.emit({ type:'response.done', response:{id:'reaction1',status:'completed'} });
   await until(() => session.responseDone);
   session.sweep();
   await until(() => f.received.filter(e => e.type === 'response.create').length === 2);
-  assert.match(f.received.filter(e => e.type === 'response.create')[1].response.instructions, /Very upset/);
+  assert.match(f.received.filter(e => e.type === 'response.create')[1].response.instructions, /no fixed escalation tiers/);
+  assert.match(f.received.filter(e => e.type === 'response.create')[1].response.instructions, /Watch where you swing that!/);
+  assert.equal(session.recentReactionLines.length, 1);
+  const items = f.received.filter(e => e.item?.type === 'message');
+  const context = items.at(-1).item.content[0].text;
+  assert.match(context, /"count":8/);
+  assert.match(context, /"tradeCancelled":true/);
   assert.equal(session.turnId, 0);
-  session.environmentEvent({type:'hit',level:1});
+  session.environmentEvent(hit(1));
   clock += 11000;
   f.emit({ type:'response.done', response:{id:'reaction1',status:'completed'} });
   await until(() => session.responseDone);

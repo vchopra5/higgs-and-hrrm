@@ -111,3 +111,15 @@ tasks.register('testTradeTracker', JavaExec) {
     mainClass = 'dev.higgs.TradeTrackerStateTest'
 }
 tasks.named('check') { dependsOn 'testTradeTracker' }
+
+tasks.register('compileRecentHitsTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/RecentHits.java', 'src/reactions/test/dev/higgs/RecentHitsTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('recent-hits-test')
+}
+tasks.register('testRecentHits', JavaExec) {
+    dependsOn 'compileRecentHitsTest'
+    classpath = files(layout.buildDirectory.dir('recent-hits-test'))
+    mainClass = 'dev.higgs.RecentHitsTest'
+}
+tasks.named('check') { dependsOn 'testRecentHits' }

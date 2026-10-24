@@ -20,6 +20,14 @@ public final class TradeTrackerStateTest {
         check(!state.active && state.opacity(2000) == 1, "interest must never invite purchase confirmation");
         state.update("Farmer", "awaiting_confirmation", new TradeTrackerState.Quote("real", "1 emerald", "7 bread", 30000), 3000);
         check(state.active && state.previous.isEmpty(), "interest promotes to exact quote without implying prior consent");
+        state.update("Farmer", "cancelled", null, 4000);
+        check(!state.active && state.status.equals("cancelled") && state.opacity(4000) == 1, "active trade shows cancellation");
+        state.update("Farmer", "cancelled", null, 5000);
+        check(state.updated == 4000, "repeated hits do not restart cancellation fade");
+        check(state.opacity(10000) == 0, "cancelled trade fades away");
+        state.clear();
+        state.update("Farmer", "cancelled", null, 11000);
+        check(state.opacity(11000) == 0, "hit outside a trade never opens tracker");
         System.out.println("Trade tracker lifecycle checks passed");
     }
     static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }

@@ -183,8 +183,10 @@ Trade suggestions now use an optional “Interested?” preview, which cannot be
 
 ### Environmental reactions
 
-Hitting a nearby adult villager starts voice automatically, including the invulnerable demo villagers. Hits spaced at least 750 ms apart escalate from startled to angry to forceful; 30 seconds without a hit resets the escalation. A hit cancels the current quote and worsens the current conversation's mood. Reactions cannot execute trade tools or count as spoken confirmation.
+Hitting a nearby adult villager starts voice automatically, including invulnerable demo villagers. A rolling 30-second window records attack count, elapsed time between the first and latest hits, and time since the previous hit. Higgs chooses the wording and emotional delivery from these statistics and the conversation; there are no fixed reaction tiers or scripted lines. These are attack attempts, not measured damage.
 
-The bridge keeps only the latest queued reaction, waits until player speech/provider work finishes, and drops events older than 10 seconds. The ordinary microphone and villager captions display the response. Higgs delivery uses per-response `instructions` for tone and energy, as documented in https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices and https://docs.boson.ai/api-reference/realtime/client-events. No separate TTS service or undocumented `vibe` field is used.
+A hit cancels an active quoted trade and worsens the current conversation's mood. Only an active trade shows cancellation feedback, which fades after six seconds; repeated hits do not restart the fade. Hits outside a trade do not open the tracker. Reactions cannot execute trade tools or count as spoken confirmation.
 
-Test: hit once and listen, hit again after a second and listen, then hit a third time. Expect stronger delivery each time; wording/delivery are model-generated. Wait 30 seconds and repeat for the mild reaction. Also hit during a quoted trade: the tracker should cancel it and a later yes must not purchase that cancelled quote.
+The bridge keeps only the latest queued statistics, waits until player speech/provider work finishes, and drops events older than 10 seconds. Higgs delivery uses per-response `instructions` for tone and energy: https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices.
+
+Test isolated hits, then several rapid hits, and listen for context-sensitive reactions. Wait 30 seconds for previous hits to age out. Hit during an active quote to see cancellation fade; hit outside a trade to check that no trade card appears.

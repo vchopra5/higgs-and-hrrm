@@ -9,6 +9,7 @@ final class TradeTrackerState {
     boolean active;
 
     void update(String villager, String status, Quote next, long now) {
+        if (status.equals("cancelled") && !active) return;
         if (next != null && quote != null && !next.id().equals(quote.id())
             && (!next.payment().equals(quote.payment()) || !next.received().equals(quote.received())))
             previous = quote.payment() + " → " + quote.received();
