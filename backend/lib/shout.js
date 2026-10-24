@@ -25,7 +25,7 @@ const PROMPTS = {
   pet_scared: (_, detail) => `[The player's ${detail} has wandered up to you, and you are nervous around such animals] React nervously, `
     + `asking them to keep it back.${/ named /.test(detail) ? '' : ' It has no name: never make one up.'} One short sentence only. No narration.`,
   rap: speaker => `[A jukebox is playing a lively tune and everyone is dancing] Break into a short, playful rap: two to four rhyming `
-    + `lines about your life as the village ${speaker.profession}. Rhythmic, cheerful, family-friendly. Only the lyrics: no narration, `
+    + `lines about your life as the village ${speaker.profession}. Fast, punchy, double-time delivery with crisp consonants and tightly packed syllables. Aim for a lively 150 BPM feel, with minimal pauses between bars and no drawn-out vowels. Keep your distinctive villager voice, but use this quick rap pace even if your usual personality speaks slowly. Cheerful and family-friendly. Only the lyrics: no narration, `
     + 'no description of sounds or music.',
 };
 
