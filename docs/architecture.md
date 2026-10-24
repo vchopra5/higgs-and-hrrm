@@ -1,4 +1,8 @@
-# Talking and trading villagers: build architecture
+<p><a href="../README.md"><img src="assets/logo.png" alt="HIGGS HRRM" width="64" /></a></p>
+
+# HIGGS HRRM · Architecture
+
+[← HIGGS HRRM](../README.md) · [Visual identity](brand.md)
 
 **Status: first prototype implemented; live voice validation pending.**
 The code is in `mod/` and `backend/`. The diagram remains the target architecture.
@@ -7,7 +11,7 @@ comes from a shared prompt plus villager context rather than persistent per-vill
 voice configuration. It uses a ten-minute session limit; hands-free sessions use
 Higgs server-side voice activity detection. The live API accepts this configuration;
 end-to-end microphone and in-game trade validation still need the Fabric client.
-See the root README for installation and controls.
+See the [setup guide](setup.md) for installation and controls.
 
 Target Minecraft 26.1.2 and Fabric. Install our mod on both the client and server,
 with client-only audio code kept out of the dedicated server entry point.

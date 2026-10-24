@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "higgs_villagers",
   "version": "${version}",
-  "name": "Higgs Villagers",
-  "description": "Speak to villagers through a local Higgs bridge and inspect native trades.",
+  "name": "HIGGS HRRM",
+  "description": "Give the hrrm a voice. Talk to Minecraft villagers and discover their real trades with Boson Higgs Realtime.",
   "environment": "*",
   "entrypoints": {
     "main": [
@@ -19,6 +19,7 @@
     "java": ">=25",
     "fabric-api": "*"
   },
+  "icon": "assets/higgs_villagers/icon.png",
   "mixins": [
     "higgs_villagers.mixins.json"
   ]

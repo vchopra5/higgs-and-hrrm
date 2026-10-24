@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="164" height="24" viewBox="0 0 164 24" role="img" aria-label="Boson: Higgs Realtime">
+  <title>Boson: Higgs Realtime</title>
+  <path fill="#10251F" d="M0 0h56v24H0z"/>
+  <path fill="#76D59A" d="M56 0h108v24H56z"/>
+  <g font-family="Verdana,DejaVu Sans,sans-serif" font-size="10" text-anchor="middle">
+    <text x="28.0" y="15.5" fill="#F6EDCF">Boson</text>
+    <text x="110.0" y="15.5" fill="#10251F">Higgs Realtime</text>
+  </g>
+</svg>

@@ -1,110 +1,153 @@
-# Higgs and Hrrm
+<p align="center">
+  <img src="docs/assets/hero.png" alt="HIGGS HRRM — Give the hrrm a voice. An illustrated villager and emerald-green pixel artwork." width="100%" />
+</p>
 
-Local Minecraft Java Edition **26.1.2** server with **Fabric 0.20.1** and
-**Cardboard 26.1-15** for the villager conversation project.
-Fabric API and iCommon are installed. The Higgs integration prototype lives in
-`mod/` and `backend/`; live Boson and microphone testing is still required.
-Exact mod versions, download URLs, and checksums are in
-`server-cardboard/components.json`.
+<p align="center">
+  <strong>Your favorite village has something to say.</strong><br />
+  Voice conversations with Minecraft villagers, connected to their real trades.
+</p>
 
-## Villager voice prototype
+<p align="center">
+  <a href="docs/setup.md"><strong>Get started</strong></a> &nbsp;·&nbsp;
+  <a href="demo.md">Demo &amp; presentation</a> &nbsp;·&nbsp;
+  <a href="docs/architecture.md">Architecture</a> &nbsp;·&nbsp;
+  <a href="backend/README.md">Voice bridge</a>
+</p>
 
-See the [build architecture and diagram](docs/architecture.md). The first pass
-implements Fabric client/server code, hands-free realtime audio, a Higgs backend,
-live trade lookup, and audio-only purchases with one spoken confirmation.
+<p align="center">
+  <img alt="Minecraft Java 26.1.2" src="docs/assets/badges/minecraft.svg" />
+  <img alt="Fabric mod" src="docs/assets/badges/fabric.svg" />
+  <img alt="Powered by Boson Higgs Realtime" src="docs/assets/badges/boson.svg" />
+  <img alt="Hackathon prototype" src="docs/assets/badges/status.svg" />
+</p>
 
-1. Put your Boson key in the root `.env` as `BOSON_API_KEY=...`. Keep the generated
-   `HIGGS_BRIDGE_TOKEN`; the server mod and backend must share it. For a fresh
-   clone, copy `.env.example` to `.env` and generate a token with
-   `openssl rand -hex 32`. Never commit `.env`.
-2. Install Node.js 22+ and run `npm --prefix backend ci`, then
-   `npm --prefix backend start` in a terminal. Restart the backend after changing
-   the key; restart the game server if you change the bridge token.
-3. Build using JDK 25 and `./scripts/build-mod.sh`. The JAR is
-   `mod/build/libs/higgs-villagers-0.1.0.jar`.
-4. With the game server stopped, copy that JAR into `server-cardboard/mods/`.
-   Install the same JAR plus Fabric API in your **Fabric 26.1.2 client** mods
-   directory. Cardboard and iCommon are server-side dependencies, not client
-   requirements for this mod.
-5. Start the server and join. Look at an adult villager; the voice connection starts automatically.
-   Wait for **Ready**, then **hold B to speak and release B to send**.
-   Look at another villager and press B to switch partners. Walking away ends the session.
-   Key bindings can be changed in Minecraft controls.
+---
 
-Allow microphone access for the Minecraft/Java process when macOS asks. On macOS,
-use Prism Launcher: the official launcher may block microphone permission requests.
-The microphone sends audio only while B is held in the focused game window.
-Releasing B, opening a menu, or switching away ends the turn. Pressing B during a
-reply interrupts it. The microphone HUD shows input strength; F8 toggles detailed diagnostics.
-Speech plays through the default system audio device, not Minecraft's positional
-sound or volume sliders. Turns shorter than 100 ms are discarded; keep each turn
-under 60 seconds.
+## Less hrrm. More hello.
 
-Trading stays voice-controlled without a trade screen. The microphone HUD is
-visible during a conversation. **F8** optionally shows/hides detailed diagnostics.
-Captions labeled YOU and VILLAGER appear near the bottom, stay for eight seconds,
-and fade over three seconds. Your transcript arrives after speech processing;
-villager text streams with the response. Captions are transient, not logged or saved.
+Villagers have professions, stock, and a place in your world. Now you can ask them about it.
 
-Ask “What can I buy?” or “I'd like some bread.” The villager reads an exact quote.
-Say yes in a new push-to-talk turn after hearing the quote. The server completes exactly one native trade
-and the villager reports the result aloud. Saying no cancels the pending quote.
-Prices, stock, inventory space and proximity are rechecked before purchase.
-Quotes expire after two minutes. Repeated tool calls cannot count as separate
-confirmations or purchase the same quote twice. Start within 8 blocks and stay
-within 12 blocks for conversation; purchases require being within 8 blocks.
-Sessions have a ten-minute limit.
+**HIGGS HRRM** gives Minecraft villagers a voice through Boson Higgs Realtime. Walk up, start a conversation, ask what is available, and request a trade. The mod connects the conversation to live offers and completes a native trade after one spoken confirmation.
 
-Validation: `npm --prefix backend test` tests against a local fake Higgs endpoint;
-`./scripts/build-mod.sh` compiles both mod entrypoints. These checks do not prove
-real API access, microphone compatibility, or a successful in-game conversation.
+<table>
+  <tr>
+    <td width="33%" valign="top">
+      <h3>01 &nbsp; Meet</h3>
+      <p>Look at a nearby villager and press <kbd>V</kbd>. Wait for <strong>Ready</strong>.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>02 &nbsp; Speak</h3>
+      <p>Hold <kbd>B</kbd>, say what is on your mind, then release to hear the reply.</p>
+    </td>
+    <td width="33%" valign="top">
+      <h3>03 &nbsp; Trade</h3>
+      <p>Ask for an available offer. Hear the quote and say yes to confirm.</p>
+    </td>
+  </tr>
+</table>
 
-## Run locally
+## The conversation
 
-These launch commands use the already-provisioned local installation. A fresh
-clone does not include Java, server JARs, mods, worlds, or EULA acceptance.
-For a fresh setup, install an Apple Silicon Java 25 runtime at
-`server/runtime/Contents/Home`, download the mods listed in
-`server-cardboard/components.json` into `server-cardboard/mods`, and download
-the [pinned Fabric launcher](https://meta.fabricmc.net/v2/versions/loader/26.1.2/0.20.1/1.1.2/server/jar)
-as `server-cardboard/fabric-server-launch.jar`. Copy
-`server-cardboard/server.properties.example` to `server-cardboard/server.properties`.
-Read and accept the [Minecraft EULA](https://aka.ms/MinecraftEULA) before setting
-`eula=true` in `server-cardboard/eula.txt`. With the whitelist enabled, add your
-account using `whitelist add YOUR_USERNAME` in the server console.
+Try these prompts with a villager. Responses are generated live; available items depend on its actual offers.
 
-Double-click `server-cardboard/start.command`, or run:
+> **Say hello** &nbsp; “What do you do around here?”
+>
+> **Explore the shop** &nbsp; “What can I buy from you?”
+>
+> **Make a request** &nbsp; “I would like…” — name an available item it mentioned.
+
+The villager reads the exact quote. Say yes in a new push-to-talk turn to complete one trade, without opening a screen.
+
+## A voice with a connection to the world
+
+| | What happens |
+| :--- | :--- |
+| **In-character conversation** | Villager name, profession, and level give the conversation context. |
+| **Live offer lookup** | `get_trades` reads current offers from the Minecraft server. |
+| **An action you can see** | `propose_trade` checks availability and proximity, then opens native trading. |
+| **Room to interrupt** | Hold **B** during a reply to interrupt and begin your next turn. |
+| **Player-controlled purchases** | Minecraft handles the exchange and final prices; voice does not spend your items. |
+
+## Under the hood
+
+```mermaid
+flowchart LR
+    P["You · microphone"] --> C["Fabric client"]
+    C <-->|"Streaming audio"| B["Local voice bridge"]
+    B <-->|"Voice + tool calls"| H["Boson Higgs Realtime"]
+    B <-->|"Trade requests + results"| S["Fabric server"]
+    S --> T["Live offers · native trading"]
+
+    classDef game fill:#10251f,color:#f6edcf,stroke:#76d59a,stroke-width:2px
+    classDef voice fill:#76d59a,color:#10251f,stroke:#10251f,stroke-width:2px
+    classDef player fill:#f6edcf,color:#10251f,stroke:#d8a374,stroke-width:2px
+    class C,S,T game
+    class B,H voice
+    class P player
+```
+
+We build the mod, audio capture and playback, local bridge, session handling, and game tools. Higgs powers voice and tool-call generation. Minecraft owns the offers, inventory, and actual transaction.
+
+## Bring your village to life
+
+You will need **Minecraft Java 26.1.2**, a matching **Fabric client**, **JDK 25**, **Node.js 22+**, and a **Boson API key**. Install the mod on both client and server. The bridge runs locally alongside the game server.
+
+**[Follow the complete setup guide →](docs/setup.md)**
+
+Already have the local installation configured? Start the bridge and server in separate terminals:
+
+```sh
+npm --prefix backend start
+```
 
 ```sh
 ./server-cardboard/start.command
 ```
 
-Use Minecraft **Java Edition 26.1.2**, then select Multiplayer → Direct
-Connection and enter `localhost:25565`. Install/select that version in your
-Minecraft Launcher if needed. The server listens only on this computer and
-requires an authenticated Minecraft account.
+Join `localhost:25565`, face an adult, awake villager within eight blocks, and wait for the automatic voice connection. [Installation, credentials, microphone permission, and troubleshooting](docs/setup.md#villager-voice-prototype) are covered in the setup guide.
 
-Your Minecraft EULA acceptance is recorded in the local server directory.
-The launcher uses the shared Apple Silicon Java 25 runtime in `server/runtime`.
-The server uses up to 2 GB of heap.
+| Key | Action |
+| :--- | :--- |
+| **Look at a villager** | Connect automatically; look at another and press B to switch |
+| **Hold B → release** | Speak, then send your turn |
+| **F8** | Show or hide voice diagnostics |
 
-Type `stop` in the server console to save and shut down cleanly. Stop the
-server before adding mods or plugins, then restart it:
+## On the workbench
 
-- Fabric mods: `server-cardboard/mods/`
-- Bukkit/Spigot/Paper plugins: `server-cardboard/plugins/`
-- Settings: `server-cardboard/server.properties`
-- World: `server-cardboard/world/`
-- Logs: `server-cardboard/logs/latest.log`
+This is a hackathon prototype. The voice bridge, Fabric integration, and trade tools are implemented. Full microphone, playback, and in-game trade validation still need confirmation on the target setup; local mock tests and synthetic voice probes cover only part of that path.
 
-Cardboard does not support every plugin; check compatibility before adding one.
+Current scope: push-to-talk in the game client, system audio for the speaking player, and conversation history within a session. Persistent character memory, negotiated prices, and spatial or shared audio are future directions.
 
-## Original server
+<details>
+<summary><strong>Development checks</strong></summary>
 
-The original vanilla 26.3 server and its world remain in `server/`.
-To return to it, stop Cardboard and run `./server/start.command`, then connect
-using Minecraft 26.3. Both servers use port 25565, so run only one at a time.
-Do not open the 26.3 world in the older server. The Cardboard server has its own
-fresh world and copies of the original whitelist, operators, and ban lists.
+```sh
+npm --prefix backend test
+./scripts/build-mod.sh
+```
 
-Runtime downloads, worlds, logs, and local configuration are excluded from Git.
+Backend tests use a local fake Higgs endpoint. The build compiles the mod; neither check establishes a successful live conversation. See the [bridge notes](backend/README.md) for investigation evidence.
+
+</details>
+
+## Explore the project
+
+| Path | Inside |
+| :--- | :--- |
+| [`mod/`](mod/) | Fabric client and server; microphone, playback, sessions, and trades |
+| [`backend/`](backend/) | Local Higgs voice bridge and tool routing |
+| [`docs/architecture.md`](docs/architecture.md) | System boundaries and the end-to-end interaction |
+| [`docs/setup.md`](docs/setup.md) | Full installation, controls, local server, and troubleshooting |
+| [`demo.md`](demo.md) | Presentation script, demo flow, and rehearsal checklist |
+| [`docs/brand.md`](docs/brand.md) | Logo, colors, and artwork notes |
+
+---
+
+<p align="center">
+  <img src="docs/assets/logo.png" alt="HIGGS HRRM villager speech-bubble emblem" width="72" /><br />
+  <strong>Give the hrrm a voice.</strong><br />
+  <sub>Built with Fabric · Powered by Boson Higgs Realtime</sub><br />
+  <sub>Unofficial Minecraft project. Banner artwork is illustrative, not a gameplay screenshot.</sub>
+</p>
+
+Captions for YOU and VILLAGER remain for eight seconds, then fade over three. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F8 toggles additional diagnostics.
