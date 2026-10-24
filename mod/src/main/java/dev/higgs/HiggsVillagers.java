@@ -141,6 +141,7 @@ public final class HiggsVillagers implements ModInitializer {
         long hitAt;
         int lastPurchaseTurn = -1;
         JsonObject lastReceipt;
+        JsonObject openingContext;
         final Map<String, JsonObject> purchases = new HashMap<>();
         final Map<String, JsonObject> toolResults = new HashMap<>();
         final Set<String> pendingTools = new HashSet<>();
@@ -295,6 +296,7 @@ public final class HiggsVillagers implements ModInitializer {
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
             context.add("offers", offers(villager)); body.add("context", context);
+            s.openingContext = autoGreeting && context.has("openingRumour") ? context : null;
             request("POST", "/sessions", body).whenComplete((reply, failure) -> server.execute(() -> {
                 if (failure != null) {
                     if (sessions.get(player.getUUID()) == s) { sessions.remove(player.getUUID()); error(player, "Voice bridge unavailable. Check backend configuration and logs."); }
@@ -303,7 +305,6 @@ public final class HiggsVillagers implements ModInitializer {
                 try {
                     JsonObject r = reply.getAsJsonObject(); s.id = r.get("sessionId").getAsString();
                     if (sessions.get(player.getUUID()) != s || !valid(s)) { delete(s.id); return; }
-                    if (autoGreeting) memory.conversationOpened(villager, player, context);
                     JsonObject response = new JsonObject();
                     response.addProperty("type", "session"); response.addProperty("sessionId", s.id);
                     String ticket = r.get("ticket").getAsString(); response.addProperty("ticket", ticket);
@@ -345,6 +346,16 @@ public final class HiggsVillagers implements ModInitializer {
                         if (s.toolResults.size() + s.pendingTools.size() >= 256) { end(s.player, true); return; }
                         result = new JsonObject();
                         String name = call.get("name").getAsString();
+                        if (name.equals("_conversation_opened") && call.has("internal") && call.get("internal").getAsBoolean()) {
+                            if (s.openingContext != null) {
+                                memory.conversationOpened(s.villager, s.player, s.openingContext);
+                                s.openingContext = null;
+                            }
+                            result.addProperty("status", "offered");
+                            s.toolResults.put(callId, result);
+                            submitToolResult(s, callId, result);
+                            continue;
+                        }
                         if (name.equals("_personality_ready") && call.has("internal") && call.get("internal").getAsBoolean()) {
                             s.pendingTools.add(callId);
                             personalities.confirmVisit(s.profile, s.player).whenComplete((saved, saveFailure) -> {

@@ -199,6 +199,7 @@ public final class VillagerMemoryStore implements AutoCloseable {
         terms.removeAll(Set.of("", "i", "me", "my", "you", "the", "a", "about", "what", "did", "news", "remember"));
         return entries.values().stream()
             .filter(m -> m.revision <= persistedRevision && (m.playerId.equals(player) || (village && !m.privateMemory)))
+            .filter(m -> terms.isEmpty() || relevance(m, terms) > 0)
             .sorted(Comparator.<Memory>comparingLong(m -> relevance(m, terms)).reversed()
                 .thenComparing(priorityOrder("all", player, now)))
             .limit(8).toList();

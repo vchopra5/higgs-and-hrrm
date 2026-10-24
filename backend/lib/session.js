@@ -306,7 +306,11 @@ export class BridgeSession {
     if (this.context.autoGreeting === true && this.responseDone && !this.recording
         && !this.awaitingCancellation && !this.queuedResponse && !this.reactionActive) {
       this.responseDone = false;
-      this.sendProvider({ type: 'response.create' });
+      if (this.sendProvider({ type: 'response.create' }) && this.context.openingRumour) {
+        const callId = `conversation-opened-${this.id}`;
+        this.pending.set(callId, { callId, name: '_conversation_opened', arguments: {}, internal: true,
+          turnId: this.turnId, created: this.now() });
+      }
     }
   }
 
@@ -332,6 +336,7 @@ export class BridgeSession {
     this.awaitingCancellation = false;
     if (this.queuedResponse) {
       this.queuedResponse = false;
+      this.responseDone = false;
       this.sendProvider({ type: 'response.create' });
     } else completeToolBatch(this);
   }

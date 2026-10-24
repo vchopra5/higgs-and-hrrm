@@ -510,3 +510,105 @@ test('new hit reactions do not clear speech still playing on the client', async 
   f.client.send(JSON.stringify({type:'interrupt'}));
   await until(() => f.events.some(e => e.type === 'clear'));
 });
+
+test('a committed player reply reserves the response before provider acknowledgement', async t => {
+  const f = await fixture(t, { mode: 'ptt' });
+  const session = f.bridge.sessions.get(f.sessionId);
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+  f.client.send(JSON.stringify({ type: 'commit' }));
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  session.environmentEvent({ type: 'hit', count: 1, windowMs: 30000, spanMs: 0, sincePreviousMs: -1, tradeCancelled: false });
+  await delay(20);
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1, 'hit waits for the requested player reply');
+  assert.equal(session.responseDone, false);
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  await until(() => f.received.some(event => event.type === 'response.cancel'));
+  assert.equal(session.awaitingCancellation, true, 'a quick second press can cancel an unacknowledged response');
+});
+
+test('a tool continuation reserves the response before a queued hit can start', async t => {
+  const f = await fixture(t);
+  const session = f.bridge.sessions.get(f.sessionId);
+  f.emit({ type: 'response.created', response: { id: 'lookup' } });
+  f.emit({ type: 'response.function_call_arguments.done', response_id: 'lookup', call_id: 'lookup-offers', name: 'get_trades', arguments: '{}' });
+  f.emit({ type: 'response.done', response: { id: 'lookup', status: 'completed' } });
+  await until(() => session.responseDone && session.pending.has('lookup-offers'));
+  await f.request(`/sessions/${f.sessionId}/tools/lookup-offers/result`, 'POST', { result: { offers: [] } });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  session.environmentEvent({ type: 'hit', count: 1, windowMs: 30000, spanMs: 0, sincePreviousMs: -1, tradeCancelled: false });
+  await delay(20);
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+  assert.equal(session.responseDone, false);
+});
+
+test('a reply released after cancellation also reserves its response slot', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { autoGreeting: true } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  f.emit({ type: 'response.created', response: { id: 'greeting-to-cancel' } });
+  await until(() => session.responseId === 'greeting-to-cancel');
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+  f.client.send(JSON.stringify({ type: 'commit' }));
+  await until(() => session.queuedResponse);
+  f.emit({ type: 'response.done', response: { id: 'greeting-to-cancel', status: 'cancelled' } });
+  await until(() => f.received.filter(event => event.type === 'response.create').length === 2);
+  session.environmentEvent({ type: 'hit', count: 1, windowMs: 30000, spanMs: 0, sincePreviousMs: -1, tradeCancelled: false });
+  await delay(20);
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 2);
+  assert.equal(session.responseDone, false);
+});
+
+test('a rumour opening is reported to the game only after configured voice starts its greeting', async t => {
+  const context = { ...characterContext(), openingRumour: { storyId: 'saved-story', summary: 'A hidden library', heardFrom: 'Rowan' } };
+  const f = await fixture(t, { context, confirmConfig: false });
+  await until(() => f.received.some(event => event.type === 'session.update'));
+  assert.deepEqual(await (await f.request(`/sessions/${f.sessionId}/tools`)).json(), []);
+  const config = f.received.find(event => event.type === 'session.update').session;
+  f.emit({ type: 'session.updated', session: config });
+  await until(() => f.events.some(event => event.message === 'Ready'));
+  f.emit({ type: 'session.updated', session: config });
+  const pending = await (await f.request(`/sessions/${f.sessionId}/tools`)).json();
+  const openings = pending.filter(tool => tool.name === '_conversation_opened');
+  assert.equal(openings.length, 1);
+  assert.equal(openings[0].internal, true);
+  await f.request(`/sessions/${f.sessionId}/tools/${openings[0].callId}/result`, 'POST', { result: { status: 'offered' } });
+  await delay(20);
+  assert.equal(f.received.some(event => event.item?.call_id === openings[0].callId), false);
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+});
+
+test('failed setup and a hit-prioritised opening do not consume the rumour greeting', async t => {
+  const context = { ...characterContext(), openingRumour: { storyId: 'saved-story', summary: 'A hidden library' } };
+  for (const fail of [true, false]) {
+    const f = await fixture(t, { context, confirmConfig: false });
+    await until(() => f.received.some(event => event.type === 'session.update'));
+    const session = f.bridge.sessions.get(f.sessionId);
+    if (fail) {
+      f.emit({ type: 'error', error: { type: 'authentication_error' } });
+      await until(() => session.closed);
+    } else {
+      session.environmentEvent({ type: 'hit', count: 1, windowMs: 30000, spanMs: 0, sincePreviousMs: -1, tradeCancelled: false });
+      f.emit({ type: 'session.updated', session: f.received.find(event => event.type === 'session.update').session });
+      await until(() => session.reactionActive);
+    }
+    assert.equal([...session.pending.values()].some(tool => tool.name === '_conversation_opened'), false);
+  }
+});
+
+test('a player can replace their own session at capacity without admitting extra players', async t => {
+  const f = await fixture(t, { connectAudio: false });
+  for (let i = 1; i < 16; i++) {
+    const response = await f.request('/sessions', 'POST', { playerId: `other-${i}`, villagerId: 'villager', context: {} });
+    assert.equal(response.status, 201);
+  }
+  const extra = await f.request('/sessions', 'POST', { playerId: 'extra-player', villagerId: 'villager', context: {} });
+  assert.equal(extra.status, 429);
+  const invalid = await f.request('/sessions', 'POST', { playerId: 'player', villagerId: 'another-villager', context: { personality: {} } });
+  assert.equal(invalid.status, 400, 'invalid replacement preserves the active session');
+  assert.ok(f.bridge.sessions.has(f.sessionId));
+  const replacement = await f.request('/sessions', 'POST', { playerId: 'player', villagerId: 'another-villager', context: {} });
+  assert.equal(replacement.status, 201);
+  assert.equal(f.bridge.sessions.size, 16);
+  assert.equal(f.bridge.sessions.has(f.sessionId), false);
+});

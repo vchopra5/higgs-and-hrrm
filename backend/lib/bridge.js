@@ -38,7 +38,8 @@ export function createBridge({
         || !body.context || typeof body.context !== 'object') {
       return replyJson(response, 400, { error: 'playerId, villagerId and context required' });
     }
-    if (sessions.size >= LIMITS.sessions) {
+    const replacing = [...sessions.values()].some(session => session.playerId === body.playerId);
+    if (!replacing && sessions.size >= LIMITS.sessions) {
       return replyJson(response, 429, { error: 'Session limit reached' });
     }
     const session = new BridgeSession(body, sessionOptions);

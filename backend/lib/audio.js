@@ -48,7 +48,10 @@ function commitTurn(session) {
     session.turnId++;
     session.sendProvider({ type: 'input_audio_buffer.commit' });
     if (session.awaitingCancellation) session.queuedResponse = true;
-    else session.sendProvider({ type: 'response.create' });
+    else {
+      session.responseDone = false; // Reserve before response.created can arrive.
+      session.sendProvider({ type: 'response.create' });
+    }
   } else {
     session.sendProvider({ type: 'input_audio_buffer.clear' });
   }

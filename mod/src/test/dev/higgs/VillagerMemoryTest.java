@@ -158,6 +158,9 @@ public final class VillagerMemoryTest {
             store.remember(FARMER, "Mira", PLAYER, "Alex", "I like bread", false, NOW + 1);
             store.flush().join();
             require(store.recall(FARMER, PLAYER, "well", false, NOW + 1).getFirst().summary().contains("well"), "query relevance outranks recency");
+            require(store.recall(FARMER, PLAYER, "diamonds", false, NOW + 1).isEmpty(), "an unrelated query must not return stories as matching memories");
+            require(store.recall(FARMER, PLAYER, "well", false, NOW + 1).size() == 1, "only matching stories are included for a specific query");
+            require(store.recall(FARMER, PLAYER, "", false, NOW + 1).size() == 2, "an empty query still returns recent memories");
             for (var root : store.gossipSnapshot(NOW + 1).get(FARMER)) {
                 require(store.receive(root, FARMER, "Mira", LIBRARIAN, NOW + 1), "prepare recalled rumours");
             }

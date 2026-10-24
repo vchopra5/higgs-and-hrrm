@@ -8,6 +8,7 @@ export function completeToolBatch(session) {
       || [...session.pending.values()].some(tool => !tool.internal) || !session.hasTools) return;
 
   session.hasTools = false;
+  session.responseDone = false; // Prevent another response while the provider acknowledges this one.
   session.sendProvider({ type: 'response.create' });
 }
 
