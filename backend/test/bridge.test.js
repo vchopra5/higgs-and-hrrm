@@ -47,7 +47,7 @@ test('authenticated session, one-use ticket, audio relay, tool batching and clea
   assert.equal(received.filter(e => e.type === 'conversation.item.create' && e.item?.type === 'function_call_output').length, 2);
   assert.equal((await call(`/sessions/${sessionId}/tools/b/result`, 'POST', { result: {} })).status, 404);
   upstream.send(JSON.stringify({ type: 'response.created' }));
-  upstream.send(JSON.stringify({ type: 'response.function_call_arguments.done', call_id: 'cancel-me', name: 'propose_trade', arguments: '{"offerIndex":0}' }));
+  upstream.send(JSON.stringify({ type: 'response.function_call_arguments.done', call_id: 'cancel-me', name: 'propose_trade', arguments: '{"offerIndex":0,"item":"bread"}' }));
   await until(() => bridge.sessions.get(sessionId).pending.size === 1);
   const repliesBeforeInterrupt = received.filter(e => e.type === 'response.create').length;
   client.send(JSON.stringify({ type: 'interrupt' }));
@@ -99,7 +99,7 @@ test('hands-free VAD survives long silence, repeated turns, interruption and non
   assert.equal(events.filter(e => e.type === 'speech' && e.active).length, 3);
   assert.equal(received.filter(e => ['response.create', 'input_audio_buffer.commit', 'response.cancel'].includes(e.type)).length, 0);
   emit({ type: 'response.created', response: { id: 'old' } });
-  emit({ type: 'response.function_call_arguments.done', call_id: 'stale', name: 'propose_trade', arguments: '{"offerIndex":0}' });
+  emit({ type: 'response.function_call_arguments.done', call_id: 'stale', name: 'propose_trade', arguments: '{"offerIndex":0,"item":"bread"}' });
   await until(() => bridge.sessions.get(sessionId).pending.size === 1);
   emit({ type: 'input_audio_buffer.speech_started' });
   emit({ type: 'response.output_audio.delta', delta: 'STALE' });

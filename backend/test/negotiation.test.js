@@ -8,25 +8,25 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   const session = { pending: new Map(), seen: new Set(), turnId: 4, now: () => 0,
     isStaleResponse: () => false, sendProvider: e => outputs.push(e) };
   const call = (id, name, args) => receiveToolCall(session, {call_id:id, name, arguments:JSON.stringify(args)});
-  call('budget', 'propose_trade', {offerIndex:0, payment:2});
+  call('budget', 'propose_trade', {offerIndex:0, item:'bread', payment:2});
   assert.equal(session.pending.get('budget').turnId, 4);
   assert.equal(session.pending.get('budget').arguments.payment, 2);
-  call('bundle', 'propose_trade', {offerIndex:0, payment:4, quantity:15});
+  call('bundle', 'propose_trade', {offerIndex:0, item:'bread', payment:4, quantity:15});
   assert.ok(session.pending.has('bundle'));
-  call('default', 'propose_trade', {offerIndex:0});
+  call('default', 'propose_trade', {offerIndex:0, item:'bread'});
   assert.ok(session.pending.has('default'));
-  call('limits', 'propose_trade', {offerIndex:0, payment:1, quantity:64});
+  call('limits', 'propose_trade', {offerIndex:0, item:'bread', payment:1, quantity:64});
   assert.ok(session.pending.has('limits'));
   for (const key of ['quantity', 'payment']) {
     for (const [i, amount] of [-1, 0, 1.5, 65, '2'].entries()) {
-      call(key+i, 'propose_trade', {offerIndex:0, [key]:amount});
+      call(key+i, 'propose_trade', {offerIndex:0, item:'bread', [key]:amount});
       assert.equal(session.pending.has(key+i), false);
     }
   }
-  call('haggle', 'propose_trade', {offerIndex:0, discount:true});
+  call('haggle', 'propose_trade', {offerIndex:0, item:'bread', discount:true});
   assert.ok(session.pending.has('haggle'));
   for (const [i, extra] of [{discount:'yes'}, {discount:1}, {turnId:999}].entries()) {
-    call('extra'+i, 'propose_trade', {offerIndex:0, ...extra});
+    call('extra'+i, 'propose_trade', {offerIndex:0, item:'bread', ...extra});
     assert.equal(session.pending.has('extra'+i), false);
   }
   call('quest', 'offer_quest', {item:'ominous_banner'});
@@ -82,7 +82,7 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   }
   call('bad-deliver', 'complete_quest', {count:1});
   assert.equal(session.pending.has('bad-deliver'), false);
-  call('preview', 'preview_trade', {offerIndex:0});
+  call('preview', 'preview_trade', {offerIndex:0, item:'bread'});
   assert.ok(session.pending.has('preview'));
   call('tone', 'report_treatment', {treatment:'polite'});
   assert.ok(session.pending.has('tone'));
@@ -90,15 +90,23 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   assert.equal(session.pending.has('bad-tone'), false);
   assert.equal(outputs.length, 39);
   assert.ok(outputs.every(event => JSON.parse(event.item.output).error === 'Invalid tool request'));
+  // The server checks the item against the offer, so a quote without one is sent back with how to fix it.
+  for (const name of ['propose_trade', 'preview_trade']) {
+    call('unnamed-' + name, name, {offerIndex:0});
+    assert.equal(session.pending.has('unnamed-' + name), false);
+    assert.match(JSON.parse(outputs.at(-1).item.output).error, /^Missing item: call again with item/);
+  }
+  call('blank-item', 'propose_trade', {offerIndex:0, item:' '});
+  assert.equal(session.pending.has('blank-item'), false);
 });
 
 test('trade schema opens at normal prices and lets reputation decide haggling', () => {
   const { tools, instructions } = sessionConfig({}).session;
   assert.ok(tools.some(t => t.name === 'report_treatment'));
   const proposal = tools.find(t => t.name === 'propose_trade');
-  assert.deepEqual(Object.keys(proposal.parameters.properties), ['offerIndex', 'quantity', 'payment', 'discount']);
+  assert.deepEqual(Object.keys(proposal.parameters.properties), ['offerIndex', 'item', 'quantity', 'payment', 'discount']);
   assert.equal(proposal.parameters.properties.discount.type, 'boolean');
-  assert.deepEqual(proposal.parameters.required, ['offerIndex']);
+  assert.deepEqual(proposal.parameters.required, ['offerIndex', 'item']);
   assert.equal(proposal.parameters.additionalProperties, false);
   assert.equal(proposal.parameters.properties.quantity.maximum, 64);
   assert.equal(proposal.parameters.properties.payment.maximum, 64);

@@ -255,11 +255,13 @@ public final class HiggsVillagers implements ModInitializer {
     private JsonObject tradeContext(Session s) {
         String profession = VillagerMemoryService.profession(s.villager);
         JsonObject trade = new JsonObject();
-        JsonArray wares = new JsonArray(), soldOut = new JsonArray();
+        JsonArray wares = new JsonArray(), soldOut = new JsonArray(), buys = new JsonArray();
         Set<String> seen = new HashSet<>();
         for (var offer : s.villager.getOffers()) {
-            String name = offer.getResult().getHoverName().getString();
-            if (seen.add(name + offer.isOutOfStock())) (offer.isOutOfStock() ? soldOut : wares).add(name);
+            // Paying emeralds for the player's goods is not stock: a farmer who buys wheat has no wheat (or seeds) to sell.
+            boolean buying = offer.getResult().is(net.minecraft.world.item.Items.EMERALD);
+            String name = (buying ? offer.getCostA() : offer.getResult()).getHoverName().getString();
+            if (seen.add(buying + name + offer.isOutOfStock())) (buying ? buys : offer.isOutOfStock() ? soldOut : wares).add(name);
         }
         boolean jobless = profession.equals("none") || profession.equals("nitwit");
         trade.addProperty("canTrade", canTrade(s.villager));
@@ -267,6 +269,7 @@ public final class HiggsVillagers implements ModInitializer {
             : s.villager.getOffers().isEmpty() ? "no_offers" : wares.isEmpty() ? "sold_out" : "trading");
         trade.add("wares", wares);
         trade.add("soldOut", soldOut);
+        trade.add("buys", buys);
         int hero = heroLevel(s.player);
         if (hero >= 0) trade.addProperty("heroOfTheVillage", hero + 1);
         return trade;
@@ -2193,6 +2196,28 @@ public final class HiggsVillagers implements ModInitializer {
         return outcome("refused", "You refuse to trade with this player after how they treated you. Say so angrily in one short sentence; "
             + "they must make amends before you trade again. Do not quote prices.");
     }
+    /**
+     * The offer that trades the item the player named: the chosen one when it does, else the best match among the rest,
+     * or -1 when the villager trades nothing like it. The model picks an index; the player's words decide.
+     */
+    private static int offerFor(Villager villager, String wanted, int chosen) {
+        var offers = villager.getOffers();
+        int best = -1, bestScore = 0;
+        for (int i = 0; i < offers.size(); i++) {
+            var offer = offers.get(i);
+            boolean buying = offer.getResult().is(net.minecraft.world.item.Items.EMERALD);
+            int score = TextTerms.overlap(wanted, (buying ? offer.getCostA() : offer.getResult()).getHoverName().getString());
+            if (score > 0 && i == chosen) return i;
+            if (score > bestScore) { best = i; bestScore = score; }
+        }
+        return best;
+    }
+    private JsonObject notSold(Session s, String wanted) {
+        JsonObject result = outcome("not_sold", "You do not trade in " + wanted.trim() + ": you have none and never did. Say so plainly, "
+            + "take back anything you said about having it, and do not offer something else in its place unless they ask. You sell only the wares listed here.");
+        result.add("wares", tradeContext(s).get("wares"));
+        return result;
+    }
     private JsonObject proposeTrade(Session s, JsonObject arguments, int turn) {
         if (turn == s.lastPurchaseTurn && s.lastReceipt != null) return s.lastReceipt;
         if (Negotiation.hostile(standing(s))) { s.proposal = null; return refused(); }
@@ -2205,6 +2230,12 @@ public final class HiggsVillagers implements ModInitializer {
         s.proposal = null;
         if (!availableForVoiceTrade(s)) return outcome("unavailable", "Move within eight blocks, close any inventory, and wait until the villager is free.");
         if (index < 0 || index >= s.villager.getOffers().size()) return outcome("unavailable", "That offer does not exist.");
+        if (arguments.has("item")) {
+            String wanted = arguments.get("item").getAsString();
+            int matched = offerFor(s.villager, wanted, index);
+            if (matched < 0) return notSold(s, wanted);
+            index = matched;
+        }
         s.villager.setTradingPlayer(s.player);
         try {
             // Base prices only: vanilla gossip would apply reputation twice.

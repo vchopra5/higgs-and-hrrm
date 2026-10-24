@@ -35,7 +35,8 @@ final class TextTerms {
         if (word.length() > 4 && word.endsWith("ves")) return word.substring(0, word.length() - 3) + "f";
         if (word.length() > 4 && word.endsWith("ies")) return word.substring(0, word.length() - 3) + "y";
         if (word.length() > 4 && word.endsWith("ing")) return word.substring(0, word.length() - 3);
-        if (word.length() > 3 && word.endsWith("ed")) return word.substring(0, word.length() - 2);
+        // "seed" and "need" are not past tenses.
+        if (word.length() > 3 && word.endsWith("ed") && !word.endsWith("eed")) return word.substring(0, word.length() - 2);
         if (word.length() > 3 && word.endsWith("s") && !word.endsWith("ss")) return word.substring(0, word.length() - 1);
         return word;
     }
@@ -44,6 +45,13 @@ final class TextTerms {
         Set<String> result = new LinkedHashSet<>();
         for (String word : words(text)) result.add(stem(word));
         return result;
+    }
+
+    /** Content words two phrases share: "wheat seeds" and "Wheat Seeds" share two; "wheat seeds" and "Apple" none. */
+    static int overlap(String a, String b) {
+        Set<String> left = stems(a);
+        left.retainAll(stems(b));
+        return left.size();
     }
 
     /**

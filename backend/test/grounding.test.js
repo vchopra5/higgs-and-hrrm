@@ -48,3 +48,20 @@ test('grounded trade speech passes', () => {
   assert.match(ungroundedTrade("There, it's done."), /nothing was purchased/);
   assert.equal(ungroundedTrade(''), null);
 });
+
+test('claiming stock the villager does not sell is caught, even after a trade tool', () => {
+  // The reported farmer: Faye sells bread and apples, buys wheat, and has no seeds of any kind.
+  const farmer = { said: 'Do you have any seeds for wheat?', wares: ['Bread', 'Pumpkin Pie', 'Apple', 'Cookie'] };
+  assert.match(ungroundedTrade("I've got wheat seeds right here. Let me check my current asking price for you.", farmer),
+    /^You said you have wheat seed, but you sell nothing like it: your wares are Bread, Pumpkin Pie, Apple, Cookie\. Correct yourself plainly/);
+  assert.match(ungroundedTrade("You're right, my apologies. I've got wheat seeds in stock.", { ...farmer, tools: new Set(['propose_trade']), quote: [1, 4] }),
+    /you have wheat seed/);
+  assert.match(ungroundedTrade("I've got some good seed stock today, what are you looking to plant?",
+    { said: "Hey, Faye. I'm looking to buy some seeds.", wares: farmer.wares }), /you have seed/);
+  // What it really sells, or a claim the player never asked about, is fine.
+  assert.equal(ungroundedTrade('I have fresh bread today.', { said: 'Do you have bread?', wares: farmer.wares }), null);
+  assert.equal(ungroundedTrade("Sorry, I don't sell wheat seeds. I have bread and apples, though.", farmer), null);
+  assert.equal(ungroundedTrade('I have a moment, aye.', { said: 'Do you have a moment?', wares: farmer.wares }), null);
+  assert.equal(ungroundedTrade('I have wheat seeds, aye.', { said: 'How was the harvest?', wares: farmer.wares }), null);
+  assert.equal(ungroundedTrade('I have wheat seeds, aye.', farmer.said ? { said: farmer.said } : {}), null, 'no wares known, no check');
+});

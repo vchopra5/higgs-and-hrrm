@@ -207,7 +207,7 @@ test('late audio, trade and memory calls from an interrupted response cannot aff
   f.emit({ type: 'response.output_audio.delta', response_id: 'old', delta: 'AAA=' });
   f.emit({
     type: 'response.function_call_arguments.done', response_id: 'old',
-    call_id: 'stale-trade', name: 'propose_trade', arguments: '{"offerIndex":0}',
+    call_id: 'stale-trade', name: 'propose_trade', arguments: '{"offerIndex":0,"item":"bread"}',
   });
   f.emit({
     type: 'response.function_call_arguments.done', response_id: 'old',

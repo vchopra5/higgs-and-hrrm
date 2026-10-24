@@ -320,7 +320,7 @@ export class BridgeSession {
     if (response?.status !== 'completed' || (this.turnId <= 0 && trading) || this.context.bedtime === true || this.correctedTurn === this.turnId
         || this.recording || this.cancelled || this.hasTools || [...this.pending.values()].some(tool => !tool.internal)) return false;
     const trade = this.tradeTurn();
-    const problem = ungroundedTrade(text, { ...trade, trading });
+    const problem = ungroundedTrade(text, { ...trade, trading, said: this.lastTranscript?.text ?? null, wares: this.context.trade?.wares ?? null });
     if (!problem) return false;
     this.correctedTurn = this.turnId;
     this.traceEvent('grounding_correction');

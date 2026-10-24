@@ -13,6 +13,9 @@ public final class TextTermsTest {
         check(TextTerms.conveys("Cedric says hi, and he wanted you for a small task.", named, "Cedric"), "a loose paraphrase naming the sender");
         check(!TextTerms.conveys("Go talk to Cedric and finish the quest for Nathan.", named, "Cedric"), "the sender's name is not a content word");
         check(TextTerms.words("The wolves' den, Bram's field!").equals(java.util.List.of("wolves", "den", "bram", "field")), "same analysis as retrieval");
+        check(TextTerms.overlap("wheat seeds", "Wheat Seeds") == 2 && TextTerms.overlap("some apples", "Apple") == 1, "item names match loosely");
+        check(TextTerms.overlap("a seed", "Wheat Seeds") == 1, "seed is not a past tense");
+        check(TextTerms.overlap("wheat seeds", "Apple") == 0 && TextTerms.overlap("wheat seeds", "Emerald") == 0, "a farmer's apples are not wheat seeds");
         System.out.println("Message relay checks passed");
     }
     private static void check(boolean value, String label) { if (!value) throw new AssertionError(label); }

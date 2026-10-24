@@ -54,6 +54,10 @@ export function submitToolResult(session, callId, result) {
   return true;
 }
 
+// The server checks the named item against the offer, so the model can never quote one thing for another.
+const validItem = item => (typeof item === 'string' && item.trim().length > 0 && item.length <= 64
+  && !/[\u0000-\u001f\u007f-\u009f]/u.test(item));
+
 function validArguments(name, args) {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return false;
   if (name === 'share_news') return Object.keys(args).length === 1 && typeof args.memoryId === 'string'
@@ -88,10 +92,10 @@ function validArguments(name, args) {
     && (args.count === undefined || (Number.isInteger(args.count) && args.count >= 1 && args.count <= 64));
   if (name === 'offer_quest') return Object.keys(args).length === 1 && typeof args.item === 'string' && /^[a-z0-9_:.\/-]{1,64}$/.test(args.item);
   if (name === 'confirm_trade') return typeof args.proposalId === 'string' && /^[a-f0-9-]{36}$/.test(args.proposalId);
-  if (name === 'preview_trade') return Number.isInteger(args.offerIndex) && args.offerIndex >= 0;
+  if (name === 'preview_trade') return Number.isInteger(args.offerIndex) && args.offerIndex >= 0 && validItem(args.item);
   if (name === 'report_treatment') return ['polite', 'neutral', 'rude'].includes(args.treatment);
   return name === 'propose_trade' && Number.isInteger(args.offerIndex) && args.offerIndex >= 0
-    && Object.keys(args).every(key => ['offerIndex', 'quantity', 'payment', 'discount'].includes(key))
+    && Object.keys(args).every(key => ['offerIndex', 'item', 'quantity', 'payment', 'discount'].includes(key)) && validItem(args.item)
     && ['quantity', 'payment'].every(key => args[key] === undefined || (Number.isInteger(args[key]) && args[key] >= 1 && args[key] <= 64))
     && (args.discount === undefined || typeof args.discount === 'boolean');
 }
@@ -126,7 +130,9 @@ export function receiveToolCall(session, event) {
     ...(MERCHANT_TOOLS.has(event.name) && Number.isInteger(session.context?.entityId) ? { merchantEntityId: session.context.entityId } : {}),
     created: session.now(),
   });
-  if (!validArguments(event.name, args)) {
+  if (['propose_trade', 'preview_trade'].includes(event.name) && args && typeof args === 'object' && args.item === undefined) {
+    submitToolResult(session, event.call_id, { error: 'Missing item: call again with item set to what the player asked for, in their words.' });
+  } else if (!validArguments(event.name, args)) {
     submitToolResult(session, event.call_id, { error: 'Invalid tool request' });
   } else if (event.name === 'report_treatment') {
     session.logTreatment?.({ event: 'treatment_classified', source: 'voice_model',
