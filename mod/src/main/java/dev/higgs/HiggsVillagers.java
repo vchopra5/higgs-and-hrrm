@@ -94,10 +94,11 @@ public final class HiggsVillagers implements ModInitializer {
             body.addProperty("villagerId", villager.getUUID().toString());
             JsonObject context = new JsonObject();
             context.addProperty("name", villager.getName().getString());
-            context.addProperty("profession", villager.getVillagerData().profession().unwrapKey().map(Object::toString).orElse("villager"));
+            context.addProperty("profession", VillagerMemoryService.profession(villager));
             context.addProperty("level", villager.getVillagerData().level());
             context.addProperty("playerName", player.getName().getString());
-            context.add("memories", memory.context(villager, player));
+            memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
+            context.addProperty("autoGreeting", true);
             context.add("offers", offers(villager)); body.add("context", context);
             request("POST", "/sessions", body).whenComplete((reply, failure) -> server.execute(() -> {
                 if (failure != null) {
@@ -107,6 +108,7 @@ public final class HiggsVillagers implements ModInitializer {
                 try {
                     JsonObject r = reply.getAsJsonObject(); s.id = r.get("sessionId").getAsString();
                     if (sessions.get(player.getUUID()) != s || !valid(s)) { delete(s.id); return; }
+                    memory.conversationOpened(villager, player, context);
                     JsonObject response = new JsonObject();
                     response.addProperty("type", "session"); response.addProperty("sessionId", s.id);
                     String ticket = r.get("ticket").getAsString(); response.addProperty("ticket", ticket);

@@ -31,7 +31,7 @@ live trade lookup, and the native merchant-screen handoff.
    directory. Cardboard and iCommon are server-side dependencies, not client
    requirements for this mod.
 5. Start the server and join. Look at an adult villager and press **V**.
-   Wait for **Ready**, then **hold B to speak and release B to send**.
+   Wait for **Ready** and let the villager greet you, then **hold B to speak and release B to send**. A neighbour with a fresh relevant rumour may bring it up in that greeting.
    Press **V** again to leave. Key bindings can be changed in Minecraft controls.
 
 Allow microphone access for the Minecraft/Java process when macOS asks. On macOS,

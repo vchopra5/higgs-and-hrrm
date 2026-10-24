@@ -30,18 +30,18 @@ Our first audience is Minecraft players and creators who want more expressive ro
 
 Rehearse this flow using the [memory and rumours setup](docs/memory-rumours.md). The feature is implemented and tested locally; confirm live recall and visible particles before presenting it as a successful in-game demo.
 
-1. **Tell the farmer:** “Remember this: I found emeralds under the old well.” Wait for its reply, then end the session.
-2. **Return:** Start a new conversation and ask, “What did I tell you about the well?” Let the villager recall its saved summary.
+1. **Tell the farmer casually:** “I found a hidden library under the old well. There were enchanted books everywhere.” Let it react, then end the session. No memory command is needed; the model judges what is worth saving and spreading.
+2. **Return if demonstrating persistence:** Start a new conversation and refer to the well. Let the villager use its saved summary naturally.
 3. **Watch the village:** Keep a second awake villager within 16 blocks. A green particle burst signals a newly saved rumour transfer. End the first conversation before addressing the neighbour.
-4. **Discover the story:** Ask the neighbour, “Have you heard any news about me?” Listen for the story and its source. Keep a third villager isolated as a control.
+4. **Hear the reaction:** Press **V** facing the neighbour and let it speak first. A fresh noteworthy rumour can become the opening topic, with the source credited. A librarian gives the hidden-library story extra attention. Keep a third villager isolated as a control.
 
-**Say:** “The voice session ended, but the villager remembered. Then the story travelled through the village. Each villager knows only the stories it learned, and can tell you who passed them along.”
+**Say:** “I didn’t ask it to remember or ask its neighbour for gossip. The villager picked out a story worth repeating, the village passed it along, and the neighbour had something to say. Each villager knows only the stories it learned.”
 
-The default check interval is 10 seconds; each pair has a 60-second cooldown. Prepare a fresh public story for each run and leave enough time for a transfer. Explicitly private entries are excluded from gossip. Treat the emerald story as a player claim, not a verified discovery. Restart the server and ask again if you want to demonstrate persistence on disk.
+The default check interval is 10 seconds; each pair has a 60-second cooldown. Prepare a fresh public story for each run and leave enough time for a transfer. Explicitly private entries are excluded from gossip. Treat the discovery story as a player claim, not a verified discovery. Restart the server and ask again if you want to demonstrate persistence on disk.
 
 ## Four-minute presentation and live demo
 
-Use one presenter and, if available, a second person operating Minecraft. The operator holds **B** for each player line and releases it to request the reply. If presenting solo, pause narration while operating the game. Let the audience hear the villager.
+Use one presenter and, if available, a second person operating Minecraft. The operator holds **B** for each player line and releases it to request the reply. If presenting solo, pause narration while operating the game. Let the audience hear the villager. Villagers now greet first when you start a session; allow the opening to finish before your first question.
 
 The prompts below are suggestions. The villager’s replies are generated live; do not promise exact wording, a specific item, or a price.
 

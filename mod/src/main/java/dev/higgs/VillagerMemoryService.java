@@ -17,6 +17,7 @@ public final class VillagerMemoryService {
     private static final Logger LOG = LoggerFactory.getLogger("HiggsVillagerMemory");
     private final VillagerMemoryStore.Limits limits;
     private final VillagerGossip gossip;
+    private final RumourConversation conversation = new RumourConversation(10 * 60_000L);
     private final int intervalTicks, radius;
     private VillagerMemoryStore store;
     private int cursor;
@@ -53,6 +54,7 @@ public final class VillagerMemoryService {
 
     public void stop() {
         stopping = true;
+        conversation.clear();
         if (store == null) return;
         try { store.close(); }
         catch (Exception failure) { LOG.error("Could not flush villager memories on shutdown; check world save permissions."); }
@@ -61,6 +63,28 @@ public final class VillagerMemoryService {
 
     public JsonArray context(Villager villager, ServerPlayer player) {
         return store == null ? new JsonArray() : entries(store.recall(villager.getUUID(), player.getUUID(), "", false, System.currentTimeMillis()));
+    }
+
+    public JsonObject conversationContext(Villager villager, ServerPlayer player) {
+        JsonObject context = new JsonObject();
+        context.add("memories", context(villager, player));
+        if (store == null) return context;
+        long now = System.currentTimeMillis();
+        var ranked = store.heardRumours(villager.getUUID(), player.getUUID(), profession(villager), now);
+        context.add("heardRumours", entries(ranked.stream().limit(3).toList()));
+        conversation.choose(ranked, villager.getUUID(), player.getUUID(), now).ifPresent(memory ->
+            context.add("openingRumour", entries(List.of(memory)).get(0)));
+        return context;
+    }
+
+    public void conversationOpened(Villager villager, ServerPlayer player, JsonObject context) {
+        if (!context.has("openingRumour")) return;
+        UUID root = UUID.fromString(context.getAsJsonObject("openingRumour").get("storyId").getAsString());
+        conversation.markOffered(villager.getUUID(), player.getUUID(), root, System.currentTimeMillis());
+    }
+
+    public static String profession(Villager villager) {
+        return villager.getVillagerData().profession().unwrapKey().map(key -> key.identifier().getPath()).orElse("none");
     }
 
     public boolean handles(String name) { return name.equals("remember_conversation") || name.equals("recall_memories"); }
@@ -79,16 +103,30 @@ public final class VillagerMemoryService {
                 result.addProperty("note", "Memories are attributed statements, not verified world facts. An empty list means no matching saved knowledge.");
                 return CompletableFuture.completedFuture(result);
             }
-            if (!args.keySet().equals(Set.of("summary", "private"))) throw new IllegalArgumentException();
+            if (!args.keySet().equals(Set.of("summary", "private", "interest", "reason", "audiences"))) throw new IllegalArgumentException();
             String summary = string(args, "summary", VillagerMemoryStore.MAX_SUMMARY, false);
             JsonElement privacy = args.get("private");
             if (privacy == null || !privacy.isJsonPrimitive() || !privacy.getAsJsonPrimitive().isBoolean()) throw new IllegalArgumentException();
+            JsonElement score = args.get("interest");
+            if (score == null || !score.isJsonPrimitive() || !score.getAsJsonPrimitive().isNumber()) throw new IllegalArgumentException();
+            int interest;
+            try { interest = score.getAsBigDecimal().intValueExact(); }
+            catch (ArithmeticException invalid) { throw new IllegalArgumentException(); }
+            String reason = string(args, "reason", 160, false);
+            if (!args.get("audiences").isJsonArray()) throw new IllegalArgumentException();
+            List<String> audiences = new ArrayList<>();
+            for (JsonElement audience : args.getAsJsonArray("audiences")) {
+                if (!audience.isJsonPrimitive() || !audience.getAsJsonPrimitive().isString()) throw new IllegalArgumentException();
+                audiences.add(audience.getAsString());
+            }
+            var assessment = new VillagerMemoryStore.Interest(interest, reason, audiences);
             var memory = store.remember(villager.getUUID(), villager.getName().getString(), player.getUUID(),
-                player.getName().getString(), summary, privacy.getAsBoolean(), now);
+                player.getName().getString(), summary, privacy.getAsBoolean(), assessment, now);
             return store.flush().thenApply(ignored -> {
                 JsonObject result = new JsonObject();
                 result.addProperty("status", "saved"); result.addProperty("memoryId", memory.rootId().toString());
                 result.addProperty("private", memory.privateMemory());
+                result.addProperty("gossipEligible", !memory.privateMemory() && memory.interest().score() >= VillagerMemoryStore.GOSSIP_THRESHOLD);
                 return result;
             });
         } catch (IllegalArgumentException | IllegalStateException failure) {
@@ -113,12 +151,15 @@ public final class VillagerMemoryService {
         JsonArray result = new JsonArray();
         for (var memory : memories) {
             JsonObject entry = new JsonObject();
+            entry.addProperty("storyId", memory.rootId().toString());
             entry.addProperty("summary", memory.summary());
             entry.addProperty("toldByPlayer", memory.playerName());
             entry.addProperty("originVillager", memory.originName());
             entry.addProperty("heardFrom", memory.sourceName());
             entry.addProperty("kind", memory.hops() == 0 ? "player_told_me" : "heard_from_villager");
             entry.addProperty("private", memory.privateMemory());
+            entry.addProperty("interest", memory.interest().score());
+            entry.addProperty("whyInteresting", memory.interest().reason());
             result.add(entry);
         }
         return result;
@@ -130,7 +171,7 @@ public final class VillagerMemoryService {
 
     private static VillagerGossip.Contact contact(Villager villager) {
         return new VillagerGossip.Contact(villager.getUUID(), villager.getName().getString(), villager.level().dimension().toString(),
-            villager.getX(), villager.getY(), villager.getZ(), eligible(villager));
+            villager.getX(), villager.getY(), villager.getZ(), eligible(villager), profession(villager));
     }
 
     public void tick(MinecraftServer server, int ticks) {

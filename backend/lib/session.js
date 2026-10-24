@@ -98,7 +98,9 @@ export class BridgeSession {
     this.connectTimer.unref();
 
     this.upstream.on('open', () => {
-      this.configSent = this.sendProvider(sessionConfig(this.context, this.mode));
+      const config = sessionConfig(this.context, this.mode);
+      this.requestedInstructions = config.session.instructions;
+      this.configSent = this.sendProvider(config);
     });
     this.upstream.on('message', data => this.receiveProviderMessage(data));
     this.upstream.on('error', () => {
@@ -141,7 +143,7 @@ export class BridgeSession {
       switch (event.type) {
         case 'session.created':
         case 'session.updated':
-          this.markReady();
+          this.markReady(event);
           break;
         case 'response.output_audio.delta':
           relayProviderAudio(this, event);
@@ -176,12 +178,20 @@ export class BridgeSession {
     }
   }
 
-  markReady() {
-    if (!this.configSent) return;
+  markReady(event) {
+    if (!this.configSent || this.ready) return;
+    // A provider's initial session.created may precede application of our prompt.
+    // Autonomous speech must wait for the configured session, never the default persona.
+    if (this.context.autoGreeting === true && event.type !== 'session.updated'
+        && event.session?.instructions !== this.requestedInstructions) return;
     clearTimeout(this.connectTimer);
     this.ready = true;
     this.stage('upstream_ready');
     this.sendClient({ type: 'status', message: 'Ready' });
+    if (this.context.autoGreeting === true) {
+      this.responseDone = false;
+      this.sendProvider({ type: 'response.create' });
+    }
   }
 
   startResponse(responseId) {

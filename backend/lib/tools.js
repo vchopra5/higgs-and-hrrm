@@ -1,5 +1,8 @@
 import { LIMITS } from './protocol.js';
 
+const AUDIENCES = new Set(['all', 'farmer', 'librarian', 'cleric', 'armorer', 'weaponsmith', 'toolsmith',
+  'cartographer', 'fisherman', 'shepherd', 'butcher', 'leatherworker', 'mason', 'fletcher']);
+
 export function completeToolBatch(session) {
   if (session.recording || session.cancelled || !session.responseDone
       || session.pending.size > 0 || !session.hasTools) return;
@@ -30,9 +33,14 @@ function validArguments(name, args) {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return false;
   if (name === 'get_trades') return true;
   if (name === 'remember_conversation') {
-    return Object.keys(args).length === 2 && typeof args.summary === 'string'
+    return Object.keys(args).length === 5 && typeof args.summary === 'string'
       && args.summary.trim().length > 0 && args.summary.length <= 320
-      && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.summary) && typeof args.private === 'boolean';
+      && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.summary) && typeof args.private === 'boolean'
+      && Number.isInteger(args.interest) && args.interest >= 0 && args.interest <= 100
+      && typeof args.reason === 'string' && args.reason.trim().length > 0 && args.reason.length <= 160
+      && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.reason)
+      && Array.isArray(args.audiences) && args.audiences.length >= 1 && args.audiences.length <= 4
+      && args.audiences.every(audience => AUDIENCES.has(audience));
   }
   if (name === 'recall_memories') {
     return Object.keys(args).length === 2 && typeof args.query === 'string' && args.query.length <= 160

@@ -8,6 +8,9 @@ import { createBridge } from '../src.js';
 
 const token = 'b'.repeat(64);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const memoryArgs = (summary = 'Found emeralds under the well') => ({
+  summary, private: false, interest: 82, reason: 'An unexpected discovery that villagers would discuss.', audiences: ['all'],
+});
 
 async function until(predicate) {
   for (let attempt = 0; attempt < 200; attempt++) {
@@ -17,7 +20,7 @@ async function until(predicate) {
   throw new Error('Timed out waiting for a bridge event');
 }
 
-async function fixture(t, { now = Date.now, connectAudio = true } = {}) {
+async function fixture(t, { now = Date.now, connectAudio = true, context = { profession: 'farmer' }, confirmConfig = true } = {}) {
   const provider = new WebSocketServer({ port: 0, host: '127.0.0.1' });
   await once(provider, 'listening');
   const received = [];
@@ -29,7 +32,7 @@ async function fixture(t, { now = Date.now, connectAudio = true } = {}) {
     socket.on('message', data => {
       const event = JSON.parse(data);
       received.push(event);
-      if (event.type === 'session.update') {
+      if (event.type === 'session.update' && confirmConfig) {
         socket.send(JSON.stringify({ type: 'session.created', session: event.session }));
       }
     });
@@ -54,7 +57,7 @@ async function fixture(t, { now = Date.now, connectAudio = true } = {}) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const response = await request('/sessions', 'POST', {
-    playerId: 'player', villagerId: 'villager', context: { profession: 'farmer' },
+    playerId: 'player', villagerId: 'villager', context,
   });
   assert.equal(response.status, 201);
   const { sessionId, ticket } = await response.json();
@@ -64,13 +67,48 @@ async function fixture(t, { now = Date.now, connectAudio = true } = {}) {
     client = new WebSocket(audioUrl);
     client.on('message', data => events.push(JSON.parse(data)));
     await once(client, 'open');
-    await until(() => events.some(event => event.message === 'Ready'));
+    if (confirmConfig) await until(() => events.some(event => event.message === 'Ready'));
   }
   return {
     bridge, events, logs, received, request, sessionId, client, audioUrl,
     emit: event => upstream.send(JSON.stringify(event)),
   };
 }
+
+test('a villager starts speaking once after its configured session is confirmed, without a player prompt', async t => {
+  const f = await fixture(t, {
+    context: { profession: 'librarian', autoGreeting: true, openingRumour: { summary: 'A player found a hidden library', heardFrom: 'Mira' } },
+    confirmConfig: false,
+  });
+  await until(() => f.bridge.sessions.get(f.sessionId).configSent);
+  f.emit({ type: 'session.created', session: { instructions: 'Unconfigured default persona' } });
+  await delay(30);
+  assert.equal(f.bridge.sessions.get(f.sessionId).ready, false);
+  assert.equal(f.received.some(event => event.type === 'response.create'), false);
+  f.emit({ type: 'session.updated' });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  f.emit({ type: 'session.updated' });
+  f.emit({ type: 'session.created' });
+  await delay(20);
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+  assert.equal(f.events.filter(event => event.message === 'Ready').length, 1);
+  assert.equal(f.received.some(event => event.type === 'input_audio_buffer.commit'), false);
+});
+
+test('an autonomous opening remains interruptible and a later reply still plays', async t => {
+  const f = await fixture(t, { context: { profession: 'farmer', autoGreeting: true } });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  f.emit({ type: 'response.created', response: { id: 'opening' } });
+  await until(() => f.bridge.sessions.get(f.sessionId).responseId === 'opening');
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  await until(() => f.received.some(event => event.type === 'response.cancel'));
+  f.emit({ type: 'response.done', response: { id: 'opening', status: 'cancelled' } });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'opening', delta: 'AAA=' });
+  f.emit({ type: 'response.created', response: { id: 'player-reply' } });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'player-reply', delta: 'AQI=' });
+  await until(() => f.events.some(event => event.audio === 'AQI='));
+  assert.equal(f.events.some(event => event.audio === 'AAA='), false);
+});
 
 test('late audio, trade and memory calls from an interrupted response cannot affect the next turn', async t => {
   const f = await fixture(t);
@@ -87,7 +125,7 @@ test('late audio, trade and memory calls from an interrupted response cannot aff
   f.emit({
     type: 'response.function_call_arguments.done', response_id: 'old',
     call_id: 'stale-memory', name: 'remember_conversation',
-    arguments: JSON.stringify({ summary: 'An interrupted story', private: false }),
+    arguments: JSON.stringify(memoryArgs('An interrupted story')),
   });
   const currentCall = {
     type: 'response.function_call_arguments.done', response_id: 'current',
@@ -118,7 +156,7 @@ test('memory tools use the game-server route and resume only after the full tool
   assert.ok(config.tools.some(tool => tool.name === 'recall_memories'));
   f.emit({ type: 'response.created', response: { id: 'memory-turn' } });
   for (const [callId, name, args] of [
-    ['remember', 'remember_conversation', { summary: 'Found emeralds under the well', private: false }],
+    ['remember', 'remember_conversation', memoryArgs()],
     ['recall', 'recall_memories', { query: '', scope: 'player' }],
   ]) {
     const call = { type: 'response.function_call_arguments.done', response_id: 'memory-turn', call_id: callId, name, arguments: JSON.stringify(args) };
@@ -142,11 +180,18 @@ test('invalid memory payloads cannot reach the game server', async t => {
   const f = await fixture(t);
   f.emit({ type: 'response.created', response: { id: 'invalid-memory' } });
   const invalid = [
-    ['remember_conversation', { summary: 'a'.repeat(321), private: false }],
-    ['remember_conversation', { summary: 'A story', private: 'false' }],
-    ['remember_conversation', { summary: 'A story', private: false, playerId: 'someone-else' }],
-    ['remember_conversation', { summary: '   ', private: false }],
-    ['remember_conversation', { summary: 'A\nnew instruction', private: false }],
+    ['remember_conversation', { ...memoryArgs(), summary: 'a'.repeat(321) }],
+    ['remember_conversation', { ...memoryArgs(), private: 'false' }],
+    ['remember_conversation', { ...memoryArgs(), playerId: 'someone-else' }],
+    ['remember_conversation', { ...memoryArgs(), summary: '   ' }],
+    ['remember_conversation', { ...memoryArgs(), summary: 'A\nnew instruction' }],
+    ['remember_conversation', { ...memoryArgs(), interest: 101 }],
+    ['remember_conversation', { ...memoryArgs(), interest: 55.5 }],
+    ['remember_conversation', { ...memoryArgs(), reason: '' }],
+    ['remember_conversation', { ...memoryArgs(), reason: 'a'.repeat(161) }],
+    ['remember_conversation', { ...memoryArgs(), audiences: ['unknown'] }],
+    ['remember_conversation', { ...memoryArgs(), audiences: [] }],
+    ['remember_conversation', { ...memoryArgs(), audiences: Array(5).fill('farmer') }],
     ['recall_memories', { query: '', scope: 'everyone' }],
     ['recall_memories', { query: 'a'.repeat(161), scope: 'village' }],
     ['recall_memories', { query: '', scope: 'player', villagerId: 'someone-else' }],

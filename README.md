@@ -64,7 +64,8 @@ The payoff is a real merchant screen opening from a spoken request. You select t
 | :--- | :--- |
 | **In-character conversation** | Villager name, profession, and level give the conversation context. |
 | **A village that remembers** | Saved summaries let each villager recall past conversations across visits and server restarts. |
-| **Stories that travel** | Nearby villagers pass along public stories; green particles signal a new rumour. |
+| **Stories worth repeating** | The voice model judges surprising or consequential stories; neighbours prioritise news relevant to their professions. |
+| **A neighbour with something to say** | Start a conversation and the villager can lead with a fresh rumour, without a special question. |
 | **Live offer lookup** | `get_trades` reads current offers from the Minecraft server. |
 | **An action you can see** | `propose_trade` checks availability and proximity, then opens native trading. |
 | **Room to interrupt** | Hold **B** during a reply to interrupt and begin your next turn. |
@@ -72,9 +73,9 @@ The payoff is a real merchant screen opening from a spoken request. You select t
 
 ## The village remembers
 
-Tell a villager, **“Remember this: I found emeralds under the old well.”** End the conversation and return to ask what it remembers. Its saved summaries survive visits and server restarts.
+Casually tell a villager, **“I found a hidden library under the old well.”** It decides whether that is useful personal information or a story the village would find surprising. You do not need to ask it to remember. Saved summaries survive visits and server restarts.
 
-Keep another awake villager nearby. A brief burst of green particles signals that a new story has passed between them. Ask the neighbour, **“Heard any news about me?”** It can tell you what it heard and who told it.
+Keep another awake villager nearby. A brief burst of green particles signals that news has passed between them. Press **V** to start talking to the neighbour: it can open with a fresh rumour and credit its source. A librarian gives extra attention to the library discovery; routine preferences can stay personal memories. Freshness, relevance, and recent-topic tracking guide what comes up.
 
 Stories stay attributed as player claims. Explicitly private entries do not spread; ordinary stories can reach other players through village news. **[Try the memory and rumours demo →](docs/memory-rumours.md)**
 

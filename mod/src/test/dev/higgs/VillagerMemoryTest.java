@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.nio.file.*;
 import java.util.*;
 import java.util.concurrent.CompletionException;
+import com.google.gson.JsonParser;
 
 public final class VillagerMemoryTest {
     private static final UUID FARMER = UUID.randomUUID(), LIBRARIAN = UUID.randomUUID(), THIRD = UUID.randomUUID();
@@ -18,6 +19,8 @@ public final class VillagerMemoryTest {
             privacyAndFailedWrites(directory);
             boundsExpiryAndOrdering(directory.resolve("bounded.json"));
             changedSettingsAndGlobalBounds(directory.resolve("settings.json"));
+            storyInterestAndNaturalOpenings(directory.resolve("interest.json"));
+            legacyMigration(directory.resolve("legacy.json"));
             invalidSaves(directory);
             System.out.println("Villager memory and gossip regression checks passed");
         } finally {
@@ -169,5 +172,68 @@ public final class VillagerMemoryTest {
 
     private static void require(boolean condition, String message) {
         if (!condition) throw new AssertionError(message);
+    }
+
+    private static VillagerMemoryStore.Interest interest(int score, String audience) {
+        return new VillagerMemoryStore.Interest(score, "Assessment from the conversation's meaning", List.of(audience));
+    }
+
+    private static void storyInterestAndNaturalOpenings(Path file) throws Exception {
+        UUID libraryRoot;
+        try (var store = store(file)) {
+            var library = store.remember(FARMER, "Mira", PLAYER, "Alex", "Discovered an ancient library", false, interest(80, "librarian"), NOW);
+            libraryRoot = library.rootId();
+            var farm = store.remember(FARMER, "Mira", PLAYER, "Alex", "A strange blight threatens the crops", false, interest(80, "farmer"), NOW + 1);
+            var routine = store.remember(FARMER, "Mira", PLAYER, "Alex", "I prefer bread", false, interest(15, "farmer"), NOW + 2);
+            store.remember(FARMER, "Mira", PLAYER, "Alex", "A private shocking story", true, interest(100, "all"), NOW + 3);
+            store.flush().join();
+            var snapshot = store.gossipSnapshot(NOW + 4);
+            require(snapshot.get(FARMER).size() == 2, "only newsworthy public memories enter gossip");
+            require(store.recall(FARMER, PLAYER, "bread", false, NOW + 4).getFirst().rootId().equals(routine.rootId()), "routine preferences remain retrievable memories");
+            require(!store.receive(routine, FARMER, "Mira", LIBRARIAN, NOW + 4), "low-interest memories cannot bypass the gossip threshold");
+            var source = contact(FARMER, "overworld", 0, true);
+            var librarian = new VillagerGossip.Contact(LIBRARIAN, "Rowan", "overworld", 5, 64, 0, true, "librarian");
+            var farmer = new VillagerGossip.Contact(THIRD, "Fenn", "overworld", 5, 64, 0, true, "farmer");
+            var gossip = new VillagerGossip(16, 60_000);
+            require(gossip.spread(source, librarian, snapshot.get(FARMER), store, NOW + 4), "a librarian hears the story relevant to their profession first");
+            require(gossip.spread(source, farmer, snapshot.get(FARMER), store, NOW + 4), "a farmer hears a different relevant story first");
+            store.flush().join();
+            require(store.has(LIBRARIAN, library.rootId()) && !store.has(LIBRARIAN, farm.rootId()), "recipient relevance chooses library discovery");
+            require(store.has(THIRD, farm.rootId()) && !store.has(THIRD, library.rootId()), "recipient relevance chooses crop danger");
+            var ranked = store.heardRumours(LIBRARIAN, PLAYER, "librarian", NOW + 5);
+            var conversation = new RumourConversation(600_000);
+            var opening = conversation.choose(ranked, LIBRARIAN, PLAYER, NOW + 5).orElseThrow();
+            require(opening.rootId().equals(library.rootId()), "a heard story becomes a proactive opening without a query");
+            conversation.markOffered(LIBRARIAN, PLAYER, opening.rootId(), NOW + 5);
+            require(conversation.choose(ranked, LIBRARIAN, PLAYER, NOW + 6).isEmpty(), "re-entering does not repeat the same opening");
+            require(conversation.choose(ranked, LIBRARIAN, OTHER_PLAYER, NOW + 6).isPresent(), "topic novelty is specific to each player");
+            require(conversation.choose(ranked, LIBRARIAN, PLAYER, NOW + 600_006).isPresent(), "old conversation cooldowns expire");
+            require(store.heardRumours(FARMER, PLAYER, "farmer", NOW + 6).isEmpty(), "direct and private memories do not masquerade as heard rumours");
+        }
+        try (var restored = store(file)) {
+            var remembered = restored.heardRumours(LIBRARIAN, PLAYER, "librarian", NOW + 10).getFirst();
+            require(remembered.rootId().equals(libraryRoot) && remembered.interest().score() == 80
+                && remembered.interest().audiences().equals(List.of("librarian")), "semantic interest and audience survive restart");
+        }
+    }
+
+    private static void legacyMigration(Path file) throws Exception {
+        UUID root;
+        try (var store = store(file)) {
+            root = store.remember(FARMER, "Mira", PLAYER, "Alex", "An existing saved story", false, NOW).rootId();
+        }
+        var old = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+        old.addProperty("schemaVersion", 1);
+        old.getAsJsonArray("memories").forEach(entry -> entry.getAsJsonObject().remove("interest"));
+        Files.writeString(file, old.toString());
+        try (var migrated = store(file)) {
+            var memory = migrated.recall(FARMER, PLAYER, "", false, NOW).getFirst();
+            require(memory.rootId().equals(root) && memory.interest().score() == 60, "old saves keep identities with a neutral interest default");
+            var reassessed = migrated.remember(FARMER, "Mira", PLAYER, "Alex", "An existing saved story", false, interest(15, "all"), NOW + 1);
+            migrated.flush().join();
+            require(reassessed.rootId().equals(root) && migrated.size() == 1 && migrated.gossipSnapshot(NOW + 1).isEmpty(),
+                "a fresh semantic assessment can demote an old story without duplicating its root");
+        }
+        require(JsonParser.parseString(Files.readString(file)).getAsJsonObject().get("schemaVersion").getAsInt() == 2, "legacy save upgrades to the new schema");
     }
 }

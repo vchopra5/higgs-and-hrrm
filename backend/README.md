@@ -61,13 +61,15 @@ The implementation follows Boson's [official session configuration](https://gith
 
 `get_trades` queries authoritative game state. `propose_trade` opens the native trading screen; it never purchases anything or changes prices. The game server validates proximity, villager identity and offer availability.
 
-`remember_conversation` accepts `{summary, private}` and asks the bound game server to persist a short player statement. `recall_memories` accepts `{query, scope}` where scope is `player` or `village`. The server supplies UUIDs, sources, storage, and gossip eligibility. Private entries cannot spread; village scope can include public stories about other players. The bridge validates bounded strings and booleans and preserves the existing batch, duplicate-call, and interruption handling. A memory write returns `saved` only after disk persistence completes. See the [memory and rumours guide](../docs/memory-rumours.md).
+`remember_conversation` accepts `{summary, private, interest, reason, audiences}`. The voice model judges what normal speech is worth saving, using a 0–100 newsworthiness assessment and relevant professions. The server persists the statement and gates public gossip at 55; routine memories can still be recalled. `recall_memories` accepts `{query, scope}` where scope is `player` or `village`. The server supplies UUIDs, sources, storage, and gossip eligibility. Private entries cannot spread; village scope can include public stories about other players. The bridge validates bounded strings and booleans and preserves the existing batch, duplicate-call, and interruption handling. A memory write returns `saved` only after disk persistence completes. See the [memory and rumours guide](../docs/memory-rumours.md).
 
 Live API behavior and Minecraft microphone/playback still require testing with a real Boson key and game client. Interruption cancels generation and clears playback; precise conversation truncation to the last heard sample is not implemented in this MVP.
 
 Closure logs include a session ID, stable reason and WebSocket code, never tickets, credentials, audio, transcripts or provider-supplied close text. Nonfatal provider errors log only a sanitized code. For hands-free use, headphones prevent speaker audio being recaptured as user speech; this native audio path does not yet implement echo cancellation.
 
 The client can send `{type:"mute",muted:true/false}` even before Ready. Muting pauses capture, clears the upstream input buffer and discards any unfinished utterance. Unmuting clears stale input before the next speech turn. Neither action cancels an existing assistant reply. The bridge sends `{type:"end",code,message}` on closure; session setup rejection is fatal, while ordinary provider errors after Ready are recoverable.
+
+Game sessions set `context.autoGreeting=true`. After confirmation of the configured voice session, the bridge sends one `response.create` without waiting for player audio. A provided `openingRumour` lets the villager naturally lead with relevant news. Initial default-session events and duplicate Ready events cannot trigger extra greetings. The player can interrupt the opening through the normal push-to-talk path.
 
 ## Live voice diagnostics
 

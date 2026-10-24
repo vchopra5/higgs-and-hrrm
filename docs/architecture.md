@@ -137,5 +137,11 @@ handles fresh recall, and samples loaded villagers for proximity-based transfers
 deduplication. A pass uses a snapshot so newly heard stories cannot cascade in the
 same pass. Private entries and exhausted hop counts cannot spread. A successful
 save triggers native green particles above the participants; there is no autonomous
-villager voice session. See the [feature guide](memory-rumours.md) for limits,
+background voice session between villagers. See the [feature guide](memory-rumours.md) for limits,
 configuration, failure behaviour, and live rehearsal steps.
+
+### Automatic story selection and conversation openings
+
+The voice model assesses the meaning of notable statements during normal speech and supplies an interest score, reason, and audience professions to the memory tool. Public stories above the threshold qualify for gossip. The server ranks candidates by interest, recipient profession, freshness, and hop count. Low-interest preferences remain useful memories without becoming rumours. Existing schema-1 stores migrate to schema 2 with their identities and privacy flags preserved.
+
+Session context includes ranked heard rumours and a fresh opening topic when available. `RumourConversation` limits repeated opening topics per player/villager/story. Once the configured provider session is confirmed, the bridge requests an initial response so the villager can greet the player and react to its selected story without requiring a spoken prompt. Relevance and freshness guide the opener; the model chooses the wording. The existing player interruption path remains active.
