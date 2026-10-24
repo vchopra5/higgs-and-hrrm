@@ -926,3 +926,33 @@ test('a companion present from the start knows the carried-over lines but does n
   assert.equal(session.companion.speaking, false, 'no hello from a companion who never left');
   assert.deepEqual(session.companion.transcript, [{ speaker: 'Nell', text: 'Quiet today.' }]);
 });
+
+test('at bedtime the villager says one line, takes no further turns, and ends once the line has played', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { name: 'Iris', autoGreeting: true, bedtime: true } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  await until(() => f.received.some(e => e.type === 'response.create'));
+  assert.match(sessionConfig(session.context, 'ptt').session.instructions, /If context.bedtime is set, it is night and you are going to bed: you will not talk tonight/);
+  f.emit({ type: 'response.created', response: { id: 'goodnight' } });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'goodnight', delta: Buffer.alloc(4800).toString('base64') });
+  f.emit({ type: 'response.output_audio_transcript.done', response_id: 'goodnight', transcript: 'Off to bed with me, traveller.' });
+  f.emit({ type: 'response.done', response: { id: 'goodnight', status: 'completed' } });
+  await until(() => f.logs.some(e => e.stage === 'bedtime'));
+  assert.equal(f.logs.find(e => e.stage === 'bedtime').playMs, 100, '4800 bytes of 24 kHz PCM16 is 100 ms');
+  session.queuedResponse = true;
+  session.flushPreparedResponse();
+  assert.equal(f.received.filter(e => e.type === 'response.create').length, 1, 'no answer to a new turn');
+  await until(() => f.events.some(e => e.type === 'end' && e.code === 'bedtime'));
+  const cue = f.received.find(e => e.type === 'conversation.item.create').item.content[0].text;
+  assert.match(cue, /^\[Game event, not player speech: it is night and you are going to bed right now\] Turn the player down/);
+  assert.match(cue, /do not offer even a short chat/);
+});
+
+test('a goodnight cut off by the player still ends the conversation', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { name: 'Cedric', autoGreeting: true, bedtime: true } });
+  await until(() => f.received.some(e => e.type === 'response.create'));
+  f.emit({ type: 'response.created', response: { id: 'goodnight' } });
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  await until(() => f.received.some(e => e.type === 'response.cancel'));
+  f.emit({ type: 'response.done', response: { id: 'goodnight', status: 'cancelled' } });
+  await until(() => f.events.some(e => e.type === 'end' && e.code === 'bedtime'));
+});

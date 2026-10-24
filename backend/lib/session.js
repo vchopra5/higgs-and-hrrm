@@ -17,6 +17,9 @@ const DURATION_MESSAGE = 'The ten-minute conversation limit was reached. '
   + 'Start a new conversation to continue.';
 const RESPONSE_STATUSES = new Set(['completed', 'cancelled', 'failed', 'incomplete']);
 const CANCELLATION_MS = 3000;
+const BEDTIME_CUE = '[Game event, not player speech: it is night and you are going to bed right now] '
+  + 'Turn the player down in one short sentence: you are off to bed and will not talk tonight; they can come back in the morning. '
+  + 'Do not greet them first, do not ask anything, and do not offer even a short chat. Kindly or grumpily, as fits how you feel about them.';
 const GIFT_VERDICTS = new Set(['loved', 'precious', 'liked', 'junk', 'disliked']);
 const DEBUG_EVENTS = 12;
 const DEBUG_TOOLS = 8;
@@ -289,6 +292,8 @@ export class BridgeSession {
   }
 
   flushPreparedResponse() {
+    // At bedtime the villager has said goodnight and will not take up a new topic.
+    if (this.context.bedtime === true) { this.queuedResponse = false; return; }
     if (this.closed || this.recording || this.muted || this.awaitingCancellation
         || !this.responseDone || !this.queuedResponse || this.queuedAudioCommit !== null || this.memoryContext.waiting) return;
     // Addressed by name (or asked to leave), the companion answers instead; the main villager just hears it.
@@ -538,7 +543,10 @@ export class BridgeSession {
     if (this.context.autoGreeting === true && this.responseDone && !this.recording
         && !this.awaitingCancellation && !this.queuedResponse && !this.reactionActive) {
       this.responseDone = false;
-      if (this.sendProvider({ type: 'response.create' }) && this.context.openingRumour) {
+      // At bedtime the opening is a refusal, cued explicitly: the persona prompt alone let villagers soften it into small talk.
+      if (this.context.bedtime === true) this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
+        content: [{ type: 'input_text', text: BEDTIME_CUE }] } });
+      if (this.sendProvider({ type: 'response.create' }) && this.context.openingRumour && this.context.bedtime !== true) {
         const callId = `conversation-opened-${this.id}`;
         this.pending.set(callId, { callId, name: '_conversation_opened', arguments: {}, internal: true,
           turnId: this.turnId, created: this.now() });
@@ -566,6 +574,7 @@ export class BridgeSession {
   }
 
   startResponse(responseId) {
+    this.responseStartBytes = this.diagnostics.outputBytes;
     this.responseId = responseId;
     this.responseText = '';
     this.responseDone = false;
@@ -592,6 +601,14 @@ export class BridgeSession {
       this.commitAudioTurn(turnId);
     }
     const spoken = this.responseText.trim();
+    if (this.context.bedtime === true && !this.bedtimeTimer) {
+      // Night: one line about heading to bed, then goodbye, once the client has played it (24 kHz PCM16 = 48 B/ms).
+      // Ends even when the player cut the line off: nothing else will be said.
+      const playMs = Math.max(0, this.diagnostics.outputBytes - (this.responseStartBytes ?? 0)) / 48;
+      this.bedtimeTimer = setTimeout(() => this.close('bedtime'), playMs + 1500);
+      this.bedtimeTimer.unref?.();
+      this.stage('bedtime', { playMs: Math.round(playMs) });
+    }
     if (this.queuedResponse) {
       this.flushPreparedResponse();
     } else if (!this.correctUngroundedTrade(response)) completeToolBatch(this);
@@ -740,6 +757,7 @@ export class BridgeSession {
     });
     clearTimeout(this.timer);
     clearTimeout(this.connectTimer);
+    clearTimeout(this.bedtimeTimer);
     this.memoryContext.close();
     this.companion?.close();
     for (const socket of [this.client, this.upstream]) {

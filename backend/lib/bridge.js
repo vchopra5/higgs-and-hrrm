@@ -5,6 +5,7 @@ import { LIMITS, readJsonBody, replyJson } from './protocol.js';
 import { validateVoiceOverrides } from './personalities.js';
 import { BridgeSession } from './session.js';
 import { CHATTER_LIMITS, ChatterScene } from './chatter.js';
+import { SHOUT_LIMITS, ShoutCache, ShoutScene, parseShout } from './shout.js';
 import { submitToolResult } from './tools.js';
 
 const CONTINUE_MS = 2 * 60_000;
@@ -24,6 +25,7 @@ export function createBridge({
   voiceOverrides = validateVoiceOverrides(voiceOverrides);
   const sessions = new Map();
   const recentConversations = new Map();
+  const shoutCache = new ShoutCache();
   const scenes = new Map();
   const expectedAuth = Buffer.from(`Bearer ${token}`);
   const sessionOptions = {
@@ -66,9 +68,24 @@ export function createBridge({
     replyJson(response, 201, { sessionId: session.id, ticket: session.ticket });
   }
 
+  /** A villager screams; served from the per-voice cache when possible. Shares the chatter listen channel. */
+  async function createShout(request, response) {
+    if (!apiKey) return replyJson(response, 503, { error: 'BOSON_API_KEY is not configured' });
+    let body;
+    try { body = await readJsonBody(request); parseShout(body); } catch { return replyJson(response, 400, { error: 'Invalid shout' }); }
+    const generating = [...scenes.values()].filter(scene => scene instanceof ShoutScene && scene.generating).length;
+    const shout = new ShoutScene(body, { apiKey, upstreamUrl, connect, now, log, voiceOverrides, cache: shoutCache,
+      cachedOnly: generating >= SHOUT_LIMITS.generating, onClose: id => scenes.delete(id) });
+    if (shout.cachedOnly && !shoutCache.pick(shout.voice, shout.kind, true)) return replyJson(response, 429, { error: 'Shout limit reached' });
+    scenes.set(shout.id, shout);
+    shout.start();
+    replyJson(response, 201, { sceneId: shout.id, token: shout.token });
+  }
+
   async function createScene(request, response) {
     if (!apiKey) return replyJson(response, 503, { error: 'BOSON_API_KEY is not configured' });
-    if (scenes.size >= CHATTER_LIMITS.scenes) return replyJson(response, 429, { error: 'Scene limit reached' });
+    if ([...scenes.values()].filter(scene => scene instanceof ChatterScene).length >= CHATTER_LIMITS.scenes)
+      return replyJson(response, 429, { error: 'Scene limit reached' });
     let scene;
     try {
       scene = new ChatterScene(await readJsonBody(request), {
@@ -87,6 +104,7 @@ export function createBridge({
     try {
       const path = new URL(request.url, 'http://localhost').pathname;
       if (request.method === 'POST' && path === '/scenes') return await createScene(request, response);
+      if (request.method === 'POST' && path === '/shouts') return await createShout(request, response);
       const sceneMatch = path.match(/^\/scenes\/([^/]+)$/);
       if (sceneMatch) {
         const scene = scenes.get(sceneMatch[1]);

@@ -102,8 +102,10 @@ final class VillagerChatter {
         }
     }
 
+    /** Idle and awake: no chatter once villagers wind down for the night. */
     private boolean idle(Villager villager) {
-        return villager.isAlive() && !villager.isBaby() && !villager.isSleeping() && !villager.isTrading() && !host.talking(villager);
+        return villager.isAlive() && !villager.isBaby() && !villager.isSleeping() && !villager.isTrading() && !host.talking(villager)
+            && !HiggsVillagers.bedtime(villager);
     }
 
     private void start(MinecraftServer server, ServerPlayer player, Villager a, Villager b) {

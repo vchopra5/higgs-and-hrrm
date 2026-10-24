@@ -230,6 +230,20 @@ stays to listen, with a nosy or pointed reply. One that leaves will not rejoin y
 minutes. Each three-way conversation uses a second Boson session; set
 `HIGGS_COMPANION_ENABLED=false` in `.env` to turn it off.
 
+## Night and danger
+
+From dusk (in-game 12500, or whenever a villager's routine switches to rest) villagers
+want to go to bed: try to talk to one and it says a short goodnight in character, then
+the conversation ends once the line has played. For the next 90 seconds it just shows
+“heading to bed” instead of starting another conversation. Chatter and companions also
+stop for the night. Hitting a villager still gets a reaction.
+
+A villager being chased by a zombie (any zombie hunting it within 8 blocks, including
+husks, drowned and zombie villagers) screams for help in its own voice, every 8–14
+seconds while the chase lasts; players within earshot hear it from the villager, with a
+caption. Screams are cached per voice (three variants), so after the first few they cost
+no extra Boson usage and play at once.
+
 ## Errands
 
 Ask a villager for work (“anything I can help with?”) and it may send you to a neighbour

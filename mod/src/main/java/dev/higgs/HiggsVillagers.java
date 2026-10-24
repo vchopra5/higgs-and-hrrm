@@ -39,6 +39,14 @@ public final class HiggsVillagers implements ModInitializer {
     private VillagerMemoryService memory;
     private VillagerPersonalityService personalities;
     private VillagerChatter chatter;
+    private VillagerAlarm alarm;
+    private final Map<String, Long> bedtimeUntil = new HashMap<>();
+    private static final long BEDTIME_MS = 90_000;
+    /** Villagers wind down for the night: their rest schedule, or the clock for villagers without AI. */
+    static boolean bedtime(Villager villager) {
+        long time = Math.floorMod(villager.level().getOverworldClockTime(), 24000L);
+        return villager.getBrain().isActive(net.minecraft.world.entity.schedule.Activity.REST) || (time >= 12500 && time < 23500);
+    }
     private VillageTracker villages;
     private boolean companions = true;
     private int ticks;
@@ -170,7 +178,7 @@ public final class HiggsVillagers implements ModInitializer {
     private final Map<String, Long> companionCooldown = new HashMap<>();
     private static final long COMPANION_COOLDOWN_MS = 2 * 60_000;
     private Villager companionFor(Session s) {
-        if (!companions) return null;
+        if (!companions || s.bedtime || bedtime(s.villager)) return null;
         long now = System.currentTimeMillis();
         companionCooldown.values().removeIf(until -> until < now);
         return s.villager.level().getEntitiesOfClass(Villager.class, s.villager.getBoundingBox().inflate(8),
@@ -297,6 +305,8 @@ public final class HiggsVillagers implements ModInitializer {
         Villager companion;
         VillagerPersonalityStore.Profile companionProfile;
         boolean companionJoining;
+        /** Night: the villager says it is off to bed, and the conversation ends there. */
+        boolean bedtime;
         final Map<String, JsonObject> purchases = new HashMap<>();
         final Map<String, JsonObject> toolResults = new HashMap<>();
         final Set<String> pendingTools = new HashSet<>();
@@ -431,6 +441,11 @@ public final class HiggsVillagers implements ModInitializer {
                 return village == null ? null : village.name();
             }
         }, personalities, memory, publicBackend);
+        alarm = new VillagerAlarm(new VillagerAlarm.Host() {
+            public CompletableFuture<JsonElement> request(String method, String path, JsonObject body) { return HiggsVillagers.this.request(method, path, body); }
+            public void send(ServerPlayer player, JsonObject message) { HiggsVillagers.this.send(player, message); }
+            public boolean canSend(ServerPlayer player) { return ServerPlayNetworking.canSend(player, ControlPayload.TYPE); }
+        }, personalities, publicBackend);
         ServerLifecycleEvents.SERVER_STARTED.register(personalities::start);
         ServerLifecycleEvents.SERVER_STARTED.register(memory::start);
         PayloadTypeRegistry.serverboundPlay().register(ControlPayload.TYPE, ControlPayload.STREAM_CODEC);
@@ -460,6 +475,7 @@ public final class HiggsVillagers implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             memory.tick(server, ++ticks);
             if (!token.isBlank()) chatter.tick(server, ticks);
+            if (!token.isBlank()) alarm.tick(server, ticks);
             villages.tick(server, ticks);
             // Rotate explicitly: the demo villagers have NoAI, so look controls alone do nothing.
             Map<UUID, Session> facing = new HashMap<>();
@@ -550,6 +566,7 @@ public final class HiggsVillagers implements ModInitializer {
             memory.stop();
             personalities.stop();
             chatter.clear();
+            alarm.clear();
             hits.clear();
         });
     }
@@ -574,6 +591,19 @@ public final class HiggsVillagers implements ModInitializer {
             if (!valid(s)) { error(player, "That villager is unavailable or too far away."); return; }
             if (token.isBlank()) { error(player, "Set HIGGS_BRIDGE_TOKEN in the server environment or project .env."); return; }
             // Player-initiated only: a hit still gets its reaction from a villager who would rather not talk.
+            // Night: one goodnight line, then a polite refusal for a while (no paid session per retry).
+            if (autoGreeting && bedtime(villager)) {
+                String key = player.getUUID() + ":" + villager.getUUID();
+                if (now < bedtimeUntil.getOrDefault(key, 0L)) {
+                    player.sendSystemMessage(net.minecraft.network.chat.Component.literal(villager.getName().getString() + " is heading to bed")
+                        .withStyle(net.minecraft.ChatFormatting.GRAY), true);
+                    error(player, villager.getName().getString() + " is heading to bed.");
+                    return;
+                }
+                bedtimeUntil.values().removeIf(until -> until < now);
+                bedtimeUntil.put(key, now + BEDTIME_MS);
+                s.bedtime = true;
+            }
             if (autoGreeting && shuns(player, villager, now)) {
                 error(player, villager.getName().getString() + " turns away and won't talk to you.");
                 return;
@@ -621,6 +651,7 @@ public final class HiggsVillagers implements ModInitializer {
     private void startVoice(MinecraftServer server, Session s, boolean autoGreeting) {
         RecentConversation continued = continuing(s.player, s.villager);
         if (continued != null) autoGreeting = false; // Already greeted: no hello again after switching.
+        if (s.bedtime) autoGreeting = true; // The goodnight line is the whole conversation.
         try {
             ServerPlayer player = s.player;
             Villager villager = s.villager;
@@ -652,6 +683,7 @@ public final class HiggsVillagers implements ModInitializer {
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
+            if (s.bedtime) context.addProperty("bedtime", true);
             if (continued != null) {
                 JsonObject carry = new JsonObject();
                 carry.addProperty("previous", continued.previous());

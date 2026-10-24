@@ -39,6 +39,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     private boolean tutorialDisabled;
     private VoiceSession lastVoice;
     private AmbientChatter chatter;
+    /** Villagers screaming nearby; independent of chatter and of your own conversation. */
+    private final List<AmbientChatter> screams = new ArrayList<>();
     private volatile String companionName = "Villager";
     private long diagnosticRefresh;
     private int diagnosticWidth;
@@ -146,11 +148,13 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             (graphics, delta) -> tracker.render(graphics));
         ClientPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) ->
             context.client().execute(() -> receive(payload.json())));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); stopChatter(); handoff.clear(); VillagerExpressions.clear(); });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); stopChatter(); stopScreams(); handoff.clear(); VillagerExpressions.clear(); });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             handoff.tick(client);
             if (client.player == null || client.level == null) { stop(false); stopChatter(); return; }
             if (voice != null) voice.tick();
+            for (AmbientChatter scream : screams) scream.tick(client);
+            screams.removeIf(AmbientChatter::closed);
             if (chatter != null) {
                 chatter.tick(client);
                 if (chatter.closed()) chatter = null;
@@ -234,6 +238,11 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         chatter = null;
     }
 
+    private void stopScreams() {
+        screams.forEach(AmbientChatter::stop);
+        screams.clear();
+    }
+
     private void start(Minecraft client, Villager target) {
         stopChatter(); // Your own conversation takes priority over overheard chatter.
         if (!ClientPlayNetworking.canSend(ControlPayload.TYPE)) {
@@ -270,6 +279,9 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     voice.setCompanion(entity);
                     Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.literal(companionName + " joins the conversation")
                         .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+                }
+                case "scream" -> {
+                    if (screams.size() < 4) screams.add(new AmbientChatter(message.get("sceneId").getAsString(), message.get("url").getAsString()));
                 }
                 case "chatter" -> {
                     if (voice != null || pending) return;
