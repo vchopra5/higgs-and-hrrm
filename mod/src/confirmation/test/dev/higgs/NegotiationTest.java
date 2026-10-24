@@ -82,6 +82,25 @@ public final class NegotiationTest {
                 }
             }
         }
+        // Quests: a lowball offer earns the player's exact terms, scaled to how much they asked off.
+        var exact = Negotiation.exact(3, 0, 1, 12, 64, 64, 64, 1, 2);
+        check(exact != null && exact.payment() == 2 && exact.quantity() == 1 && exact.stockUses() == 1, "exact terms ignore the floor");
+        check(Negotiation.exact(3, 0, 1, 12, 64, 64, 64, null, 2).quantity() == 1, "budget alone means the default bundle");
+        check(Negotiation.exact(3, 0, 1, 0, 64, 64, 64, 1, 2) == null, "no stock, no quest deal");
+        check(Negotiation.exact(3, 0, 1, 12, 64, 64, 1, 2, 2) == null, "stack limits still apply");
+        check(Negotiation.exact(3, 2, 1, 12, 64, 64, 64, 4, 8).secondary() == 8, "secondary payment still scales");
+        check(QuestCatalogue.tier(90) == 1 && QuestCatalogue.tier(70) == 2 && QuestCatalogue.tier(66) == 2 && QuestCatalogue.tier(50) == 3, "tiers");
+        check(QuestCatalogue.options("weaponsmith", 39).isEmpty(), "absurd offers get no quest");
+        check(QuestCatalogue.options("weaponsmith", 100).isEmpty(), "full price needs no quest");
+        var steep = QuestCatalogue.options("weaponsmith", 50);
+        check(steep.getFirst().key().equals(QuestCatalogue.OMINOUS_BANNER), "weaponsmith's steep ask leads with the pillager banner");
+        check(steep.size() == QuestCatalogue.MAX_OPTIONS && steep.stream().map(QuestCatalogue.Item::key).distinct().count() == steep.size(),
+            "options are capped and unique");
+        check(QuestCatalogue.options("librarian", 90).getFirst().key().equals("minecraft:paper"), "themed options come first");
+        check(!QuestCatalogue.options("nitwit", 70).isEmpty(), "unthemed professions use the general list");
+        for (int percent = 40; percent < 100; percent++) {
+            for (var item : QuestCatalogue.options("farmer", percent)) check(item.count() >= 1 && item.count() <= 64, "quest counts fit a stack");
+        }
         System.out.println("Negotiation price, quantity, stock and budget checks passed");
     }
     static int price(int cost, int quantity, int rate, int output) {

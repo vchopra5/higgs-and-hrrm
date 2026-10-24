@@ -23,6 +23,7 @@ test('grounded trade speech passes', () => {
   assert.equal(ungroundedTrade('Twenty-seven sticks for one emerald. Confirm trade?', { tools: new Set(['propose_trade']), quote: [27, 1] }), null);
   assert.equal(ungroundedTrade('Done, thanks.', { tools: new Set(['confirm_trade']), purchased: true }), null);
   assert.equal(ungroundedTrade('Iron axes are three emeralds each.', { tools: new Set(['get_trades']) }), null);
+  assert.equal(ungroundedTrade('Bring me a pillager banner and I will take two emeralds for the axe.', { tools: new Set(['offer_quest']) }), null);
   assert.equal(ungroundedTrade('Lovely weather today, traveller.'), null);
   assert.equal(ungroundedTrade(''), null);
 });

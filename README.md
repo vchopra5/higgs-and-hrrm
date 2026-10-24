@@ -199,6 +199,17 @@ reputation does not affect these voice quotes. Scores persist per player and
 villager in the world data folder. Higgs classifies the utterance, while the server
 decides every price and enforces every limit. Quotes expire after two minutes.
 
+**Quests.** When your offer is below what a villager will accept (but at least 40% of
+its normal price), a villager who isn't annoyed with you may set a quest instead of
+countering: “Bring me a pillager banner first, then I'll take two emeralds for the
+axe.” The server offers profession-themed errands, harder for a bigger discount (coal or
+wheat for a small one, iron or gold for a fair one, an ominous banner or diamonds for a
+steep one), and the villager picks one. Tell the villager when you have the items: the
+server checks your inventory, takes them, and opens the deal at your price for one
+purchase, confirmed with a yes as usual. Each villager keeps one open quest per player,
+saved with the world (`data/higgs-quests.json`) and remembered in later conversations.
+If the trade changes or sells out, the delivered quest waits for it to restock.
+
 Bundles are limited to one stack per item (at most 64); secondary payments scale
 proportionally, rounding up to whole items. A budget buys the most items it can
 afford at or above the villager's floor, never paying more than the normal price, within stack and stock limits. Larger quantities

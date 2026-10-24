@@ -178,16 +178,46 @@ public final class HiggsVillagers implements ModInitializer {
         int lastPurchaseTurn = -1;
         JsonObject lastReceipt;
         JsonObject openingContext;
+        QuestOffer questOffer;
         final Map<String, JsonObject> purchases = new HashMap<>();
         final Map<String, JsonObject> toolResults = new HashMap<>();
         final Set<String> pendingTools = new HashSet<>();
         Session(ServerPlayer player, Villager villager) { this.player = player; this.villager = villager; }
     }
     private record Proposal(QuoteConfirmation approval, int index, ItemStack costA,
-                            ItemStack costB, ItemStack result, ItemStack baseA, ItemStack baseB, ItemStack baseResult, int stockUses) {
+                            ItemStack costB, ItemStack result, ItemStack baseA, ItemStack baseB, ItemStack baseResult, int stockUses,
+                            String questId) {
         String id() { return approval.id(); }
         long expires() { return approval.expires(); }
         VoiceConfirmation confirmation() { return approval.gate(); }
+    }
+    /** Quests the model may set after a counteroffer, for the player's own terms on one offer. */
+    private record QuestOffer(int index, Negotiation.Bundle deal, List<QuestCatalogue.Item> options) {}
+    /**
+     * An errand standing between the player and their haggled price. The base offer is fingerprinted so a
+     * restocked or changed trade cannot be bought at a stale price. Persisted per player and villager.
+     */
+    private record Quest(String id, int offerIndex, String baseA, int baseACount, String baseB, int baseBCount,
+                         String result, int resultCount, String resultName, int payment, int secondary, int quantity,
+                         int stockUses, JsonObject deal, String item, int count, String itemName, boolean delivered) {
+        Quest deliver() {
+            return new Quest(id, offerIndex, baseA, baseACount, baseB, baseBCount, result, resultCount, resultName, payment,
+                secondary, quantity, stockUses, deal, item, count, itemName, true);
+        }
+        String ask() { return count + " × " + itemName; }
+    }
+    private final Map<String, Quest> quests = new HashMap<>();
+    private Path questFile;
+    private void saveQuests() {
+        if (questFile == null) return;
+        try {
+            Files.createDirectories(questFile.getParent());
+            Path temporary = questFile.resolveSibling("higgs-quests.json.tmp");
+            Files.writeString(temporary, GSON.toJson(quests));
+            Files.move(temporary, questFile, StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.io.IOException e) {
+            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not save villager quests");
+        }
     }
     @Override public void onInitialize() {
         Map<String, String> config = config();
@@ -276,6 +306,12 @@ public final class HiggsVillagers implements ModInitializer {
             }
         });
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            questFile = server.getWorldPath(LevelResource.ROOT).resolve("data/higgs-quests.json");
+            quests.clear();
+            if (Files.exists(questFile)) try {
+                JsonObject saved = JsonParser.parseString(Files.readString(questFile)).getAsJsonObject();
+                for (var entry : saved.entrySet()) quests.put(entry.getKey(), GSON.fromJson(entry.getValue(), Quest.class));
+            } catch (Exception e) { org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not load villager quests"); }
             relationshipFile = server.getWorldPath(LevelResource.ROOT).resolve("data/higgs-relationships.json");
             relationships.clear();
             if (Files.exists(relationshipFile)) try {
@@ -345,7 +381,16 @@ public final class HiggsVillagers implements ModInitializer {
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
-            context.add("offers", offers(s)); body.add("context", context);
+            context.add("offers", offers(s));
+            Quest quest = quests.get(relationshipKey(s));
+            if (quest != null) {
+                JsonObject open = new JsonObject();
+                open.addProperty("wants", quest.ask());
+                open.add("deal", quest.deal());
+                open.addProperty("delivered", quest.delivered());
+                context.add("quest", open);
+            }
+            body.add("context", context);
             s.openingContext = autoGreeting && context.has("openingRumour") ? context : null;
             request("POST", "/sessions", body).whenComplete((reply, failure) -> server.execute(() -> {
                 if (failure != null) {
@@ -360,6 +405,8 @@ public final class HiggsVillagers implements ModInitializer {
                     String ticket = r.get("ticket").getAsString(); response.addProperty("ticket", ticket);
                     response.addProperty("url", publicBackend.replaceFirst("^http", "ws") + "/audio?ticket=" + URLEncoder.encode(ticket, StandardCharsets.UTF_8));
                     send(player, response);
+                    Quest open = quests.get(relationshipKey(s));
+                    if (open != null) questStatus(s, open, open.delivered() ? "quest_delivered" : "quest", "");
                 } catch (RuntimeException ex) { end(player, true); error(player, "Invalid voice bridge response."); }
             }));
         } catch (RuntimeException failure) {
@@ -456,7 +503,14 @@ public final class HiggsVillagers implements ModInitializer {
                             result = proposeTrade(s, call.getAsJsonObject("arguments"), call.get("turnId").getAsInt());
                         } else if (name.equals("confirm_trade")) {
                             result = confirmTrade(s, call.getAsJsonObject("arguments").get("proposalId").getAsString(), call.get("turnId").getAsInt());
+                        } else if (name.equals("offer_quest")) {
+                            result = offerQuest(s, call.getAsJsonObject("arguments").get("item").getAsString());
+                        } else if (name.equals("complete_quest")) {
+                            result = completeQuest(s, call.get("turnId").getAsInt());
                         } else result.addProperty("error", "Unknown tool.");
+                        if (Set.of("offer_quest", "complete_quest").contains(name))
+                            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Quest tool={} turn={} status={}",
+                                name, call.get("turnId").getAsInt(), result.has("status") ? result.get("status").getAsString() : "unknown");
                         if (Set.of("preview_trade", "propose_trade", "confirm_trade", "cancel_trade").contains(name)) {
                             tradeStatus(s, result);
                             org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Trade tool={} turn={} status={}",
@@ -519,6 +573,131 @@ public final class HiggsVillagers implements ModInitializer {
         result.addProperty("message", "Suggest this item briefly and ask Interested? A yes means interest only: call propose_trade next to quote exact terms. Do not call confirm_trade.");
         return result;
     }
+    /** Quest options for a lowball offer: only from villagers who are not annoyed, one open quest at a time. */
+    private QuestOffer questOffer(Session s, MerchantOffer offer, Negotiation.Band limits, int index, Integer quantity, Integer payment) {
+        if (payment == null || standing(s) <= -2 || quests.containsKey(relationshipKey(s))) return null;
+        Negotiation.Bundle deal = exact(offer, quantity, payment);
+        Negotiation.Bundle list = deal == null ? null : bundle(offer, limits, deal.quantity(), null, false);
+        if (list == null || list.quantity() != deal.quantity() || deal.payment() >= list.payment()) return null;
+        List<QuestCatalogue.Item> options = QuestCatalogue.options(VillagerMemoryService.profession(s.villager), deal.payment() * 100 / list.payment())
+            .stream().filter(item -> questStack(s, item.key()) != null).toList();
+        return options.isEmpty() ? null : new QuestOffer(index, deal, options);
+    }
+    private Negotiation.Bundle exact(MerchantOffer offer, Integer quantity, int payment) {
+        return Negotiation.exact(offer.getCostA().getCount(), offer.getCostB().getCount(), offer.getResult().getCount(),
+            offer.getMaxUses() - offer.getUses(), offer.getCostA().getMaxStackSize(),
+            offer.getCostB().isEmpty() ? 64 : offer.getCostB().getMaxStackSize(), offer.getResult().getMaxStackSize(), quantity, payment);
+    }
+    /** The template a delivery must match; the ominous banner is a white banner identified by its components. */
+    private ItemStack questStack(Session s, String key) {
+        try {
+            if (key.equals(QuestCatalogue.OMINOUS_BANNER))
+                return net.minecraft.world.entity.raid.Raid.getOminousBannerInstance(
+                    s.player.level().registryAccess().lookupOrThrow(net.minecraft.core.registries.Registries.BANNER_PATTERN));
+            var id = net.minecraft.resources.Identifier.parse(key);
+            return BuiltInRegistries.ITEM.containsKey(id) ? BuiltInRegistries.ITEM.getValue(id).getDefaultInstance() : null;
+        } catch (RuntimeException e) { return null; }
+    }
+    private java.util.function.Predicate<ItemStack> delivers(String key, ItemStack template) {
+        return key.equals(QuestCatalogue.OMINOUS_BANNER)
+            ? stack -> ItemStack.isSameItemSameComponents(stack, template)
+            : stack -> stack.getItem() == template.getItem();
+    }
+    private static String id(ItemStack stack) { return BuiltInRegistries.ITEM.getKey(stack.getItem()).toString(); }
+    private JsonObject offerQuest(Session s, String key) {
+        if (Negotiation.hostile(standing(s))) return refused();
+        QuestOffer pending = s.questOffer;
+        if (pending == null) return outcome("unavailable", "There is no haggled price to set a quest for. Only set a quest after propose_trade returns questOptions.");
+        QuestCatalogue.Item choice = pending.options().stream().filter(option -> option.key().equals(key)).findFirst().orElse(null);
+        if (choice == null) return outcome("invalid", "Choose an item from the latest questOptions.");
+        if (pending.index() >= s.villager.getOffers().size()) return outcome("unavailable", "That offer no longer exists.");
+        var offer = s.villager.getOffers().get(pending.index());
+        Negotiation.Bundle deal = pending.deal();
+        JsonObject terms = new JsonObject();
+        terms.add("costA", item(offer.getCostA().copyWithCount(deal.payment())));
+        terms.add("costB", item(offer.getCostB().isEmpty() ? ItemStack.EMPTY : offer.getCostB().copyWithCount(deal.secondary())));
+        terms.add("receive", item(offer.getResult().copyWithCount(deal.quantity())));
+        Quest quest = new Quest(UUID.randomUUID().toString(), pending.index(), id(offer.getCostA()), offer.getCostA().getCount(),
+            id(offer.getCostB()), offer.getCostB().getCount(), id(offer.getResult()), offer.getResult().getCount(),
+            offer.getResult().getHoverName().getString(), deal.payment(), deal.secondary(), deal.quantity(), deal.stockUses(),
+            terms, choice.key(), choice.count(), choice.name(), false);
+        quests.put(relationshipKey(s), quest);
+        saveQuests();
+        s.questOffer = null;
+        s.proposal = null; // The quest replaces the counteroffer.
+        JsonObject result = outcome("quest_offered", "In character and in one or two short sentences, set this quest: the player must bring you "
+            + quest.ask() + ", and then you will trade at these terms. Do not ask Confirm trade?; the deal opens only after delivery, "
+            + "when the player tells you they have the items.");
+        result.addProperty("quest", quest.ask());
+        result.add("deal", terms);
+        questStatus(s, quest, "quest", "");
+        return result;
+    }
+    private JsonObject completeQuest(Session s, int turn) {
+        if (Negotiation.hostile(standing(s))) return refused();
+        String key = relationshipKey(s);
+        Quest quest = quests.get(key);
+        if (quest == null) return outcome("no_quest", "You have not set this player a quest. Say so; do not pretend otherwise.");
+        boolean justDelivered = false;
+        if (!quest.delivered()) {
+            ItemStack template = questStack(s, quest.item());
+            if (template == null) return outcome("unavailable", "That quest item no longer exists. Apologise and set a new quest another time.");
+            var inventory = s.player.getInventory();
+            var match = delivers(quest.item(), template);
+            int have = inventory.clearOrCountMatchingItems(match, 0, s.player.inventoryMenu.getCraftSlots());
+            if (have < quest.count()) {
+                JsonObject result = outcome("quest_incomplete", "The player has " + have + " of the " + quest.ask()
+                    + " you asked for. Nothing was handed over; tell them what is still missing.");
+                result.addProperty("quest", quest.ask());
+                questStatus(s, quest, "quest_incomplete", "Still need " + (quest.count() - have) + " × " + quest.itemName());
+                return result;
+            }
+            inventory.clearOrCountMatchingItems(match, quest.count(), s.player.inventoryMenu.getCraftSlots());
+            s.player.inventoryMenu.broadcastChanges();
+            quest = quest.deliver();
+            quests.put(key, quest);
+            saveQuests();
+            moodParticles(s.player, s.villager, true);
+            justDelivered = true;
+        }
+        String thanks = justDelivered ? "The player just handed over " + quest.ask() + " for your quest; thank them warmly. "
+            : "The player already delivered your quest items. ";
+        if (!availableForVoiceTrade(s)) return outcome("unavailable", thanks + "The deal is saved, but the player must step closer and close any inventory first.");
+        if (quest.offerIndex() >= s.villager.getOffers().size()) return outcome("quest_deal_unavailable", thanks + "That trade no longer exists; apologise.");
+        var offer = s.villager.getOffers().get(quest.offerIndex());
+        if (!id(offer.getCostA()).equals(quest.baseA()) || offer.getCostA().getCount() != quest.baseACount()
+            || !id(offer.getCostB()).equals(quest.baseB()) || offer.getCostB().getCount() != quest.baseBCount()
+            || !id(offer.getResult()).equals(quest.result()) || offer.getResult().getCount() != quest.resultCount()
+            || !offer.getResult().getHoverName().getString().equals(quest.resultName()))
+            return outcome("quest_deal_unavailable", thanks + "That trade has changed since you set the quest; apologise. The deal is saved but cannot be used.");
+        if (offer.isOutOfStock() || offer.getMaxUses() - offer.getUses() < quest.stockUses())
+            return outcome("quest_deal_unavailable", thanks + "You are out of stock for it right now; the deal is saved until you restock.");
+        Proposal p = new Proposal(QuoteConfirmation.refresh(null, false, turn, System.currentTimeMillis()), quest.offerIndex(),
+            offer.getCostA().copyWithCount(quest.payment()),
+            offer.getCostB().isEmpty() ? ItemStack.EMPTY : offer.getCostB().copyWithCount(quest.secondary()),
+            offer.getResult().copyWithCount(quest.quantity()), offer.getCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(),
+            quest.stockUses(), quest.id());
+        s.proposal = p;
+        s.questOffer = null;
+        JsonObject result = quote(p, "awaiting_confirmation", thanks + "Now honour your word: say these exact terms, then ask Confirm trade? "
+            + "Wait for the player's spoken acceptance before confirm_trade.");
+        tradeStatus(s, result);
+        return result;
+    }
+    /** HUD update for a quest: the deal it unlocks and what to bring. */
+    private void questStatus(Session s, Quest quest, String status, String detail) {
+        if (s.id == null) return;
+        JsonObject message = new JsonObject();
+        message.addProperty("type", "trade_status");
+        message.addProperty("sessionId", s.id);
+        message.addProperty("entityId", s.villager.getId());
+        message.addProperty("villager", s.villager.getName().getString());
+        message.addProperty("status", status);
+        message.addProperty("message", "");
+        message.addProperty("quest", detail.isEmpty() ? (quest.delivered() ? "Items delivered · ask for your deal" : "Bring " + quest.ask()) : detail);
+        message.add("costA", quest.deal().get("costA")); message.add("costB", quest.deal().get("costB")); message.add("receive", quest.deal().get("receive"));
+        send(s.player, message);
+    }
     private JsonObject refused() {
         return outcome("refused", "You refuse to trade with this player after how they treated you. Say so angrily in one short sentence; "
             + "they must make amends before you trade again. Do not quote prices.");
@@ -554,15 +733,16 @@ public final class HiggsVillagers implements ModInitializer {
             ItemStack costA = offer.getCostA().copyWithCount(bundle.payment());
             ItemStack costB = offer.getCostB().isEmpty() ? ItemStack.EMPTY : offer.getCostB().copyWithCount(bundle.secondary());
             ItemStack receive = offer.getResult().copyWithCount(bundle.quantity());
-            boolean sameTerms = previous != null && previous.index() == index && previous.stockUses() == bundle.stockUses()
+            boolean sameTerms = previous != null && previous.questId() == null && previous.index() == index && previous.stockUses() == bundle.stockUses()
                 && ItemStack.matches(previous.costA(), costA) && ItemStack.matches(previous.costB(), costB)
                 && ItemStack.matches(previous.result(), receive) && ItemStack.matches(previous.baseA(), offer.getCostA())
                 && ItemStack.matches(previous.baseB(), offer.getCostB()) && ItemStack.matches(previous.baseResult(), offer.getResult());
             boolean stale = previous != null && previous.approval().stale(turn);
             QuoteConfirmation approval = QuoteConfirmation.refresh(previous == null ? null : previous.approval(), sameTerms, turn, System.currentTimeMillis());
             Proposal p = new Proposal(approval, index, costA, costB, receive,
-                offer.getCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(), bundle.stockUses());
+                offer.getCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(), bundle.stockUses(), null);
             s.proposal = p;
+            s.questOffer = counteroffer ? questOffer(s, offer, limits, index, quantity, payment) : null;
             boolean retained = previous != null && approval.gate() == previous.confirmation();
             String haggle = counteroffer
                 ? "The player's offer is below the lowest you will accept. Turn it down kindly and counter with these terms as your best offer. "
@@ -571,6 +751,20 @@ public final class HiggsVillagers implements ModInitializer {
             JsonObject result = quote(p, "awaiting_confirmation", haggle + (retained && !stale
                 ? "These current terms match the quote just presented. If the player's latest utterance accepts it, call confirm_trade with this proposalId now. Otherwise say the exact costs and quantity, then ask Confirm trade?"
                 : RESTATE_QUOTE));
+            if (s.questOffer != null) {
+                Negotiation.Bundle deal = s.questOffer.deal();
+                JsonArray options = new JsonArray();
+                for (QuestCatalogue.Item item : s.questOffer.options()) {
+                    JsonObject option = new JsonObject();
+                    option.addProperty("item", item.key()); option.addProperty("count", item.count()); option.addProperty("name", item.name());
+                    options.add(option);
+                }
+                result.add("questOptions", options);
+                result.addProperty("message", result.get("message").getAsString() + " Instead of countering, you may set a quest: the player earns their own price ("
+                    + deal.payment() + " " + offer.getCostA().getHoverName().getString() + " for " + deal.quantity() + " "
+                    + offer.getResult().getHoverName().getString() + ") by first bringing you one of questOptions. "
+                    + "To do that, pick the option that suits you and call offer_quest with its item; otherwise just counter.");
+            }
             result.addProperty("discounted", bundle.discounted());
             result.addProperty("relationship", limits.name());
             result.addProperty("pricePercent", limits.rate());
@@ -650,6 +844,10 @@ public final class HiggsVillagers implements ModInitializer {
             JsonObject receipt = outcome(purchased ? "purchased" : "unavailable", purchased
                 ? p.result().getCount() + " × " + p.result().getHoverName().getString() + " added to your inventory. Trade is FINISHED. Briefly confirm success; do not ask for confirmation or propose it again."
                 : "Nothing was purchased. Ask for a fresh proposal.");
+            if (purchased && p.questId() != null) {
+                Quest quest = quests.get(relationshipKey(s));
+                if (quest != null && quest.id().equals(p.questId())) { quests.remove(relationshipKey(s)); saveQuests(); }
+            }
             if (purchased) {
                 s.purchases.put(p.id(), receipt);
                 s.lastPurchaseTurn = turn;

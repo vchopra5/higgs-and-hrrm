@@ -145,7 +145,8 @@ tasks.register('testDebugPages', JavaExec) {
 tasks.named('check') { dependsOn 'testDebugPages' }
 
 tasks.register('compileNegotiationTest', JavaCompile) {
-    source = files('src/main/java/dev/higgs/Negotiation.java', 'src/confirmation/test/dev/higgs/NegotiationTest.java')
+    source = files('src/main/java/dev/higgs/Negotiation.java', 'src/main/java/dev/higgs/QuestCatalogue.java',
+        'src/confirmation/test/dev/higgs/NegotiationTest.java')
     classpath = files()
     destinationDirectory = layout.buildDirectory.dir('negotiation-test')
 }

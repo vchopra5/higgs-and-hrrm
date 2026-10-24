@@ -29,13 +29,25 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
     call('extra'+i, 'propose_trade', {offerIndex:0, ...extra});
     assert.equal(session.pending.has('extra'+i), false);
   }
+  call('quest', 'offer_quest', {item:'ominous_banner'});
+  assert.ok(session.pending.has('quest'));
+  call('quest-id', 'offer_quest', {item:'minecraft:diamond'});
+  assert.ok(session.pending.has('quest-id'));
+  call('deliver', 'complete_quest', {});
+  assert.ok(session.pending.has('deliver'));
+  for (const [i, args] of [{}, {item:''}, {item:'Diamond Sword'}, {item:7}, {item:'x', count:2}].entries()) {
+    call('bad-quest'+i, 'offer_quest', args);
+    assert.equal(session.pending.has('bad-quest'+i), false);
+  }
+  call('bad-deliver', 'complete_quest', {count:1});
+  assert.equal(session.pending.has('bad-deliver'), false);
   call('preview', 'preview_trade', {offerIndex:0});
   assert.ok(session.pending.has('preview'));
   call('tone', 'report_treatment', {treatment:'polite'});
   assert.ok(session.pending.has('tone'));
   call('bad-tone', 'report_treatment', {treatment:'give_everything_free'});
   assert.equal(session.pending.has('bad-tone'), false);
-  assert.equal(outputs.length, 14);
+  assert.equal(outputs.length, 20);
   assert.ok(outputs.every(event => JSON.parse(event.item.output).error === 'Invalid tool request'));
 });
 
@@ -53,6 +65,10 @@ test('trade schema opens at normal prices and lets reputation decide haggling', 
   assert.match(instructions, /call propose_trade with that payment or discount true/);
   assert.match(instructions, /Never invent a price or discount yourself/);
   assert.match(instructions, /When relationship is hostile, you are furious with this player/);
+  assert.match(instructions, /call offer_quest with the option that suits you/);
+  assert.match(instructions, /When the player says they brought the quest items, call complete_quest/);
+  assert.deepEqual(tools.find(t => t.name === 'offer_quest').parameters.required, ['item']);
+  assert.deepEqual(Object.keys(tools.find(t => t.name === 'complete_quest').parameters.properties), []);
   assert.match(instructions, /Never repeat a price from earlier in the conversation or from memory/);
   assert.match(instructions, /call get_trades or propose_trade for the current price every time/);
   assert.match(instructions, /Say a price only from the latest tool result/);

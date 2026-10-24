@@ -57,6 +57,8 @@ function validArguments(name, args) {
       && args.audiences.every(audience => AUDIENCES.has(audience));
   }
   if (name === 'get_trades' || name === 'cancel_trade') return true;
+  if (name === 'complete_quest') return Object.keys(args).length === 0;
+  if (name === 'offer_quest') return Object.keys(args).length === 1 && typeof args.item === 'string' && /^[a-z0-9_:.\/-]{1,64}$/.test(args.item);
   if (name === 'confirm_trade') return typeof args.proposalId === 'string' && /^[a-f0-9-]{36}$/.test(args.proposalId);
   if (name === 'preview_trade') return Number.isInteger(args.offerIndex) && args.offerIndex >= 0;
   if (name === 'report_treatment') return ['polite', 'neutral', 'rude'].includes(args.treatment);

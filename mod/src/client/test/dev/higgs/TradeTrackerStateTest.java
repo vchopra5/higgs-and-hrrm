@@ -28,6 +28,12 @@ public final class TradeTrackerStateTest {
         state.clear();
         state.update("Farmer", "cancelled", null, 11000);
         check(state.opacity(11000) == 0, "hit outside a trade never opens tracker");
+        state.clear();
+        state.update("Weaponsmith", "quest", new TradeTrackerState.Quote("preview", "2 × Emerald", "1 × Iron Axe", 0), "Bring 1 × Ominous Banner", 50000);
+        check(!state.active && state.quest.equals("Bring 1 × Ominous Banner"), "a quest never invites purchase confirmation");
+        check(state.opacity(60000) == 1 && state.opacity(80000) == 0, "quest stays readable longer, then fades");
+        state.update("Weaponsmith", "awaiting_confirmation", new TradeTrackerState.Quote("deal", "2 × Emerald", "1 × Iron Axe", 200000), 90000);
+        check(state.active && state.quest.isEmpty() && state.previous.isEmpty(), "completed quest opens a normal confirmable deal");
         System.out.println("Trade tracker lifecycle checks passed");
     }
     static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }

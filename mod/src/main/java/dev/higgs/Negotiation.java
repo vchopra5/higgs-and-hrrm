@@ -38,6 +38,17 @@ final class Negotiation {
         }
         return null;
     }
+    /** The player's own terms, below the floor: what a completed quest unlocks. Null when stock or stacks cannot fit. */
+    static Bundle exact(int cost, int secondary, int output, int remainingUses,
+                        int maxPayment, int maxSecondary, int maxOutput, Integer quantity, int payment) {
+        if (cost < 1 || output < 1 || remainingUses < 1 || payment < 1 || payment > Math.min(64, maxPayment)) return null;
+        int q = quantity != null ? quantity : output;
+        if (q < 1 || q > Math.min(64, maxOutput)) return null;
+        int uses = (q - 1) / output + 1;
+        long second = ((long) secondary * q + output - 1) / output;
+        if (uses > remainingUses || second > Math.min(64, maxSecondary)) return null;
+        return new Bundle(payment, (int) second, q, uses, true);
+    }
     private static long price(int cost, int quantity, int rate, int output) {
         return Math.max(1, Math.round((double) cost * quantity * rate / (100.0 * output)));
     }
