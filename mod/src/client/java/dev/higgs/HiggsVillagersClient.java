@@ -141,6 +141,14 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             handoff.tick(client);
             if (client.player == null || client.level == null) { stop(false); return; }
+            // Keep the local voice demo free of the unsigned-chat toast.
+            // Scope this to loopback so other servers retain their warning.
+            if (client.getConnection() != null
+                && client.getConnection().getConnection().getRemoteAddress() instanceof java.net.InetSocketAddress address
+                && address.getAddress() != null && address.getAddress().isLoopbackAddress()) {
+                net.minecraft.client.gui.components.toasts.SystemToast.forceHide(client.getToastManager(),
+                    net.minecraft.client.gui.components.toasts.SystemToast.SystemToastId.UNSECURE_SERVER_WARNING);
+            }
             if (!tutorialDisabled) {
                 client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
                 tutorialDisabled = true;
