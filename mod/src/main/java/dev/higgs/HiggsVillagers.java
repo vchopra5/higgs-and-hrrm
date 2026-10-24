@@ -79,6 +79,9 @@ public final class HiggsVillagers implements ModInitializer {
         Proposal proposal;
         int pollFailures;
         int mood, treatmentTurn;
+        int lastPurchaseTurn = -1;
+        JsonObject lastReceipt;
+        final Map<String, JsonObject> purchases = new HashMap<>();
         final Map<String, JsonObject> toolResults = new HashMap<>();
         Session(ServerPlayer player, Villager villager) { this.player = player; this.villager = villager; }
     }
@@ -100,7 +103,13 @@ public final class HiggsVillagers implements ModInitializer {
             if (++ticks % 10 != 0) return;
             for (Session s : List.copyOf(sessions.values())) {
                 if (!valid(s, 144)) end(s.player, true, "Conversation ended: stay within 12 blocks of an awake villager.");
-                else if (s.id != null && !s.polling) poll(server, s);
+                else {
+                    if (s.proposal != null && System.currentTimeMillis() >= s.proposal.expires()) {
+                        s.proposal = null;
+                        tradeStatus(s, outcome("expired", "Offer expired. Ask for a fresh quote."));
+                    }
+                    if (s.id != null && !s.polling) poll(server, s);
+                }
             }
         });
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
@@ -201,6 +210,11 @@ public final class HiggsVillagers implements ModInitializer {
                         } else if (name.equals("confirm_trade")) {
                             result = confirmTrade(s, call.getAsJsonObject("arguments").get("proposalId").getAsString(), call.get("turnId").getAsInt());
                         } else result.addProperty("error", "Unknown tool.");
+                        if (Set.of("propose_trade", "confirm_trade", "cancel_trade").contains(name)) {
+                            tradeStatus(s, result);
+                            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Trade tool={} turn={} status={}",
+                                name, call.get("turnId").getAsInt(), result.has("status") ? result.get("status").getAsString() : "unknown");
+                        }
                         // Store before sending: retries must never execute a game action twice.
                         s.toolResults.put(callId, result);
                     }
@@ -210,6 +224,22 @@ public final class HiggsVillagers implements ModInitializer {
                 }
             } catch (RuntimeException ex) { end(s.player, true); error(s.player, "Invalid voice bridge tool request."); }
         }));
+    }
+    private void tradeStatus(Session s, JsonObject result) {
+        JsonObject message = new JsonObject();
+        message.addProperty("type", "trade_status");
+        message.addProperty("sessionId", s.id);
+        message.addProperty("entityId", s.villager.getId());
+        message.addProperty("villager", s.villager.getName().getString());
+        message.addProperty("status", result.has("status") ? result.get("status").getAsString() : "unavailable");
+        message.addProperty("message", result.has("message") ? result.get("message").getAsString() : "Ask for a new quote.");
+        if (s.proposal != null) {
+            Proposal p = s.proposal;
+            message.addProperty("proposalId", p.id());
+            message.addProperty("expiresInMs", Math.max(0, p.expires() - System.currentTimeMillis()));
+            message.add("costA", item(p.costA())); message.add("costB", item(p.costB())); message.add("receive", item(p.result()));
+        }
+        send(s.player, message);
     }
     private JsonObject outcome(String status, String message) {
         JsonObject result = new JsonObject(); result.addProperty("status", status); result.addProperty("message", message); return result;
@@ -224,7 +254,9 @@ public final class HiggsVillagers implements ModInitializer {
         return result;
     }
     private JsonObject proposeTrade(Session s, JsonObject arguments, int turn) {
+        if (turn == s.lastPurchaseTurn && s.lastReceipt != null) return s.lastReceipt;
         int index = arguments.get("offerIndex").getAsInt();
+        Proposal previous = s.proposal;
         s.proposal = null;
         if (!availableForVoiceTrade(s)) return outcome("unavailable", "Move within eight blocks, close any inventory, and wait until the villager is free.");
         if (index < 0 || index >= s.villager.getOffers().size()) return outcome("unavailable", "That offer does not exist.");
@@ -248,6 +280,14 @@ public final class HiggsVillagers implements ModInitializer {
                 offer.getCostA().copyWithCount(bundle.payment()), offer.getCostB().isEmpty() ? ItemStack.EMPTY : offer.getCostB().copyWithCount(bundle.secondary()),
                 offer.getResult().copyWithCount(bundle.quantity()), new VoiceConfirmation(turn, System.currentTimeMillis() + 120_000),
                 offer.getCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(), bundle.stockUses());
+            if (previous != null && previous.expires() > System.currentTimeMillis()
+                && previous.index() == p.index() && previous.stockUses() == p.stockUses()
+                && ItemStack.matches(previous.costA(), p.costA()) && ItemStack.matches(previous.costB(), p.costB())
+                && ItemStack.matches(previous.result(), p.result()) && ItemStack.matches(previous.baseA(), p.baseA())
+                && ItemStack.matches(previous.baseB(), p.baseB()) && ItemStack.matches(previous.baseResult(), p.baseResult())) {
+                s.proposal = previous;
+                return quote(previous, "quote_unchanged", "This is the same active quote, not a new offer. If the player's latest utterance accepts it, call confirm_trade with this proposalId now. Do not ask for another yes. Otherwise keep this quote and answer their question.");
+            }
             s.proposal = p;
             JsonObject result = quote(p, bundle.counteroffer() ? "counteroffer" : "awaiting_confirmation",
                 "Read these exact costs and received quantity aloud, including any adjusted amounts. Wait for a new spoken yes. Nothing has been purchased.");
@@ -257,6 +297,7 @@ public final class HiggsVillagers implements ModInitializer {
         } finally { s.villager.setTradingPlayer(null); }
     }
     private JsonObject confirmTrade(Session s, String id, int turn) {
+        if (s.purchases.containsKey(id)) return s.purchases.get(id);
         Proposal p = s.proposal;
         if (p == null || !p.id().equals(id)) return outcome("unavailable", "No matching proposal. Ask for a new quote.");
         if (System.currentTimeMillis() >= p.expires() || !availableForVoiceTrade(s)) {
@@ -312,9 +353,15 @@ public final class HiggsVillagers implements ModInitializer {
                 feedback.add("receive", item(p.result()));
                 send(s.player, feedback);
             }
-            return outcome(purchased ? "purchased" : "unavailable", purchased
-                ? p.result().getCount() + " × " + p.result().getHoverName().getString() + " added to your inventory. Exactly one trade completed."
+            JsonObject receipt = outcome(purchased ? "purchased" : "unavailable", purchased
+                ? p.result().getCount() + " × " + p.result().getHoverName().getString() + " added to your inventory. Trade is FINISHED. Briefly confirm success; do not ask for confirmation or propose it again."
                 : "Nothing was purchased. Ask for a fresh proposal.");
+            if (purchased) {
+                s.purchases.put(p.id(), receipt);
+                s.lastPurchaseTurn = turn;
+                s.lastReceipt = receipt;
+            }
+            return receipt;
         } finally {
             // Native cleanup returns all unused payment items, including on errors.
             try {

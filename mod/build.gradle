@@ -99,3 +99,15 @@ tasks.register('testNegotiation', JavaExec) {
     mainClass = 'dev.higgs.NegotiationTest'
 }
 tasks.named('check') { dependsOn 'testNegotiation' }
+
+tasks.register('compileTradeTrackerTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/TradeTrackerState.java', 'src/client/test/dev/higgs/TradeTrackerStateTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('trade-tracker-test')
+}
+tasks.register('testTradeTracker', JavaExec) {
+    dependsOn 'compileTradeTrackerTest'
+    classpath = files(layout.buildDirectory.dir('trade-tracker-test'))
+    mainClass = 'dev.higgs.TradeTrackerStateTest'
+}
+tasks.named('check') { dependsOn 'testTradeTracker' }

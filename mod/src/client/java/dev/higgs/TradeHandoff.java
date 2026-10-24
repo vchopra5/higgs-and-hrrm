@@ -5,7 +5,6 @@ import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import net.minecraft.client.Minecraft;
-import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.Identifier;
@@ -25,7 +24,6 @@ final class TradeHandoff {
     private Entity merchant;
     private int nextId = -2_000_000;
     private long started;
-    private String receipt = "";
     private boolean chimed;
 
     void start(Minecraft client, JsonObject event) {
@@ -41,17 +39,11 @@ final class TradeHandoff {
         var a = event.getAsJsonObject("costA");
         var b = event.getAsJsonObject("costB");
         var received = event.getAsJsonObject("receive");
-        receipt = label(a, "−") + (b.get("count").getAsInt() > 0 ? "  ·  " + label(b, "−") : "")
-            + "   →   " + label(received, "+");
         if (merchant != null) {
             spawn(client, a, true, 0);
             spawn(client, b, true, 120);
             spawn(client, received, false, 850);
         }
-    }
-
-    private String label(JsonObject item, String sign) {
-        return sign + item.get("count").getAsInt() + " " + item.get("name").getAsString();
     }
 
     private Vec3 hand(Minecraft client) {
@@ -98,22 +90,7 @@ final class TradeHandoff {
             chimed = true;
             level.playLocalSound(client.player, SoundEvents.EXPERIENCE_ORB_PICKUP, SoundSource.PLAYERS, 0.35f, 1.3f);
         }
-        if (age >= 6000) { removeItems(); receipt = ""; level = null; }
-    }
-
-    void render(GuiGraphicsExtractor graphics) {
-        Minecraft client = Minecraft.getInstance();
-        if (receipt.isEmpty() || client.player == null || client.options.hideGui || client.screen != null) return;
-        long age = System.currentTimeMillis() - started;
-        float fade = Math.max(0, Math.min(1, (6000 - age) / 1500f));
-        int alpha = Math.max(5, (int) (255 * fade));
-        int width = Math.min(graphics.guiWidth() - 24, Math.max(180, client.font.width(receipt) + 28));
-        int x = (graphics.guiWidth() - width) / 2, y = 32;
-        graphics.fill(x, y, x + width, y + 39, ((alpha * 4 / 5) << 24) | 0x101B20);
-        graphics.fill(x, y, x + 2, y + 39, (alpha << 24) | 0xA6E9BA);
-        graphics.text(client.font, "TRADE COMPLETE", x + 12, y + 7, (alpha << 24) | 0xA6E9BA, false);
-        graphics.text(client.font, client.font.plainSubstrByWidth(receipt, width - 24), x + 12, y + 23,
-            (alpha << 24) | 0xF2F5F4, false);
+        if (age >= 6000) { removeItems(); level = null; }
     }
 
     private void removeItems() {
@@ -121,5 +98,5 @@ final class TradeHandoff {
         flights.clear();
     }
 
-    void clear() { removeItems(); level = null; merchant = null; receipt = ""; seen.clear(); }
+    void clear() { removeItems(); level = null; merchant = null; seen.clear(); }
 }

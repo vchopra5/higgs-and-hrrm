@@ -20,6 +20,8 @@ import org.lwjgl.glfw.GLFW;
 public final class HiggsVillagersClient implements ClientModInitializer {
     private VoiceSession voice;
     private final TradeHandoff handoff = new TradeHandoff();
+    private final TradeTracker tracker = new TradeTracker();
+    private String activeSessionId;
     private boolean pending;
     private int targetId = -1;
     private boolean wasTalking;
@@ -83,26 +85,31 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 if (source == null) return;
                 long now = System.currentTimeMillis();
                 var captions = source.captions.visible(now);
-                int width = Math.min(400, graphics.guiWidth() - 24);
-                int x = (graphics.guiWidth() - width) / 2;
-                int bottom = graphics.guiHeight() - 58;
-                // Bottom-anchor the newest reply; limit each speaker to three wrapped lines.
-                for (int i = captions.size() - 1; i >= 0; i--) {
-                    var caption = captions.get(i);
-                    var lines = client.font.split(Component.literal(caption.text()), width - 20);
-                    int start = Math.max(0, lines.size() - 3), count = lines.size() - start;
-                    int height = 21 + count * 11;
-                    int top = bottom - height;
-                    int alpha = Math.max(5, (int) (255 * caption.opacity(now)));
-                    graphics.fill(x, top, x + width, bottom, ((alpha * 3 / 4) << 24) | 0x101B20);
-                    int tint = caption.speaker().equals("you") ? 0xA5D8FF : 0xA6E9BA;
-                    graphics.fill(x, top + 5, x + 2, bottom - 5, (alpha << 24) | tint);
-                    graphics.text(client.font, caption.speaker().equals("you") ? "YOU" : "VILLAGER",
-                        x + 10, top + 6, (alpha << 24) | tint, false);
-                    for (int row = 0; row < count; row++) graphics.text(client.font, lines.get(start + row),
-                        x + 10, top + 19 + row * 11, (alpha << 24) | 0xF2F5F4, false);
-                    bottom = top - 5;
-                }
+                float captionScale = 0.75f;
+                int width = (int) (Math.min(400, graphics.guiWidth() - 24) / captionScale);
+                int x = (int) ((graphics.guiWidth() / captionScale - width) / 2);
+                int bottom = (int) ((graphics.guiHeight() - 58) / captionScale);
+                graphics.pose().pushMatrix();
+                graphics.pose().scale(captionScale, captionScale);
+                try {
+                    // Bottom-anchor the newest reply; limit each speaker to three wrapped lines.
+                    for (int i = captions.size() - 1; i >= 0; i--) {
+                        var caption = captions.get(i);
+                        var lines = client.font.split(Component.literal(caption.text()), width - 20);
+                        int start = Math.max(0, lines.size() - 3), count = lines.size() - start;
+                        int height = 21 + count * 11;
+                        int top = bottom - height;
+                        int alpha = Math.max(5, (int) (255 * caption.opacity(now)));
+                        graphics.fill(x, top, x + width, bottom, ((alpha * 3 / 4) << 24) | 0x101B20);
+                        int tint = caption.speaker().equals("you") ? 0xA5D8FF : 0xA6E9BA;
+                        graphics.fill(x, top + 5, x + 2, bottom - 5, (alpha << 24) | tint);
+                        graphics.text(client.font, caption.speaker().equals("you") ? "YOU" : "VILLAGER",
+                            x + 10, top + 6, (alpha << 24) | tint, false);
+                        for (int row = 0; row < count; row++) graphics.text(client.font, lines.get(start + row),
+                            x + 10, top + 19 + row * 11, (alpha << 24) | 0xF2F5F4, false);
+                        bottom = top - 5;
+                    }
+                } finally { graphics.pose().popMatrix(); }
             });
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "diagnostics"),
             (graphics, delta) -> {
@@ -131,8 +138,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 graphics.fill(x + 6, y + height - 5, x + width - 6, y + height - 3, 0xFF384451);
                 if (meter > 0) graphics.fill(x + 6, y + height - 5, x + 6 + meter, y + height - 3, dbfs > -3 ? 0xFFFF7070 : 0xFF70EF9B);
             });
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "trade_receipt"),
-            (graphics, delta) -> handoff.render(graphics));
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "trade_tracker"),
+            (graphics, delta) -> tracker.render(graphics));
         ClientPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) ->
             context.client().execute(() -> receive(payload.json())));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); handoff.clear(); });
@@ -194,9 +201,14 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             JsonObject message = JsonParser.parseString(raw).getAsJsonObject();
             switch (message.get("type").getAsString()) {
                 case "trade_complete" -> handoff.start(Minecraft.getInstance(), message);
+                case "trade_status" -> {
+                    if (activeSessionId != null && activeSessionId.equals(message.get("sessionId").getAsString())
+                        && targetId == message.get("entityId").getAsInt()) tracker.update(message);
+                }
                 case "session" -> {
                     if (!pending) return;
                     pending = false;
+                    activeSessionId = message.get("sessionId").getAsString();
                     long current = ++generation;
                     voice = new VoiceSession(message.get("url").getAsString(), message.get("ticket").getAsString(),
                         HiggsVillagersClient::status, () -> Minecraft.getInstance().execute(() -> {
@@ -222,6 +234,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         generation++;
         pending = false;
         targetId = -1;
+        activeSessionId = null;
+        tracker.clear();
         VoiceSession previous = voice;
         voice = null;
         if (previous != null) { lastVoice = previous; previous.close(); }

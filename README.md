@@ -174,3 +174,7 @@ valid counteroffer. Larger quantities consume proportional stock, rounded up to
 native trade uses; small purchases still use one stock unit. The native inventory
 transaction handles item components, space, trade statistics and rewards. Price
 negotiation cannot bypass missing payment, stock, proximity or inventory checks.
+
+A compact, non-interactive trade tracker shows the villager and the current server quote: YOU GIVE, YOU GET, and “Say yes to accept.” Revised amounts briefly show the previous deal crossed out. Expired or cancelled offers stop inviting acceptance, and success or failure fades after six seconds. Switching villagers clears the tracker; all choices still use voice.
+
+Repeated quotes with identical terms retain the original proposal ID, confirmation turn, and expiry. A repeated confirmation returns the existing purchase receipt without buying again. Trade diagnostics log tool names, turn numbers, and outcomes without speech content.
