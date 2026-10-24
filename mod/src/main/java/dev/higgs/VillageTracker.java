@@ -46,6 +46,7 @@ final class VillageTracker {
     private static final int EXIT_MARGIN = 16;
     private final ToIntBiFunction<ServerPlayer, Villager> standing;
     private final int radius;
+    int radius() { return radius; }
     private final List<String> names = loadNames();
     private final RandomGenerator random = RandomGenerator.getDefault();
     private final Map<String, Village> villages = new HashMap<>();

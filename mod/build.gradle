@@ -92,6 +92,18 @@ tasks.register('testTextTerms', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testTextTerms' }
 
+tasks.register('compileDestinationsTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/Destinations.java', 'src/test/dev/higgs/DestinationsTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('destinations-test')
+}
+tasks.register('testDestinations', JavaExec) {
+    dependsOn 'compileDestinationsTest'
+    classpath = files(layout.buildDirectory.dir('destinations-test'))
+    mainClass = 'dev.higgs.DestinationsTest'
+}
+tasks.named('check') { dependsOn 'testDestinations' }
+
 tasks.register('compileJournalTest', JavaCompile) {
     source = files('src/main/java/dev/higgs/VillagerJournal.java', 'src/main/java/dev/higgs/TextTerms.java',
         'src/test/dev/higgs/VillagerJournalTest.java')
@@ -333,6 +345,30 @@ tasks.register('testVillagerMind', JavaExec) {
     mainClass = 'dev.higgs.VillagerMindTest'
 }
 tasks.named('check') { dependsOn 'testVillagerMind' }
+
+tasks.register('compileRelationshipStageTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/RelationshipStage.java', 'src/reactions/test/dev/higgs/RelationshipStageTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('relationship-stage-test')
+}
+tasks.register('testRelationshipStage', JavaExec) {
+    dependsOn 'compileRelationshipStageTest'
+    classpath = files(layout.buildDirectory.dir('relationship-stage-test'))
+    mainClass = 'dev.higgs.RelationshipStageTest'
+}
+tasks.named('check') { dependsOn 'testRelationshipStage' }
+
+tasks.register('compileKeepsakeTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/Keepsake.java', 'src/reactions/test/dev/higgs/KeepsakeTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('keepsake-test')
+}
+tasks.register('testKeepsake', JavaExec) {
+    dependsOn 'compileKeepsakeTest'
+    classpath = files(layout.buildDirectory.dir('keepsake-test'))
+    mainClass = 'dev.higgs.KeepsakeTest'
+}
+tasks.named('check') { dependsOn 'testKeepsake' }
 
 tasks.register('compileAudioDeviceTest', JavaCompile) {
     source = files('src/client/java/dev/higgs/AudioDevices.java',

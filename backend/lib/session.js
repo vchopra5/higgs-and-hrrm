@@ -12,6 +12,7 @@ import { completeToolBatch, expireTools, receiveToolCall } from './tools.js';
 import { MemoryContext } from './memory-context.js';
 import { TRADE_TOOLS, ungroundedTrade } from './grounding.js';
 import { Companion, addressedTo, askedToLeave, parseCompanion } from './companion.js';
+import { GAME_EVENTS, gameEventCue, parseGameEvent } from './game-events.js';
 
 const DURATION_MESSAGE = 'The ten-minute conversation limit was reached. '
   + 'Start a new conversation to continue.';
@@ -20,6 +21,10 @@ const CANCELLATION_MS = 3000;
 const BEDTIME_CUE = '[Game event, not player speech: it is night and you are going to bed right now] '
   + 'Turn the player down in one short sentence: you are off to bed and will not talk tonight; they can come back in the morning. '
   + 'Do not greet them first, do not ask anything, and do not offer even a short chat. Kindly or grumpily, as fits how you feel about them.';
+const CUE_MS = 15_000;
+const introductionCue = guide => `[Game event, not player speech: ${guide.slice(0, 40)} has just walked the player over to meet you and is standing beside you] `
+  + `Speaking as yourself, greet the player warmly, thank ${guide.slice(0, 40)} for bringing them, and ask what brings them. `
+  + 'One or two short sentences. Never describe yourself or the scene in the third person.';
 const GIFT_VERDICTS = new Set(['loved', 'precious', 'liked', 'junk', 'disliked']);
 const DEBUG_EVENTS = 12;
 const DEBUG_TOOLS = 8;
@@ -97,6 +102,7 @@ export class BridgeSession {
 
   environmentEvent(event) {
     if (event?.type === 'gift') { this.giftEvent(event); return; }
+    if (GAME_EVENTS.has(event?.type)) { this.queueCue(parseGameEvent(event)); return; }
     if (event?.type !== 'hit' || event.windowMs !== 30_000
         || !Number.isInteger(event.count) || event.count < 1 || event.count > 601
         || !Number.isInteger(event.spanMs) || event.spanMs < 0 || event.spanMs >= event.windowMs
@@ -120,6 +126,28 @@ export class BridgeSession {
     // Only the latest gift gets a spoken reaction; a burst of clicks should not queue a speech each.
     this.pendingGift = { item: event.item, verdict: event.verdict, repeat: event.repeat, change: event.change, at: this.now() };
     this.flushGift();
+    this.flushCues();
+  }
+
+  /** At most one pending cue per event type; spoken when nobody else is talking, dropped when stale. */
+  queueCue(event) {
+    this.pendingCues = (this.pendingCues ?? []).filter(cue => cue.type !== event.type);
+    this.pendingCues.push({ ...event, at: this.now() });
+    this.flushCues();
+  }
+
+  flushCues() {
+    if (!this.pendingCues?.length || !this.ready || this.recording || !this.responseDone || this.reactionActive || this.pendingGift
+        || this.awaitingCancellation || this.queuedResponse || [...this.pending.values()].some(tool => !tool.internal) || this.hasTools) return;
+    const now = this.now();
+    this.pendingCues = this.pendingCues.filter(cue => now - cue.at <= CUE_MS);
+    const cue = this.pendingCues.shift();
+    if (!cue) return;
+    this.responseDone = false; // Reserve the response before response.created arrives.
+    this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
+      content: [{ type: 'input_text', text: gameEventCue(cue) }] } });
+    this.sendProvider({ type: 'response.create' });
+    this.stage('game_event', { type: cue.type });
   }
 
   flushGift() {
@@ -555,6 +583,9 @@ export class BridgeSession {
       // At bedtime the opening is a refusal, cued explicitly: the persona prompt alone let villagers soften it into small talk.
       if (this.context.bedtime === true) this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
         content: [{ type: 'input_text', text: BEDTIME_CUE }] } });
+      // Brought here by a guide: an explicit cue, or the model narrates the scene in the third person.
+      else if (typeof this.context.introducedBy === 'string') this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
+        content: [{ type: 'input_text', text: introductionCue(this.context.introducedBy) }] } });
       if (this.sendProvider({ type: 'response.create' }) && this.context.openingRumour && this.context.bedtime !== true) {
         const callId = `conversation-opened-${this.id}`;
         this.pending.set(callId, { callId, name: '_conversation_opened', arguments: {}, internal: true,
@@ -760,6 +791,7 @@ export class BridgeSession {
     expireTools(this);
     this.flushReaction();
     this.flushGift();
+    this.flushCues();
   }
 
   close(reason = 'session_ended', code = 1000) {

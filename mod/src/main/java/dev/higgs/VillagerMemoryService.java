@@ -25,6 +25,18 @@ public final class VillagerMemoryService {
     private VillagerJournal journal;
     private int cursor;
     private volatile boolean stopping;
+    private Bonds bonds = new Bonds() {
+        public int standing(Villager villager, ServerPlayer player) { return 0; }
+        public void reached(Villager villager, ServerPlayer player, RelationshipStage stage) {}
+    };
+
+    /** The game's side of a relationship: the villager's current opinion, and what happens when a new stage is reached. */
+    public interface Bonds {
+        int standing(Villager villager, ServerPlayer player);
+        void reached(Villager villager, ServerPlayer player, RelationshipStage stage);
+    }
+
+    public void bonds(Bonds bonds) { this.bonds = bonds; }
 
     public VillagerMemoryService(Map<String, String> config, VillagerPersonalityService personalities) {
         this.personalities = personalities;
@@ -88,8 +100,43 @@ public final class VillagerMemoryService {
     /** Records what a villager saw happen with the player. Best-effort: no journal, no record. */
     public void observe(Villager villager, ServerPlayer player, String type, String text, int salience, long mergeWithinMs) {
         VillagerJournal current = journal();
-        if (current != null) current.record(villager.getUUID(), player.getUUID(), type, text, gameDay(villager),
+        if (current == null) return;
+        current.record(villager.getUUID(), player.getUUID(), type, text, gameDay(villager),
             System.currentTimeMillis(), salience, false, mergeWithinMs);
+        progress(villager, player);
+    }
+
+    /**
+     * How close the pair are now. A stage once reached is kept even after the episodes that earned it expire,
+     * but a villager who has turned against the player falls back to acquaintance.
+     */
+    public RelationshipStage stage(Villager villager, ServerPlayer player) {
+        VillagerJournal current = journal();
+        if (current == null) return RelationshipStage.STRANGER;
+        int standing = bonds.standing(villager, player);
+        var computed = RelationshipStage.of(current.counts(villager.getUUID(), player.getUUID(), System.currentTimeMillis()), standing);
+        var summary = current.summary(villager.getUUID(), player.getUUID());
+        var stored = RelationshipStage.named(summary == null ? null : summary.stage());
+        return standing <= -2 || stored.ordinal() <= computed.ordinal() ? computed : stored;
+    }
+
+    /** Records a milestone the first time the pair reaches a stage beyond any before it (friend and above). */
+    public void progress(Villager villager, ServerPlayer player) {
+        VillagerJournal current = journal();
+        if (current == null) return;
+        long now = System.currentTimeMillis();
+        var computed = RelationshipStage.of(current.counts(villager.getUUID(), player.getUUID(), now), bonds.standing(villager, player));
+        var summary = current.summary(villager.getUUID(), player.getUUID());
+        if (computed.ordinal() <= RelationshipStage.named(summary == null ? null : summary.stage()).ordinal()) return;
+        current.update(villager.getUUID(), player.getUUID(), record -> record.withStage(computed.label));
+        if (computed.ordinal() < RelationshipStage.FRIEND.ordinal()) return;
+        String name = player.getName().getString();
+        current.record(villager.getUUID(), player.getUUID(), "milestone", switch (computed) {
+            case CONFIDANT -> "Today " + name + " became someone I would trust with anything";
+            case CLOSE_FRIEND -> "Today " + name + " and I became close friends";
+            default -> "Today " + name + " and I became friends";
+        }, gameDay(villager), now, 5, false, 0);
+        bonds.reached(villager, player, computed);
     }
 
     /** Villagers within eight blocks who can see the player also remember the moment, faintly. */
@@ -130,9 +177,20 @@ public final class VillagerMemoryService {
         if (current == null) return context;
         long now = System.currentTimeMillis(), today = gameDay(villager);
         var summary = current.summary(villager.getUUID(), player.getUUID());
-        if (summary != null) context.addProperty("summary", summary.text());
+        if (summary != null && !summary.text().isEmpty()) context.addProperty("summary", summary.text());
+        context.addProperty("stage", stage(villager, player).label);
+        if (summary != null && summary.nickname() != null) context.addProperty("nickname", summary.nickname());
         var all = current.all(villager.getUUID(), player.getUUID(), now);
         if (all.isEmpty()) return context;
+        JsonArray promises = new JsonArray();
+        for (var open : current.openPromises(villager.getUUID(), player.getUUID(), now)) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("id", open.id().toString());
+            entry.addProperty("promise", open.text());
+            entry.addProperty("when", when(today, open.gameDay()));
+            promises.add(entry);
+        }
+        if (!promises.isEmpty()) context.add("openPromises", promises);
         context.add("recent", episodeEntries(current.recent(villager.getUUID(), player.getUUID(), now, 6), today));
         JsonObject counts = new JsonObject();
         current.counts(villager.getUUID(), player.getUUID(), now).forEach(counts::addProperty);

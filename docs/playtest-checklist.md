@@ -79,6 +79,41 @@ One pass through every feature in a running game. Everything here has unit or in
 | 7.4 | Restart the server and ask again | Still remembered | `data/higgs-journal.json` |
 | 7.5 | Ask a witness who saw you hit someone | It knows ("I saw you hit Iris") | F7 `relationship.recent` |
 
+## 8. Walking together
+
+| # | Do | Expect | Check |
+| --- | --- | --- | --- |
+| 8.1 | Ask a friendly villager to walk with you; walk around the village | It follows and keeps chatting; every ~45 s it remarks on what is nearby | Backend `game_event walk_scenery` |
+| 8.2 | Sprint ahead | "Wait for me!"; past 16 blocks for 10 s the walk ends | Backend `walk_lagging` |
+| 8.3 | Walk to the village edge | It says it will go no further and heads home | Backend `walk_boundary` |
+| 8.4 | Do the same with a NoAI demo villager | It walks, then returns to its exact spot with AI off again | `/data get entity @e[type=villager,limit=1,sort=nearest] NoAI` → `1b` |
+| 8.5 | Ask an annoyed villager to walk, or any villager at night | It declines | Server log `Tool=follow_player status=refused` |
+| 8.6 | After a walk, talk to it again | It may recall the walk | F7 `relationship.recent` has the outing |
+
+## 9. Directions
+
+| # | Do | Expect | Check |
+| --- | --- | --- | --- |
+| 9.1 | Ask "take me to the librarian" | "Follow me"; it walks there while chatting | Server log `Tool=guide_player status=guiding` |
+| 9.2 | Hang back more than 8 blocks | It stops, waits and calls "this way!" | Backend `walk_lagging` |
+| 9.3 | Arrive | Conversation switches to the librarian, who greets you and thanks the guide; the guide is outlined as companion | Server log `guided … to …` |
+| 9.4 | Ask "show me the bell" | It leads you to the bell and says you're here, then heads home after you part | Backend `guide_arrived` |
+| 9.5 | Ask for something the village lacks ("the cartographer" in a village without one) | It says it doesn't know of one and suggests someone else | `status=not_found` |
+| 9.6 | Ask a NoAI demo villager | It guides, then returns to its exact spot with AI off | `/data get entity … NoAI` |
+
+## 10. Growing closer
+
+| # | Do | Expect | Check |
+| --- | --- | --- | --- |
+| 10.1 | Meet a new villager, then trade, gift and chat with it over a few conversations | Action bar "… now considers you a friend", hearts and a cheer | Server log `Relationship milestone … friend`; F7 `relationship.stage` |
+| 10.2 | Promise something ("I'll deal with the wolves"), end the conversation, come back | It asks how the promise is going | F7 `relationship.openPromises` |
+| 10.3 | Say you did it, then end the conversation | After consolidation, standing rises by 1 | Backend `consolidation` log; journal `promise_kept` |
+| 10.4 | Keep going to close friend | It gives you a nickname once and uses it from then on | Server log `Tool=set_nickname status=named` |
+| 10.5 | Ask a close friend to "write down our story" | A signed written book, *Our story*, with milestones and shared moments | `Tool=write_our_story status=given` |
+| 10.6 | Ask again | It says you already have it | `status=already_given` |
+| 10.7 | Reach confidant, then greet it on two different in-game days | You get one of its wares each day, and it mentions the gift | Journal `gave_gift` |
+| 10.8 | Restart the server | Stage, nickname and open promises persist | F7 after restart |
+
 ## Results
 
 | Item | Pass / fail | Notes |

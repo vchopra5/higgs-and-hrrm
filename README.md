@@ -270,6 +270,56 @@ pet's name if you gave it one; about one villager in four is nervous of wolves, 
 to keep it back and steps away. Pet remarks come at most every 30 seconds, and each
 villager comments at most every five minutes.
 
+## Walking together
+
+Ask a villager to walk with you (“come for a walk with me”) and, unless it dislikes you,
+it's dark, or something is chasing it, it follows you while you keep talking. Along the
+way it mentions who and what you pass, calls out if you run ahead, and when you reach the
+edge of its village, nightfall, or danger, it says so and heads home. Say “you can go
+home” to end the walk; ending the conversation does too. Villagers with AI disabled (like
+demo villagers) get it back for the walk and are returned to their exact spot, with AI
+off again, afterwards. The walk becomes a memory (“I walked with Steve through Kettleby,
+past Iris the librarian”).
+
+## Directions
+
+Ask a villager for directions (“where's the librarian?”, “take me to Iris”, “show me the
+bell”, “which way to the library?”) and it leads you there, within its village: to a
+villager by name or trade (any smith for “a smith”), to the village bell, or to a trade's
+workplace. It talks as you walk, waits and calls “this way!” if you fall behind, and if it
+loses the way it apologises and tells you where to go instead. At a landmark it says
+you've arrived. At a villager it introduces you: your conversation moves to the new
+villager, who greets you and thanks your guide, and the guide stays with you as a
+companion until it leaves or the conversation ends, then walks home. Both remember it
+(“I showed Steve the way to Iris”, “Bram brought Steve to meet me”).
+
+## Growing closer
+
+Each villager keeps track of how close you've grown, from what it has seen: conversations,
+trades, gifts, quests, errands, walks, and kept promises count for you; hits, insults and
+broken promises count against you. Five stages: stranger, acquaintance, friend, close
+friend, confidant. Each also needs goodwill, so a villager who dislikes you stays an
+acquaintance. The stage sets its warmth without ever being named aloud.
+
+- **Milestones:** the first time you reach friend, close friend, or confidant, the action
+  bar says so (“Bram now considers you a friend”), with hearts and a cheer. It becomes a
+  memory (“Today Steve and I became friends”). If you're talking, the villager warms up
+  then and there. A stage once reached is kept, even as old memories fade.
+- **Nickname:** a close friend picks a fond nickname for you once, keeps it, and greets you
+  by it.
+- **Promises:** promises either of you made stay open. The villager asks how one is going
+  when it fits. When a later conversation shows you kept it, standing rises by 1 and it
+  remembers (“A promise was kept: …”). A broken one costs 1.
+- **Daily present:** once per in-game day, a confidant greets you with something from its
+  own wares and mentions it.
+- **Keepsake:** on reaching confidant, or when a close friend is asked to “write down our
+  story”, the villager gives you a signed book, *Our story*. It holds the relationship
+  summary, the milestones with their days, and up to eight notable shared moments, all
+  written from its journal. One per villager.
+
+Stages, nicknames, promises and the keepsake flag live in `world/data/higgs-journal.json`
+(schema 2; older saves load as before).
+
 ## Errands
 
 Ask a villager for work (“anything I can help with?”) and it may send you to a neighbour

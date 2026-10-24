@@ -49,7 +49,9 @@ export function createBridge({
     if (!consolidation || !apiKey || session.playerTurns < 2 || typeof session.villagerId !== 'string') return;
     const context = session.context ?? {};
     consolidate({ apiKey, upstreamUrl, connect, villagerName: context.name ?? 'a villager', playerName: context.playerName ?? 'the player',
-      previousSummary: context.relationship?.summary, transcript: session.transcriptLines.slice(-40) })
+      previousSummary: context.relationship?.summary, transcript: session.transcriptLines.slice(-40),
+      openPromises: Array.isArray(context.relationship?.openPromises) ? context.relationship.openPromises
+        .filter(open => typeof open?.id === 'string' && typeof open?.promise === 'string').slice(0, 6) : [] })
       .then(result => {
         log({ event: 'consolidation', sessionId: session.id, ok: Boolean(result), promises: result?.promises.length ?? 0 });
         if (!result) return;

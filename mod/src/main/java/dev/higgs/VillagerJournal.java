@@ -17,9 +17,21 @@ import java.util.concurrent.Executors;
  * State is synchronized; only the writer thread touches the save file.
  */
 public final class VillagerJournal implements AutoCloseable {
+    /** ref points at an earlier episode this one resolves (a kept or broken promise); null otherwise. */
     public record Episode(UUID id, UUID villagerId, UUID playerId, String type, String text,
-                          long gameDay, long at, int salience, boolean witnessed) {}
-    public record Summary(UUID villagerId, UUID playerId, String text, long updatedAt) {}
+                          long gameDay, long at, int salience, boolean witnessed, UUID ref) {}
+    /**
+     * The lasting part of a relationship: the consolidated summary, the highest stage reached (milestones fire once),
+     * a nickname the villager gave the player, the in-game day of its last small gift, and whether the keepsake was given.
+     */
+    public record Summary(UUID villagerId, UUID playerId, String text, long updatedAt, String stage, String nickname,
+                          long lastGiftDay, boolean keepsake) {
+        Summary withText(String text, long now) { return new Summary(villagerId, playerId, text, now, stage, nickname, lastGiftDay, keepsake); }
+        Summary withStage(String stage) { return new Summary(villagerId, playerId, text, updatedAt, stage, nickname, lastGiftDay, keepsake); }
+        Summary withNickname(String nickname) { return new Summary(villagerId, playerId, text, updatedAt, stage, nickname, lastGiftDay, keepsake); }
+        Summary withGiftDay(long day) { return new Summary(villagerId, playerId, text, updatedAt, stage, nickname, day, keepsake); }
+        Summary withKeepsake() { return new Summary(villagerId, playerId, text, updatedAt, stage, nickname, lastGiftDay, true); }
+    }
     public record Limits(int perPair, int total, long lifetimeMs) {
         public Limits {
             if (perPair < 1 || total < perPair || lifetimeMs < 1) throw new IllegalArgumentException("Invalid journal limits");
@@ -47,7 +59,9 @@ public final class VillagerJournal implements AutoCloseable {
         if (!Files.exists(file)) return;
         if (Files.size(file) > MAX_FILE_BYTES) throw new IOException("Journal save exceeds size limit");
         Snapshot snapshot = GSON.fromJson(Files.readString(file), Snapshot.class);
-        if (snapshot == null || snapshot.schemaVersion != 1 || snapshot.episodes == null) throw new IOException("Invalid journal save");
+        // Version 1 had no episode refs or summary extras; Gson leaves those empty, which is what they mean.
+        if (snapshot == null || snapshot.schemaVersion < 1 || snapshot.schemaVersion > 2 || snapshot.episodes == null)
+            throw new IOException("Invalid journal save");
         for (Episode episode : snapshot.episodes) {
             if (valid(episode)) episodes.computeIfAbsent(key(episode.villagerId, episode.playerId), k -> new ArrayList<>()).add(episode);
         }
@@ -73,6 +87,11 @@ public final class VillagerJournal implements AutoCloseable {
      */
     public synchronized Episode record(UUID villager, UUID player, String type, String text, long gameDay, long now,
                                        int salience, boolean witnessed, long mergeWithinMs) {
+        return record(villager, player, type, text, gameDay, now, salience, witnessed, mergeWithinMs, null);
+    }
+
+    public synchronized Episode record(UUID villager, UUID player, String type, String text, long gameDay, long now,
+                                       int salience, boolean witnessed, long mergeWithinMs, UUID ref) {
         if (closed) return null;
         String clean = clean(text, MAX_TEXT);
         if (clean.isEmpty() || type == null || type.isBlank()) return null;
@@ -90,7 +109,7 @@ public final class VillagerJournal implements AutoCloseable {
                 break;
             }
         }
-        Episode episode = new Episode(id, villager, player, type, clean, gameDay, now, importance, witnessed);
+        Episode episode = new Episode(id, villager, player, type, clean, gameDay, now, importance, witnessed, ref);
         pair.add(episode);
         while (pair.size() > limits.perPair) pair.remove(evictionCandidate(pair));
         enforceTotal(now);
@@ -217,8 +236,25 @@ public final class VillagerJournal implements AutoCloseable {
         if (closed) return;
         String clean = clean(text, MAX_SUMMARY);
         if (clean.isEmpty()) return;
-        summaries.put(key(villager, player), new Summary(villager, player, clean, now));
+        update(villager, player, summary -> summary.withText(clean, now));
+    }
+
+    /** Changes the pair's lasting record (stage, nickname, gift day, keepsake), creating it if needed. */
+    public synchronized Summary update(UUID villager, UUID player, java.util.function.UnaryOperator<Summary> change) {
+        if (closed) return null;
+        Summary current = summaries.getOrDefault(key(villager, player), new Summary(villager, player, "", 0, null, null, -1, false));
+        Summary next = change.apply(current);
+        summaries.put(key(villager, player), next);
         save();
+        return next;
+    }
+
+    /** Promises not yet followed by a kept or broken episode that refers to them, oldest first. */
+    public synchronized List<Episode> openPromises(UUID villager, UUID player, long now) {
+        List<Episode> pair = all(villager, player, now);
+        Set<UUID> resolved = new HashSet<>();
+        for (Episode episode : pair) if (episode.ref != null) resolved.add(episode.ref);
+        return pair.stream().filter(episode -> episode.type.equals("promise") && !resolved.contains(episode.id)).toList();
     }
 
     private static String clean(String text, int max) {
@@ -228,7 +264,7 @@ public final class VillagerJournal implements AutoCloseable {
     }
 
     private void save() {
-        Snapshot snapshot = new Snapshot(1, episodes.values().stream().flatMap(List::stream).toList(), List.copyOf(summaries.values()));
+        Snapshot snapshot = new Snapshot(2, episodes.values().stream().flatMap(List::stream).toList(), List.copyOf(summaries.values()));
         String json = GSON.toJson(snapshot);
         lastWrite = lastWrite.thenRunAsync(() -> {
             try {

@@ -41,6 +41,7 @@ public final class HiggsVillagers implements ModInitializer {
     private VillagerChatter chatter;
     private VillagerAlarm alarm;
     private VillageMoments moments;
+    private VillagerOuting outings;
     private final Map<String, Long> bedtimeUntil = new HashMap<>();
     private static final long BEDTIME_MS = 90_000;
     /** Villagers wind down for the night: their rest schedule, or the clock for villagers without AI. */
@@ -168,6 +169,7 @@ public final class HiggsVillagers implements ModInitializer {
     private void companionLeft(Session s) {
         Villager leaving = s.companion;
         if (leaving == null) return;
+        if (outings.walking(leaving)) outings.stop(leaving, null); // A guide that stayed on now heads home.
         s.companion = null;
         s.companionProfile = null;
         companionCooldown.put(s.player.getUUID() + ":" + leaving.getUUID(), System.currentTimeMillis() + COMPANION_COOLDOWN_MS);
@@ -308,6 +310,8 @@ public final class HiggsVillagers implements ModInitializer {
         boolean companionJoining;
         /** Night: the villager says it is off to bed, and the conversation ends there. */
         boolean bedtime;
+        /** The neighbour who just brought the player here, when a guide handed the conversation over. */
+        String introducedBy;
         final Map<String, JsonObject> purchases = new HashMap<>();
         final Map<String, JsonObject> toolResults = new HashMap<>();
         final Set<String> pendingTools = new HashSet<>();
@@ -453,6 +457,27 @@ public final class HiggsVillagers implements ModInitializer {
         }, personalities, publicBackend);
         moments = new VillageMoments(alarm, villager -> sessions.values().stream().anyMatch(s -> s.villager == villager || s.companion == villager),
             (player, villager) -> relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral()).score());
+        outings = new VillagerOuting(new VillagerOuting.Host() {
+            public void event(ServerPlayer player, JsonObject event) {
+                Session s = sessions.get(player.getUUID());
+                if (s != null && s.id != null) request("POST", "/sessions/" + s.id + "/events", event).exceptionally(ex -> null);
+            }
+            public int standing(ServerPlayer player, Villager villager) {
+                return relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral()).score();
+            }
+            public VillageTracker.Village village(Villager villager) { return villages.villageOf(villager); }
+            public int villageRadius() { return villages.radius(); }
+            public void observe(Villager villager, ServerPlayer player, String type, String text, int salience) {
+                memory.observe(villager, player, type, text, salience, 0);
+            }
+            public void arrived(ServerPlayer player, Villager guide, Villager target) { handoff(player.level().getServer(), player, guide, target); }
+        });
+        memory.bonds(new VillagerMemoryService.Bonds() {
+            public int standing(Villager villager, ServerPlayer player) {
+                return relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral()).score();
+            }
+            public void reached(Villager villager, ServerPlayer player, RelationshipStage stage) { milestone(villager, player, stage); }
+        });
         // Ringing a bell: vanilla still rings it; a few villagers come over to see what is the matter.
         net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             if (!world.isClientSide() && player instanceof ServerPlayer sp && !token.isBlank()
@@ -499,10 +524,13 @@ public final class HiggsVillagers implements ModInitializer {
                 facing.merge(s.villager.getUUID(), s, (a, b) ->
                     a.player.distanceToSqr(a.villager) <= b.player.distanceToSqr(b.villager) ? a : b);
             }
-            for (Session s : facing.values()) face(s.villager, s.player);
+            outings.tick(ticks);
+            // A villager walking with the player steers itself; only standing partners turn to face you.
+            for (Session s : facing.values()) if (!outings.walking(s.villager)) face(s.villager, s.player);
             if (ticks % 40 == 0) for (Session s : List.copyOf(sessions.values())) if (valid(s)) maybeJoin(server, s);
             for (Session s : sessions.values()) {
-                if (s.companion != null && s.companion.isAlive() && s.companion.distanceToSqr(s.player) <= 144) face(s.companion, s.player);
+                if (s.companion != null && s.companion.isAlive() && s.companion.distanceToSqr(s.player) <= 144 && !outings.walking(s.companion))
+                    face(s.companion, s.player);
             }
             if (ticks % 20 == 0) {
                 for (ServerPlayer viewer : server.getPlayerList().getPlayers()) {
@@ -584,6 +612,7 @@ public final class HiggsVillagers implements ModInitializer {
             chatter.clear();
             alarm.clear();
             moments.clear();
+            outings.clear();
             hits.clear();
         });
     }
@@ -695,16 +724,129 @@ public final class HiggsVillagers implements ModInitializer {
                     String text = digest.get("digest").getAsString();
                     journal.record(villager, player, "conversation", text, day, now, 3, false, 0);
                     journal.summarise(villager, player, digest.get("summary").getAsString(), now);
+                    // Kept or broken promises point back at the promise; open ones only, so a repeat digest changes nothing.
+                    var open = journal.openPromises(villager, player, now);
+                    for (String kind : List.of("fulfilled", "broken")) {
+                        if (!digest.has(kind)) continue;
+                        for (JsonElement id : digest.getAsJsonArray(kind)) {
+                            var promise = open.stream().filter(e -> e.id().toString().equals(id.getAsString())).findFirst().orElse(null);
+                            if (promise == null) continue;
+                            boolean kept = kind.equals("fulfilled");
+                            journal.record(villager, player, kept ? "promise_kept" : "promise_broken",
+                                (kept ? "A promise was kept: " : "A promise was broken: ") + promise.text(), day, now, 4, false, 0, promise.id());
+                            String key = player + ":" + villager;
+                            TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
+                            relationships.put(key, new TradeReputation(Math.max(-5, Math.min(5, previous.score() + (kept ? 1 : -1))), now, previous.lastHit()));
+                            saveTradeReputations();
+                        }
+                    }
                     for (JsonElement promise : digest.getAsJsonArray("promises"))
                         journal.record(villager, player, "promise", promise.getAsString(), day, now, 4, false, 0);
                     String names = digest.get("playerName").getAsString() + " talked with " + digest.get("villagerName").getAsString();
                     for (JsonElement companion : digest.getAsJsonArray("companions"))
                         journal.record(UUID.fromString(companion.getAsString()), player, "overheard",
                             "I was there when " + names + ": " + text, day, now, 2, true, 0);
+                    // The conversation itself may have brought them closer.
+                    ServerPlayer online = server.getPlayerList().getPlayer(player);
+                    if (online != null && online.level().getEntity(villager) instanceof Villager entity) memory.progress(entity, online);
                 } catch (RuntimeException malformed) {
                     org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Skipped a malformed conversation digest");
                 }
             }
+        }));
+    }
+    private boolean handingOff;
+    private static final Map<String, net.minecraft.resources.ResourceKey<net.minecraft.world.entity.ai.village.poi.PoiType>> WORKSTATIONS = Map.ofEntries(
+        Map.entry("meeting", net.minecraft.world.entity.ai.village.poi.PoiTypes.MEETING),
+        Map.entry("librarian", net.minecraft.world.entity.ai.village.poi.PoiTypes.LIBRARIAN),
+        Map.entry("farmer", net.minecraft.world.entity.ai.village.poi.PoiTypes.FARMER),
+        Map.entry("cleric", net.minecraft.world.entity.ai.village.poi.PoiTypes.CLERIC),
+        Map.entry("armorer", net.minecraft.world.entity.ai.village.poi.PoiTypes.ARMORER),
+        Map.entry("weaponsmith", net.minecraft.world.entity.ai.village.poi.PoiTypes.WEAPONSMITH),
+        Map.entry("toolsmith", net.minecraft.world.entity.ai.village.poi.PoiTypes.TOOLSMITH),
+        Map.entry("fisherman", net.minecraft.world.entity.ai.village.poi.PoiTypes.FISHERMAN),
+        Map.entry("shepherd", net.minecraft.world.entity.ai.village.poi.PoiTypes.SHEPHERD),
+        Map.entry("butcher", net.minecraft.world.entity.ai.village.poi.PoiTypes.BUTCHER),
+        Map.entry("cartographer", net.minecraft.world.entity.ai.village.poi.PoiTypes.CARTOGRAPHER),
+        Map.entry("fletcher", net.minecraft.world.entity.ai.village.poi.PoiTypes.FLETCHER),
+        Map.entry("leatherworker", net.minecraft.world.entity.ai.village.poi.PoiTypes.LEATHERWORKER),
+        Map.entry("mason", net.minecraft.world.entity.ai.village.poi.PoiTypes.MASON));
+
+    /** "Take me to the librarian": find who or what is meant within the guide's village, then lead the way. */
+    private JsonObject guide(Session s, String destination) {
+        Villager guide = s.villager;
+        VillageTracker.Village village = villages.villageOf(guide);
+        var centre = village == null ? guide.position() : new net.minecraft.world.phys.Vec3(village.x(), village.y(), village.z());
+        double range = village == null ? 48 : villages.radius();
+        List<Villager> neighbours = guide.level().getEntitiesOfClass(Villager.class, new net.minecraft.world.phys.AABB(centre, centre).inflate(range, 32, range),
+            v -> v != guide && v.isAlive() && !v.isBaby() && v.position().distanceToSqr(centre) <= range * range);
+        List<String> names = neighbours.stream().filter(Villager::hasCustomName).map(v -> v.getName().getString()).toList();
+        Villager targetVillager = null;
+        net.minecraft.core.BlockPos targetPos = null;
+        String label = null;
+        for (Destinations.Guess guess : Destinations.interpret(destination, names)) {
+            if (guess.kind() == Destinations.Kind.LANDMARK) {
+                var key = WORKSTATIONS.get(guess.value());
+                if (key == null || !(guide.level() instanceof net.minecraft.server.level.ServerLevel level)) continue;
+                var found = level.getPoiManager().findClosest(holder -> holder.is(key), guide.blockPosition(), (int) range + 16,
+                    net.minecraft.world.entity.ai.village.poi.PoiManager.Occupancy.ANY);
+                if (found.isPresent() && net.minecraft.world.phys.Vec3.atCenterOf(found.get()).distanceToSqr(centre) <= range * range) {
+                    targetPos = found.get();
+                    label = guess.label();
+                    break;
+                }
+            } else {
+                Villager match = neighbours.stream().filter(v -> guess.kind() == Destinations.Kind.VILLAGER
+                        ? v.getName().getString().equals(guess.value()) : VillagerMemoryService.profession(v).equals(guess.value()))
+                    .min(java.util.Comparator.comparingDouble(v -> v.distanceToSqr(guide))).orElse(null);
+                if (match != null) {
+                    targetVillager = match;
+                    label = match.getName().getString() + " the " + VillagerMemoryService.profession(match);
+                    break;
+                }
+            }
+        }
+        if (label == null) return outcome("not_found", "You do not know of any " + destination
+            + (village == null ? " around here" : " in " + village.name()) + ". Say so kindly, and suggest someone or somewhere you do know.");
+        String refusal = outings.guide(s.player, guide, targetVillager, targetPos, label);
+        if (refusal != null) return outcome("refused", refusal);
+        var where = targetVillager != null ? targetVillager.position() : net.minecraft.world.phys.Vec3.atCenterOf(targetPos);
+        double dx = where.x - guide.getX(), dz = where.z - guide.getZ();
+        String bearing = "about " + Math.round(Math.hypot(dx, dz)) + " blocks " + Errands.compass(dx, dz);
+        JsonObject result = outcome("guiding", "Tell the player to follow you: you are leading them to " + label + ", " + bearing
+            + ". Keep chatting as you walk; you will be told when you arrive.");
+        result.addProperty("destination", label);
+        result.addProperty("direction", bearing);
+        return result;
+    }
+
+    /** At the villager the player asked for: the guide introduces them and the conversation moves to the new villager. */
+    private void handoff(MinecraftServer server, ServerPlayer player, Villager guide, Villager target) {
+        Session previous = sessions.get(player.getUUID());
+        if (previous == null || previous.villager != guide || !target.isAlive()) { outings.release(player); return; }
+        outings.stay(guide);
+        handingOff = true;
+        try { end(player, false); } finally { handingOff = false; }
+        JsonObject switching = new JsonObject();
+        switching.addProperty("type", "handoff");
+        switching.addProperty("entityId", target.getId());
+        send(player, switching);
+        Session s = new Session(player, target);
+        s.introducedBy = guide.getName().getString();
+        sessions.put(player.getUUID(), s);
+        lastStart.put(player.getUUID(), System.currentTimeMillis());
+        chatter.villagerBusy(target);
+        personalities.prepare(target).thenCombine(personalities.prepare(guide), List::of).whenComplete((prepared, failure) -> server.execute(() -> {
+            if (sessions.get(player.getUUID()) != s) return;
+            if (failure != null || !valid(s, 144)) { end(player, true); return; }
+            personalities.applyName(target, prepared.get(0));
+            s.profile = prepared.get(0).profile();
+            s.companion = guide; // The guide stays with you as a companion and can chime in or leave.
+            s.companionProfile = prepared.get(1).profile();
+            memory.observe(target, player, "introduced", guide.getName().getString() + " brought " + player.getName().getString() + " to meet me", 3, 0);
+            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("{} guided {} to {}", guide.getName().getString(),
+                player.getName().getString(), target.getName().getString());
+            startVoice(server, s, true);
         }));
     }
     private record RecentConversation(Set<UUID> villagers, String previous, long until) {}
@@ -740,6 +882,10 @@ public final class HiggsVillagers implements ModInitializer {
             VillagerJournal journal = memory.journal();
             if (journal != null && journal.all(villager.getUUID(), player.getUUID(), System.currentTimeMillis()).stream().noneMatch(e -> !e.witnessed()))
                 memory.observe(villager, player, "first_met", "I met " + player.getName().getString() + " for the first time", 5, 0);
+            if (autoGreeting && !s.bedtime) {
+                String present = dailyGift(player, villager);
+                if (present != null) context.addProperty("dailyGift", present);
+            }
             if (s.companion != null) {
                 JsonObject neighbour = new JsonObject();
                 neighbour.addProperty("name", s.companion.getName().getString());
@@ -753,6 +899,7 @@ public final class HiggsVillagers implements ModInitializer {
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
             if (s.bedtime) context.addProperty("bedtime", true);
+            if (s.introducedBy != null) context.addProperty("introducedBy", s.introducedBy);
             if (continued != null) {
                 JsonObject carry = new JsonObject();
                 carry.addProperty("previous", continued.previous());
@@ -908,6 +1055,24 @@ public final class HiggsVillagers implements ModInitializer {
                             result = confirmTrade(s, call.getAsJsonObject("arguments").get("proposalId").getAsString(), call.get("turnId").getAsInt());
                         } else if (name.equals("offer_quest")) {
                             result = offerQuest(s, call.getAsJsonObject("arguments").get("item").getAsString());
+                        } else if (name.equals("follow_player")) {
+                            String refusal = outings.follow(s.player, s.villager);
+                            result = refusal == null ? outcome("following", "You are walking with the player now. Say something brief as you set off, "
+                                + "and keep talking as you walk; game events tell you what you pass.") : outcome("refused", refusal);
+                        } else if (name.equals("set_nickname")) {
+                            result = nickname(s, call.getAsJsonObject("arguments").get("nickname").getAsString());
+                        } else if (name.equals("write_our_story")) {
+                            result = memory.stage(s.villager, s.player).ordinal() < RelationshipStage.CLOSE_FRIEND.ordinal()
+                                ? outcome("refused", "You do not know each other well enough yet to write your story. Say so kindly.")
+                                : keepsake(s.player, s.villager) ? outcome("given", "You wrote down your story together and gave them the book. Say so warmly.")
+                                : outcome("already_given", "You already gave them the book of your story. Say they have it already.");
+                        } else if (name.equals("guide_player")) {
+                            result = guide(s, call.getAsJsonObject("arguments").get("destination").getAsString());
+                        } else if (name.equals("stop_following")) {
+                            boolean walking = outings.following(s.villager, s.player);
+                            if (walking) outings.stop(s.villager, null);
+                            result = walking ? outcome("stopped", "Say a brief goodbye; you are heading back home.")
+                                : outcome("not_walking", "You are not walking with the player. Say so if it matters.");
                         } else if (name.equals("deliver_errand")) {
                             JsonObject errandArgs = call.getAsJsonObject("arguments");
                             result = deliverErrand(s, errandArgs != null && errandArgs.has("conveyed") ? errandArgs.get("conveyed").getAsString() : "");
@@ -916,7 +1081,8 @@ public final class HiggsVillagers implements ModInitializer {
                         } else if (name.equals("complete_quest")) {
                             result = completeQuest(s, call.get("turnId").getAsInt());
                         } else result.addProperty("error", "Unknown tool.");
-                        if (Set.of("offer_quest", "complete_quest", "receive_gift", "deliver_errand").contains(name))
+                        if (Set.of("offer_quest", "complete_quest", "receive_gift", "deliver_errand", "follow_player", "stop_following", "guide_player",
+                                "set_nickname", "write_our_story").contains(name))
                             org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Tool={} turn={} status={}",
                                 name, call.get("turnId").getAsInt(), result.has("status") ? result.get("status").getAsString() : "unknown");
                         if (Set.of("preview_trade", "propose_trade", "confirm_trade", "cancel_trade").contains(name)) {
@@ -1142,8 +1308,82 @@ public final class HiggsVillagers implements ModInitializer {
             pages.stream().map(page -> page.length() > limit ? page.substring(0, limit) : page)
                 .map(net.minecraft.server.network.Filterable::passThrough).toList()));
         book.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal(title));
-        if (!player.getInventory().add(book)) player.drop(book, false, false);
+        give(player, book);
+    }
+    /** Into the inventory, or at the player's feet when it is full. */
+    private static void give(ServerPlayer player, ItemStack stack) {
+        if (!player.getInventory().add(stack)) player.drop(stack, false, false);
         player.inventoryMenu.broadcastChanges();
+    }
+    /** A new stage in the relationship: a toast for the player, and at confidant the keepsake book. */
+    private void milestone(Villager villager, ServerPlayer player, RelationshipStage stage) {
+        String name = villager.getName().getString();
+        player.sendOverlayMessage(net.minecraft.network.chat.Component.literal(stage == RelationshipStage.CONFIDANT
+            ? name + " now trusts you with anything" : name + " now considers you a " + stage.label));
+        moodParticles(player, villager, true);
+        player.level().playSound(null, villager.blockPosition(), net.minecraft.sounds.SoundEvents.VILLAGER_CELEBRATE,
+            net.minecraft.sounds.SoundSource.NEUTRAL, 1, 1);
+        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Relationship milestone {} -> {}: {}", name, player.getName().getString(), stage.label);
+        Session s = sessions.get(player.getUUID());
+        if (s != null && s.villager == villager && s.id != null) {
+            JsonObject event = new JsonObject();
+            event.addProperty("type", "milestone");
+            event.addProperty("details", stage == RelationshipStage.CONFIDANT ? "a dear friend you trust with anything" : "a " + stage.label);
+            request("POST", "/sessions/" + s.id + "/events", event).exceptionally(ex -> null);
+        }
+        if (stage == RelationshipStage.CONFIDANT) keepsake(player, villager);
+    }
+    /** A fond name, chosen once by a close friend and kept. */
+    private JsonObject nickname(Session s, String nickname) {
+        VillagerJournal journal = memory.journal();
+        if (journal == null) return outcome("unavailable", "You cannot settle on a name right now.");
+        if (memory.stage(s.villager, s.player).ordinal() < RelationshipStage.CLOSE_FRIEND.ordinal())
+            return outcome("refused", "You do not know them well enough for a nickname yet. Use their name.");
+        var summary = journal.summary(s.villager.getUUID(), s.player.getUUID());
+        if (summary != null && summary.nickname() != null)
+            return outcome("already_named", "You already call them " + summary.nickname() + ". Keep using that.");
+        String clean = nickname.replaceAll("\\s+", " ").trim();
+        journal.update(s.villager.getUUID(), s.player.getUUID(), record -> record.withNickname(clean));
+        memory.observe(s.villager, s.player, "nickname", "I started calling " + s.player.getName().getString() + " \"" + clean + "\"", 3, 0);
+        return outcome("named", "From now on you call them " + clean + ". Tell them in one short, fond sentence.");
+    }
+    /** Once per in-game day a confidant greets the player with one of its own wares. Returns what was given, or null. */
+    private String dailyGift(ServerPlayer player, Villager villager) {
+        VillagerJournal journal = memory.journal();
+        if (journal == null || memory.stage(villager, player) != RelationshipStage.CONFIDANT || villager.isBaby()) return null;
+        long today = VillagerMemoryService.gameDay(villager);
+        var summary = journal.summary(villager.getUUID(), player.getUUID());
+        if (summary != null && summary.lastGiftDay() >= today) return null;
+        var wares = villager.getOffers().stream().map(MerchantOffer::getResult)
+            .filter(stack -> !stack.isEmpty() && !stack.is(net.minecraft.world.item.Items.EMERALD)).toList();
+        if (wares.isEmpty()) return null;
+        ItemStack present = wares.get(Math.floorMod(villager.getUUID().hashCode() + (int) today, wares.size())).copy();
+        String described = present.getCount() + " × " + present.getHoverName().getString();
+        give(player, present);
+        journal.update(villager.getUUID(), player.getUUID(), record -> record.withGiftDay(today));
+        memory.observe(villager, player, "gave_gift", "I gave " + player.getName().getString() + " " + described + " as a little present", 3, 0);
+        moodParticles(player, villager, true);
+        return described;
+    }
+    /** "Our story", written by the villager from its journal: no model call. False if it was already given. */
+    private boolean keepsake(ServerPlayer player, Villager villager) {
+        VillagerJournal journal = memory.journal();
+        if (journal == null) return false;
+        var summary = journal.summary(villager.getUUID(), player.getUUID());
+        if (summary != null && summary.keepsake()) return false;
+        var episodes = journal.all(villager.getUUID(), player.getUUID(), System.currentTimeMillis());
+        String author = villager.getName().getString();
+        List<String> pages = Keepsake.pages(author, player.getName().getString(), summary == null ? "" : summary.text(),
+            episodes.stream().map(e -> new Keepsake.Moment(e.type(), e.text(), e.gameDay(), e.salience(), e.witnessed())).toList());
+        ItemStack book = new ItemStack(net.minecraft.world.item.Items.WRITTEN_BOOK);
+        book.set(net.minecraft.core.component.DataComponents.WRITTEN_BOOK_CONTENT, new net.minecraft.world.item.component.WrittenBookContent(
+            net.minecraft.server.network.Filterable.passThrough("Our story"), author.length() > 32 ? author.substring(0, 32) : author, 0,
+            pages.stream().map(page -> net.minecraft.server.network.Filterable.passThrough((net.minecraft.network.chat.Component)
+                net.minecraft.network.chat.Component.literal(page))).toList(), true));
+        give(player, book);
+        journal.update(villager.getUUID(), player.getUUID(), VillagerJournal.Summary::withKeepsake);
+        memory.observe(villager, player, "keepsake", "I wrote down our story for " + player.getName().getString() + " and gave it to them", 4, 0);
+        return true;
     }
     private String villagerLine(Villager villager) {
         VillageTracker.Village village = villages.villageOf(villager);
@@ -1758,6 +1998,8 @@ public final class HiggsVillagers implements ModInitializer {
     }
     private void end(ServerPlayer player, boolean notify, String reason) {
         Session s = sessions.remove(player.getUUID()); if (s == null) return;
+        // The conversation is over, so is any walk with this player (a guide handing over stays a moment longer).
+        if (!handingOff) outings.release(player);
         // Who was in this conversation: switching to one of them shortly after continues it rather than starting afresh.
         Set<UUID> present = new HashSet<>(Set.of(s.villager.getUUID()));
         if (s.companion != null) present.add(s.companion.getUUID());

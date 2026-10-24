@@ -3,7 +3,8 @@
 // villager corrects itself in the same turn.
 
 export const TRADE_TOOLS = new Set(['get_trades', 'preview_trade', 'propose_trade', 'confirm_trade', 'cancel_trade',
-  'offer_quest', 'complete_quest', 'receive_gift', 'offer_errand', 'deliver_errand']);
+  'offer_quest', 'complete_quest', 'receive_gift', 'offer_errand', 'deliver_errand', 'follow_player', 'stop_following', 'guide_player',
+  'set_nickname', 'write_our_story']);
 
 const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
   'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
@@ -41,8 +42,8 @@ export function ungroundedTrade(text, { tools = new Set(), purchased = false, qu
   if (typeof text !== 'string' || !text.trim()) return null;
   // Persona adherence: a villager with nothing to sell must not talk itself into trading.
   if (!trading && (PRICE.test(text) || WARES.test(text))) return 'You have nothing to sell, yet you spoke of wares or prices.' + NO_TRADE_FIX;
-  // A delivered errand is also something real changing hands.
-  if (tools.has('deliver_errand')) return null;
+  // A delivered errand is something real changing hands; a walk beginning or ending, or a keepsake written, is a real action too.
+  if (['deliver_errand', 'follow_player', 'stop_following', 'guide_player', 'write_our_story'].some(name => tools.has(name))) return null;
   if (GIFT_TAKEN.test(text) && !tools.has('receive_gift')) return 'You accepted a gift, but you have not received anything.' + GIFT_FIX;
   if (COMPLETED.test(text) && !purchased) return 'You said the trade was done, but nothing was purchased.' + TRADE_FIX;
   if (CONFIRM.test(text)) {

@@ -295,7 +295,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     if (activeSessionId != null && activeSessionId.equals(message.get("sessionId").getAsString())
                         && targetId == message.get("entityId").getAsInt()) tracker.update(message);
                 }
-                case "reaction_start" -> {
+                // A guide handed the conversation to the villager it brought you to: same as a server-started conversation.
+                case "reaction_start", "handoff" -> {
                     stop(false);
                     stopChatter();
                     targetId = message.get("entityId").getAsInt();

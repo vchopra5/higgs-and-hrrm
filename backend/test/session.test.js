@@ -967,3 +967,30 @@ test('a jobless villager offering wares in its greeting is corrected once', asyn
   const note = f.received.findLast(e => e.type === 'conversation.item.create').item.content[0].text;
   assert.match(note, /^\[Server check, not player speech\] You have nothing to sell, yet you spoke of wares or prices\./);
 });
+
+test('walk events are spoken once each when the conversation is quiet', async t => {
+  const f = await fixture(t, { context: { name: 'Bram' } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  const creates = () => f.received.filter(e => e.type === 'response.create').length;
+  const before = creates();
+  assert.equal((await f.request(`/sessions/${f.sessionId}/events`, 'POST', { type: 'walk_teleport' })).status, 400);
+  session.recording = true; // The player is talking: hold the cues.
+  await f.request(`/sessions/${f.sessionId}/events`, 'POST', { type: 'walk_scenery', details: 'the old well' });
+  await f.request(`/sessions/${f.sessionId}/events`, 'POST', { type: 'walk_scenery', details: 'the bell' });
+  await delay(50);
+  assert.equal(creates(), before, 'held while the player speaks');
+  session.recording = false;
+  session.flushCues();
+  await until(() => creates() === before + 1);
+  const cue = f.received.findLast(e => e.type === 'conversation.item.create').item.content[0].text;
+  assert.match(cue, /Around you: the bell\./, 'only the newest of a type');
+  assert.ok(f.logs.some(e => e.stage === 'game_event' && e.type === 'walk_scenery'));
+});
+
+test('a villager the player was brought to greets them with an explicit introduction cue', async t => {
+  const f = await fixture(t, { context: { name: 'Iris', autoGreeting: true, introducedBy: 'Bram' } });
+  await until(() => f.received.some(e => e.type === 'response.create'));
+  const cue = f.received.find(e => e.type === 'conversation.item.create').item.content[0].text;
+  assert.match(cue, /^\[Game event, not player speech: Bram has just walked the player over to meet you and is standing beside you\] Speaking as yourself/);
+  assert.match(cue, /Never describe yourself or the scene in the third person\.$/);
+});

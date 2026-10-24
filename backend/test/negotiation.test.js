@@ -50,6 +50,23 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
     call('bad-errand'+i, 'offer_errand', args);
     assert.equal(session.pending.has('bad-errand'+i), false);
   }
+  call('walk', 'follow_player', {});
+  assert.ok(session.pending.has('walk'));
+  call('bad-walk', 'follow_player', {speed: 2});
+  call('guide', 'guide_player', {destination: 'the librarian'});
+  assert.ok(session.pending.has('guide'));
+  call('bad-guide', 'guide_player', {});
+  assert.equal(session.pending.has('bad-guide'), false);
+  assert.equal(session.pending.has('bad-walk'), false);
+  call('nick', 'set_nickname', {nickname: 'Sparrow'});
+  call('story', 'write_our_story', {});
+  assert.ok(session.pending.has('nick') && session.pending.has('story'));
+  for (const [i, args] of [{}, {nickname: ''}, {nickname: 'x'.repeat(25)}, {nickname: 'a\nb'}].entries()) {
+    call('bad-nick'+i, 'set_nickname', args);
+    assert.equal(session.pending.has('bad-nick'+i), false);
+  }
+  call('bad-story', 'write_our_story', {title: 'x'});
+  assert.equal(session.pending.has('bad-story'), false);
   call('gift', 'receive_gift', {item:'diamond'});
   assert.ok(session.pending.has('gift'));
   call('gifts', 'receive_gift', {item:'bread', count:3});
@@ -71,7 +88,7 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   assert.ok(session.pending.has('tone'));
   call('bad-tone', 'report_treatment', {treatment:'give_everything_free'});
   assert.equal(session.pending.has('bad-tone'), false);
-  assert.equal(outputs.length, 32);
+  assert.equal(outputs.length, 39);
   assert.ok(outputs.every(event => JSON.parse(event.item.output).error === 'Invalid tool request'));
 });
 
@@ -92,6 +109,12 @@ test('trade schema opens at normal prices and lets reputation decide haggling', 
   assert.match(instructions, /call offer_quest with the option that suits you/);
   assert.match(instructions, /When the player says they brought the quest items, call complete_quest/);
   assert.match(instructions, /you may call offer_errand/);
+  assert.match(instructions, /asks for directions or to be taken to someone or somewhere in the village, call guide_player/);
+  assert.match(instructions, /context\.relationship\.stage is how close you are: stranger, acquaintance, friend, close friend or confidant/);
+  assert.match(instructions, /context\.relationship\.nickname, when set, is your fond name for the player: greet them by it/);
+  assert.match(instructions, /context\.relationship\.openPromises are promises still open between you; when it fits, ask how one is going/);
+  assert.match(instructions, /If context\.dailyGift is set, you have just given the player that small present/);
+  assert.match(instructions, /If context.introducedBy is set, that neighbour just brought the player to meet you/);
   assert.match(instructions, /call deliver_errand/);
   assert.match(instructions, /context.relationship is your own long-term history with this player/);
   assert.match(instructions, /Never invent history beyond it/);

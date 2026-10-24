@@ -40,13 +40,32 @@ public final class VillagerJournalTest {
         check(journal.all(iris, steve, later).stream().anyMatch(e -> e.type().equals("gift")), "salience 4 lasts twice as long");
         check(journal.all(iris, steve, now + 61 * day).isEmpty(), "but not forever");
         check(journal.summary(iris, steve).text().startsWith("Steve is a regular"), "summary kept");
+        // Promises stay open until a later episode refers to them; the lasting record keeps its extras.
+        var promise = journal.record(iris, alex, "promise", "Alex promised to find my lost cat", 13, now + 40_000, 4, false, 0);
+        check(journal.openPromises(iris, alex, now + 41_000).equals(java.util.List.of(promise)), "open promise");
+        journal.record(iris, alex, "promise_kept", "Alex found my cat, as promised", 14, now + 42_000, 4, false, 0, promise.id());
+        check(journal.openPromises(iris, alex, now + 43_000).isEmpty(), "kept promises close");
+        journal.update(iris, steve, summary -> summary.withStage("friend").withNickname("Sparrow"));
+        journal.summarise(iris, steve, "Steve is now a dear friend.", now + 50_000);
+        check(journal.summary(iris, steve).nickname().equals("Sparrow") && journal.summary(iris, steve).stage().equals("friend"),
+            "a new summary keeps the stage and nickname");
         journal.close();
         // Restart: everything round-trips.
         var reopened = new VillagerJournal(file, limits);
         check(reopened.all(iris, steve, now + 20_000).size() == 5, "episodes survive restart");
-        check(reopened.summary(iris, steve) != null && reopened.summary(iris, steve).updatedAt() == now, "summary survives restart");
+        check(reopened.summary(iris, steve) != null && reopened.summary(iris, steve).nickname().equals("Sparrow"), "summary survives restart");
+        check(reopened.openPromises(iris, alex, now + 43_000).isEmpty(), "refs survive restart");
         check(reopened.record(iris, steve, "gift", "   ", 1, now, 3, false, 0) == null, "blank text is ignored");
         reopened.close();
+        // A version-1 save (no refs, no summary extras) still loads.
+        Files.writeString(file, "{\"schemaVersion\":1,\"episodes\":[{\"id\":\"" + UUID.randomUUID() + "\",\"villagerId\":\"" + iris
+            + "\",\"playerId\":\"" + steve + "\",\"type\":\"trade\",\"text\":\"old trade\",\"gameDay\":1,\"at\":" + now
+            + ",\"salience\":3,\"witnessed\":false}],\"summaries\":[{\"villagerId\":\"" + iris + "\",\"playerId\":\"" + steve
+            + "\",\"text\":\"old\",\"updatedAt\":1}]}");
+        var legacy = new VillagerJournal(file, limits);
+        check(legacy.all(iris, steve, now).size() == 1 && legacy.all(iris, steve, now).getFirst().ref() == null, "version 1 episodes load");
+        check(legacy.summary(iris, steve).nickname() == null && legacy.summary(iris, steve).text().equals("old"), "version 1 summaries load");
+        legacy.close();
         Files.writeString(file, "{\"schemaVersion\":9}");
         boolean rejected = false;
         try { new VillagerJournal(file, limits); } catch (java.io.IOException e) { rejected = true; }

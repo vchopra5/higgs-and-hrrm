@@ -15,7 +15,8 @@ const IRIS = '11111111-1111-4111-8111-111111111111', BRAM = '22222222-2222-4222-
 
 test('digests are validated and bounded', () => {
   const ok = parseDigest('Sure! {"digest":"Steve promised to deal with the wolves.","summary":"Steve is a polite regular.","promises":["Steve promised to deal with the wolves tomorrow."]}');
-  assert.deepEqual(ok, { digest: 'Steve promised to deal with the wolves.', summary: 'Steve is a polite regular.', promises: ['Steve promised to deal with the wolves tomorrow.'] });
+  assert.deepEqual(ok, { digest: 'Steve promised to deal with the wolves.', summary: 'Steve is a polite regular.',
+    promises: ['Steve promised to deal with the wolves tomorrow.'], fulfilled: [], broken: [] });
   assert.equal(parseDigest('{"digest":"","summary":"x","promises":[]}'), null, 'empty digest');
   assert.equal(parseDigest('not json'), null);
   const long = parseDigest(JSON.stringify({ digest: 'a\u0007b', summary: 'x'.repeat(900), promises: Array(9).fill('p') }));
@@ -26,6 +27,22 @@ test('digests are validated and bounded', () => {
   assert.match(prompt, /Your relationship summary so far: "Steve gave me a diamond\."/);
   assert.match(prompt, /a promise or plan is not done \(say "promised to", not "did"\)/);
   assert.match(prompt, /Leave out anything the player asked you to keep secret/);
+  assert.doesNotMatch(prompt, /fulfilled/, 'no open promises, no resolution fields');
+});
+
+test('open promises are shown by label and resolved back to their IDs', () => {
+  const open = [{ id: 'a-1', promise: 'Steve promised to deal with the wolves' }, { id: 'b-2', promise: 'I promised Steve a discount' }];
+  const prompt = consolidationPrompt({ villagerName: 'Iris', playerName: 'Steve', transcript: ['Steve: The wolves are gone.'], openPromises: open });
+  assert.match(prompt, /P1: Steve promised to deal with the wolves\nP2: I promised Steve a discount/);
+  assert.match(prompt, /"fulfilled": \["labels of open promises/);
+  assert.doesNotMatch(prompt, /a-1/, 'IDs never reach the model');
+  const parsed = parseDigest('{"digest":"Steve dealt with the wolves.","summary":"Steve keeps his word.","promises":[],'
+    + '"fulfilled":["p1","P1","P9"],"broken":["P2","P1"]}', open);
+  assert.deepEqual(parsed.fulfilled, ['a-1'], 'case-insensitive, deduplicated, unknown labels ignored');
+  assert.deepEqual(parsed.broken, ['b-2'], 'kept wins over broken');
+  assert.deepEqual(parseDigest('{"digest":"d","summary":"s","promises":["Steve promised to deal with the wolves.","Steve will fix my roof"]}', open).promises,
+    ['Steve will fix my roof'], 'open promises are not recorded again');
+  assert.match(prompt, /never repeat an open promise here/);
 });
 
 test('consolidation runs one text-only session and parses its JSON', async t => {
@@ -44,7 +61,7 @@ test('consolidation runs one text-only session and parses its JSON', async t => 
   }));
   const result = await consolidate({ apiKey: 'k', upstreamUrl: `ws://127.0.0.1:${provider.address().port}`,
     villagerName: 'Iris', playerName: 'Steve', transcript: ['Steve: Two axes please.', 'Iris: Done, thanks.'] });
-  assert.deepEqual(result, { digest: 'Steve bought two axes.', summary: 'Steve is a regular.', promises: [] });
+  assert.deepEqual(result, { digest: 'Steve bought two axes.', summary: 'Steve is a regular.', promises: [], fulfilled: [], broken: [] });
   assert.deepEqual(configs[0].output_modalities, ['text'], 'text only: mixed modalities are rejected by the provider');
   assert.equal(configs[0].tools, undefined);
 });
@@ -62,7 +79,8 @@ test('a finished conversation is consolidated once and collected by the game ser
   const request = (path, method = 'GET', body) => fetch(base + path, { method,
     headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: body && JSON.stringify(body) });
   const start = async () => (await (await request('/sessions', 'POST', { playerId: 'steve', villagerId: IRIS,
-    context: { name: 'Iris', playerName: 'Steve', relationship: { summary: 'Steve gave me a diamond.' } } })).json()).sessionId;
+    context: { name: 'Iris', playerName: 'Steve', relationship: { summary: 'Steve gave me a diamond.',
+      openPromises: [{ id: 'p-1', promise: 'Steve promised to deal with the wolves', when: 'yesterday' }, { id: 7 }] } } })).json()).sessionId;
   // One player turn: not worth consolidating.
   const short = await start();
   bridge.sessions.get(short).playerTurns = 1;
@@ -79,6 +97,7 @@ test('a finished conversation is consolidated once and collected by the game ser
   await request(`/sessions/${id}`, 'DELETE');
   await until(() => calls.length === 1);
   assert.equal(calls[0].previousSummary, 'Steve gave me a diamond.');
+  assert.deepEqual(calls[0].openPromises, [{ id: 'p-1', promise: 'Steve promised to deal with the wolves', when: 'yesterday' }]);
   assert.deepEqual(calls[0].transcript, ['Steve: Wolves again? I will deal with them.', 'Iris: Thank you, traveller.']);
   let collected;
   await until(async () => (collected = await (await request('/digests')).json()).length === 1);
