@@ -45,6 +45,16 @@ public final class DebugPagesTest {
         check(page.contains("extra: kept"), "unknown keys still shown");
         check(DebugPages.context(null).size() == 1, "no context yet");
 
+        List<String> state = DebugPages.state(json("""
+            {"type":"debug_state","state":{"conversation":{"with":"Iris the fletcher","openQuote":"1 × Bow for 1 × Emerald (earned with a quest)"},
+             "errand":"none","quests":[],"earnedDeals":["Iris: 1 × Bow for 1 × Emerald (earned, unused)"],
+             "villagers":[{"name":"Iris","standing":"1 neutral","stage":"friend"}]}}"""));
+        check(state.contains("conversation:") && state.contains("  openQuote: 1 × Bow for 1 × Emerald (earned with a quest)"), "live quote");
+        check(state.contains("errand: none") && state.contains("quests: (none)"), "empty state");
+        check(state.contains("earnedDeals: [1]") && state.contains("  - Iris: 1 × Bow for 1 × Emerald (earned, unused)"), "earned deals");
+        check(state.stream().anyMatch(line -> line.contains("name: Iris") && line.contains("stage: friend")), "villager rows: " + state);
+        check(DebugPages.state(null).equals(List.of("Asking the server…")), "waiting for the server");
+
         // One unit per character keeps wrapping deterministic.
         List<String> wrapped = DebugPages.wrap("  alpha beta gamma delta", 12, String::length);
         check(wrapped.equals(List.of("  alpha beta", "    gamma", "    delta")), "wraps at spaces with hanging indent: " + wrapped);

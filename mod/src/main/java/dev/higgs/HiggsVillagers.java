@@ -613,6 +613,7 @@ public final class HiggsVillagers implements ModInitializer {
             alarm.clear();
             moments.clear();
             outings.clear();
+            wilderness.clear();
             hits.clear();
         });
     }
@@ -624,6 +625,7 @@ public final class HiggsVillagers implements ModInitializer {
             JsonObject request = JsonParser.parseString(json).getAsJsonObject();
             String type = request.get("type").getAsString();
             if (type.equals("end")) { end(player, true); return; }
+            if (type.equals("debug_state")) { send(player, debugState(server, player)); return; }
             if (!type.equals("start")) return;
             long now = System.currentTimeMillis();
             if (now - lastStart.getOrDefault(player.getUUID(), 0L) < 1500) {
@@ -798,6 +800,10 @@ public final class HiggsVillagers implements ModInitializer {
         double range = village == null ? 48 : villages.radius();
         List<Villager> neighbours = neighbours(guide);
         List<String> names = neighbours.stream().filter(Villager::hasCustomName).map(v -> v.getName().getString()).toList();
+        // Somewhere beyond the village ("the nearest forest", "a pyramid"), unless they named a neighbour.
+        Wilds.Place wild = Wilds.interpret(destination);
+        if (wild != null && Destinations.interpret(destination, names).stream().noneMatch(g -> g.kind() == Destinations.Kind.VILLAGER))
+            return rumour(s, wild, village);
         Villager targetVillager = null;
         net.minecraft.core.BlockPos targetPos = null;
         String label = null;
@@ -842,6 +848,54 @@ public final class HiggsVillagers implements ModInitializer {
         return result;
     }
 
+    private final Wilderness wilderness = new Wilderness();
+    /** Farthest a villager will walk a friend out of the village. */
+    private static final int ESCORT_BLOCKS = 320;
+    /**
+     * A place beyond the village, known by rumour. The villager says where to look; one that counts the player as a
+     * friend walks them there when it is near enough, then heads home.
+     */
+    private JsonObject rumour(Session s, Wilds.Place place, VillageTracker.Village village) {
+        Villager guide = s.villager;
+        if (!(guide.level() instanceof net.minecraft.server.level.ServerLevel level)) return outcome("not_found", "You know of no such place.");
+        net.minecraft.core.BlockPos origin = village == null ? guide.blockPosition()
+            : net.minecraft.core.BlockPos.containing(village.x(), village.y(), village.z());
+        String home = village == null ? "here" : village.name();
+        var found = wilderness.locate(level, place, origin, origin, villages.radius());
+        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Rumour {} asked of {}: {}", place.id(), guide.getName().getString(),
+            found.map(at -> at.toShortString()).orElse("none nearby"));
+        if (found.isEmpty()) return outcome("not_found", "You have never heard of " + place.label() + " anywhere near " + home
+            + ". Say so in one short sentence; never invent one or guess a direction.");
+        var at = found.get();
+        double dx = at.getX() - guide.getX(), dz = at.getZ() - guide.getZ(), far = Math.hypot(dx, dz);
+        if (far < 24) return outcome("here", "You are right by " + place.label() + " already. Say so and point it out.");
+        String direction = Wilds.distance(far) + " " + Errands.compass(dx, dz);
+        boolean friend = memory.stage(guide, s.player).ordinal() >= RelationshipStage.FRIEND.ordinal();
+        String why = !friend ? "If they ask you to take them, you will not: you have your work in the village."
+            : far > ESCORT_BLOCKS ? "It is too far for you to walk there with them; say so if they ask." : null;
+        if (why == null) {
+            String refusal = outings.expedition(s.player, guide, at, place.label());
+            if (refusal == null) {
+                JsonObject result = outcome("guiding", "You are taking them out to " + place.label() + ", " + direction + " of here. "
+                    + "Tell them to follow you: it is a fair walk, you will keep chatting on the way, and once you get there you will head back to " + home + ".");
+                result.addProperty("destination", place.label());
+                result.addProperty("direction", direction);
+                return result;
+            }
+            why = "You cannot take them yourself right now: " + refusal;
+        }
+        s.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("Rumour from " + guide.getName().getString() + ": "
+            + place.label() + ", " + direction + " of " + home).withStyle(net.minecraft.ChatFormatting.GRAY, net.minecraft.ChatFormatting.ITALIC));
+        memory.observe(guide, s.player, "rumour_told", "I told " + s.player.getName().getString() + " where to find " + place.label()
+            + " (" + direction + ")", 2, 10 * 60_000L);
+        JsonObject result = outcome("directions", "You have heard tell of " + place.label() + ", " + direction + " of here. "
+            + "Tell them where to look in your own words, as something you heard from travellers or traders: the direction and a rough distance, "
+            + "nothing more precise. " + why);
+        result.addProperty("destination", place.label());
+        result.addProperty("direction", direction);
+        return result;
+    }
+
     /** At the villager the player asked for: the guide introduces them and the conversation moves to the new villager. */
     private void handoff(MinecraftServer server, ServerPlayer player, Villager guide, Villager target) {
         Session previous = sessions.get(player.getUUID());
@@ -870,6 +924,93 @@ public final class HiggsVillagers implements ModInitializer {
                 player.getName().getString(), target.getName().getString());
             startVoice(server, s, true);
         }));
+    }
+    /** A villager by UUID, if it is loaded in any dimension. */
+    private static Villager loaded(MinecraftServer server, UUID id) {
+        for (var level : server.getAllLevels()) if (level.getEntity(id) instanceof Villager villager) return villager;
+        return null;
+    }
+    private static String terms(JsonObject deal) {
+        String extra = stackText(deal.getAsJsonObject("costB"));
+        return stackText(deal.getAsJsonObject("receive")) + " for " + stackText(deal.getAsJsonObject("costA")) + (extra.isEmpty() ? "" : " + " + extra);
+    }
+    /**
+     * Everything the server is holding for this player, for the F9 debug page: the live conversation and its quote,
+     * the errand they carry, quests and earned deals, walks, and how each villager they know regards them.
+     */
+    private JsonObject debugState(MinecraftServer server, ServerPlayer player) {
+        JsonObject state = new JsonObject();
+        long now = System.currentTimeMillis();
+        String self = player.getUUID().toString();
+        Session s = sessions.get(player.getUUID());
+        JsonObject conversation = new JsonObject();
+        if (s == null) conversation.addProperty("with", "nobody");
+        else {
+            conversation.addProperty("with", s.villager.getName().getString() + " the " + VillagerMemoryService.profession(s.villager));
+            if (s.companion != null) conversation.addProperty("companion", s.companion.getName().getString());
+            Proposal p = s.proposal;
+            conversation.addProperty("openQuote", p == null ? "none" : p.result().getCount() + " × " + p.result().getHoverName().getString()
+                + " for " + p.costA().getCount() + " × " + p.costA().getHoverName().getString()
+                + (p.costB().isEmpty() ? "" : " + " + p.costB().getCount() + " × " + p.costB().getHoverName().getString())
+                + (p.questId() != null ? " (earned with a quest)" : ""));
+            if (s.questOffer != null) conversation.addProperty("questOptionsOffered", s.questOffer.options().size());
+        }
+        String walk = outings.describe(player);
+        if (walk != null) conversation.addProperty("walk", walk);
+        state.add("conversation", conversation);
+        Errand errand = errand(player);
+        if (errand == null) state.addProperty("errand", "none");
+        else {
+            JsonObject job = new JsonObject();
+            job.addProperty("from", errand.giverName());
+            job.addProperty("to", errand.targetName() + " the " + errand.targetProfession());
+            job.addProperty("task", errand.describe());
+            job.addProperty("age", (now - errand.created()) / 60_000 + " min of " + ERRAND_MS / 60_000);
+            state.add("errand", job);
+        }
+        JsonArray questList = new JsonArray(), deals = new JsonArray();
+        for (var entry : quests.entrySet()) {
+            if (!entry.getKey().startsWith(self + ":")) continue;
+            Quest quest = entry.getValue();
+            Villager giver = loaded(server, UUID.fromString(entry.getKey().substring(self.length() + 1)));
+            String who = giver == null ? "a villager not loaded" : giver.getName().getString();
+            if (quest.delivered()) deals.add(who + ": " + terms(quest.deal()) + " (earned, unused)");
+            else questList.add(who + " wants " + quest.ask() + ", then " + terms(quest.deal()));
+        }
+        state.add("quests", questList);
+        state.add("earnedDeals", deals);
+        // Villagers this player has a standing with, loaded and nearest first.
+        List<Villager> known = new ArrayList<>();
+        for (String key : relationships.keySet()) {
+            if (!key.startsWith(self + ":")) continue;
+            Villager villager = loaded(server, UUID.fromString(key.substring(self.length() + 1)));
+            if (villager != null) known.add(villager);
+        }
+        known.sort(java.util.Comparator.comparingDouble(v -> v.level() == player.level() ? v.distanceToSqr(player) : Double.MAX_VALUE));
+        JsonArray people = new JsonArray();
+        VillagerJournal journal = memory.journal();
+        for (Villager villager : known.subList(0, Math.min(12, known.size()))) {
+            JsonObject row = new JsonObject();
+            int standing = standing(new Session(player, villager));
+            row.addProperty("name", villager.getName().getString());
+            row.addProperty("standing", standing + " " + Negotiation.band(standing).name());
+            row.addProperty("stage", memory.stage(villager, player).label);
+            if (journal != null) {
+                var summary = journal.summary(villager.getUUID(), player.getUUID());
+                if (summary != null && summary.nickname() != null) row.addProperty("nickname", summary.nickname());
+                if (summary != null && summary.keepsake()) row.addProperty("keepsake", "given");
+                int promises = journal.openPromises(villager.getUUID(), player.getUUID(), now).size();
+                if (promises > 0) row.addProperty("openPromises", promises);
+            }
+            List<String> done = errandHistory.get(self + ":" + villager.getUUID());
+            if (done != null && !done.isEmpty()) row.addProperty("errandsDone", done.size());
+            people.add(row);
+        }
+        state.add("villagers", people);
+        JsonObject message = new JsonObject();
+        message.addProperty("type", "debug_state");
+        message.add("state", state);
+        return message;
     }
     private record RecentConversation(Set<UUID> villagers, String previous, long until) {}
     private static final long CONTINUE_MS = 2 * 60_000;
@@ -938,6 +1079,7 @@ public final class HiggsVillagers implements ModInitializer {
                 open.addProperty("wants", quest.ask());
                 open.add("deal", quest.deal());
                 open.addProperty("delivered", quest.delivered());
+                if (quest.delivered()) open.addProperty("owed", "They earned this deal and have not used it yet: it is theirs until they buy it.");
                 context.add("quest", open);
             }
             body.add("context", context);
@@ -1768,6 +1910,11 @@ public final class HiggsVillagers implements ModInitializer {
             moodParticles(s.player, s.villager, true);
             memory.observe(s.villager, s.player, "quest_done", s.player.getName().getString() + " brought me the " + quest.ask()
                 + " I asked for, as promised", 5, 0);
+            JsonObject deal = quest.deal();
+            memory.observe(s.villager, s.player, "deal_owed", "I owe " + s.player.getName().getString() + " a deal for that: "
+                + stackText(deal.getAsJsonObject("receive")) + " for " + stackText(deal.getAsJsonObject("costA"))
+                + (stackText(deal.getAsJsonObject("costB")).isEmpty() ? "" : " + " + stackText(deal.getAsJsonObject("costB")))
+                + ", theirs until they use it", 5, 0);
             justDelivered = true;
         }
         String thanks = justDelivered ? "The player just handed over " + quest.ask() + " for your quest; thank them warmly. "
@@ -1775,8 +1922,9 @@ public final class HiggsVillagers implements ModInitializer {
         if (!availableForVoiceTrade(s)) return outcome("unavailable", thanks + "The deal is saved, but the player must step closer and close any inventory first.");
         if (quest.offerIndex() >= s.villager.getOffers().size()) return outcome("quest_deal_unavailable", thanks + "That trade no longer exists; apologise.");
         var offer = s.villager.getOffers().get(quest.offerIndex());
-        if (!id(offer.getCostA()).equals(quest.baseA()) || offer.getCostA().getCount() != quest.baseACount()
-            || !id(offer.getCostB()).equals(quest.baseB()) || offer.getCostB().getCount() != quest.baseBCount()
+        // Same trade: what it costs and what it gives. Cost counts are not compared: vanilla demand moves them after every
+        // restock, and an earned deal fixes its own price anyway.
+        if (!id(offer.getCostA()).equals(quest.baseA()) || !id(offer.getCostB()).equals(quest.baseB())
             || !id(offer.getResult()).equals(quest.result()) || offer.getResult().getCount() != quest.resultCount()
             || !offer.getResult().getHoverName().getString().equals(quest.resultName()))
             return outcome("quest_deal_unavailable", thanks + "That trade has changed since you set the quest; apologise. The deal is saved but cannot be used.");
@@ -1817,6 +1965,9 @@ public final class HiggsVillagers implements ModInitializer {
         if (Negotiation.hostile(standing(s))) { s.proposal = null; return refused(); }
         if (!canTrade(s.villager)) { s.proposal = null; return noTrade(s); }
         int index = arguments.get("offerIndex").getAsInt();
+        // A quest the player already fulfilled fixes the price for that trade: re-quoting must never lose the earned deal.
+        Quest earned = quests.get(relationshipKey(s));
+        if (earned != null && earned.delivered() && earned.offerIndex() == index) return completeQuest(s, turn);
         Proposal previous = s.proposal;
         s.proposal = null;
         if (!availableForVoiceTrade(s)) return outcome("unavailable", "Move within eight blocks, close any inventory, and wait until the villager is free.");

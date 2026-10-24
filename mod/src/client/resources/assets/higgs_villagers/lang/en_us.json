@@ -4,6 +4,7 @@
   "key.higgs_villagers.debug_conversation": "Debug: conversation / Boson",
   "key.higgs_villagers.debug_context": "Debug: conversation context",
   "key.higgs_villagers.diagnostics": "Debug: audio & connection",
+  "key.higgs_villagers.debug_state": "Debug: your quests, deals and errands",
   "key.higgs_villagers.debug_scroll_up": "Debug: scroll up",
   "key.higgs_villagers.debug_scroll_down": "Debug: scroll down"
 }

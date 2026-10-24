@@ -130,6 +130,7 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and w
 | **F6** | Debug: conversation / Boson session (state, tool calls, provider events) |
 | **F7** | Debug: context sent to Boson (personality, rumours, memories, offers) |
 | **F8** | Debug: audio & connection (devices, mic level, queues, status history) |
+| **F9** | Debug: your quests, earned deals, errand, open quote, walk, and how each villager you know regards you (standing, stage, nickname, open promises) |
 | **PgUp / PgDn** | Scroll the open debug page |
 
 ## On the workbench
@@ -171,7 +172,7 @@ Backend tests use a local fake Higgs endpoint. The build compiles the mod; neith
   <sub>Unofficial Minecraft project. Banner artwork is illustrative, not a gameplay screenshot.</sub>
 </p>
 
-Each finished turn from you and the villager is added to Minecraft chat, so the conversation stacks up and can be scrolled back with T. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F6, F7 and F8 toggle the debug pages.
+Each finished turn from you and the villager is added to Minecraft chat, so the conversation stacks up and can be scrolled back with T. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F6, F7, F8 and F9 toggle the debug pages.
 
 Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
 
@@ -292,6 +293,22 @@ you've arrived. At a villager it introduces you: your conversation moves to the 
 villager, who greets you and thanks your guide, and the guide stays with you as a
 companion until it leaves or the conversation ends, then walks home. Both remember it
 (“I showed Steve the way to Iris”, “Bram brought Steve to meet me”).
+
+Villagers also know of places beyond the village by rumour: “where's the nearest forest?”,
+“is there a pyramid around here?”, “have you heard of any hidden chests?”, “which way to
+the sea?”, “is there another village?”. The server finds the nearest real one (a biome
+within about 1,000 blocks, or a structure such as a desert or jungle temple, buried treasure,
+a shipwreck, an ocean monument, a mansion, an outpost, a ruined portal or another village).
+It never makes one up.
+
+- **Directions:** usually the villager tells you where to look as something it heard, with
+  a rough direction and distance. A grey chat note keeps it for you (“Rumour from Iris: a
+  desert temple, about 400 blocks north-west of Kettleby”).
+- **Escort:** a villager that counts you as a friend or closer walks you there if it's
+  within about 320 blocks, chatting on the way. It points the place out, wishes you luck and
+  heads back to the village. Out of anyone's sight, it's set down back home (its home chunk
+  is loaded first).
+- **Turning back:** nightfall or a zombie sends it home early.
 
 ## Growing closer
 

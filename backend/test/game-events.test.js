@@ -23,3 +23,8 @@ test('a relationship milestone becomes a warm cue that never names the stage', (
   assert.match(cue, /You have just come to think of the player as a close friend\. Let it show warmly/);
   assert.match(cue, /without naming any stage or level/);
 });
+
+test('arriving out in the wild points it out and heads home', () => {
+  const cue = gameEventCue(parseGameEvent({ type: 'expedition_arrived', place: 'a desert temple', details: 'Kettleby' }));
+  assert.match(cue, /brought the player out to a desert temple\. Point it out, wish them luck, and tell them you are heading back to Kettleby now\./);
+});

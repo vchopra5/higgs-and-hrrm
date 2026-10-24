@@ -35,6 +35,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     private long requestTime;
     private long generation;
     private int debugPage; // 0 hidden; otherwise the F-key of the page shown.
+    private JsonObject debugState; // Latest F9 snapshot from the server.
+    private long stateRequested;
     private int debugScroll;
     private boolean tutorialDisabled;
     private VoiceSession lastVoice;
@@ -56,6 +58,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         KeyMapping conversationDebug = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.debug_conversation", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F6, category));
         KeyMapping contextDebug = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.debug_context", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F7, category));
         KeyMapping diagnostics = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.diagnostics", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, category));
+        KeyMapping stateDebug = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.debug_state", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F9, category));
         KeyMapping scrollUp = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.debug_scroll_up", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_PAGE_UP, category));
         KeyMapping scrollDown = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.debug_scroll_down", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_PAGE_DOWN, category));
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "voice_indicator"),
@@ -109,6 +112,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     List<String> raw = switch (debugPage) {
                         case 6 -> source == null ? List.of(pending ? "Connecting…" : "No conversation yet.") : DebugPages.conversation(source.backendDiagnostics());
                         case 7 -> DebugPages.context(source == null ? null : source.debugContext());
+                        case 9 -> DebugPages.state(debugState);
                         default -> connectionLines(client, source, now);
                     };
                     List<String> wrapped = new ArrayList<>();
@@ -119,6 +123,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 String title = switch (debugPage) {
                     case 6 -> "Conversation · Boson [F6]";
                     case 7 -> "Conversation context [F7]";
+                    case 9 -> "Quests, deals & errands [F9]";
                     default -> "Audio & connection [F8]";
                 } + "  " + state;
                 int footer = debugPage == 8 ? 6 : 0;
@@ -174,6 +179,13 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             toggleDebugPage(client, conversationDebug, 6);
             toggleDebugPage(client, contextDebug, 7);
             toggleDebugPage(client, diagnostics, 8);
+            toggleDebugPage(client, stateDebug, 9);
+            // F9 shows server-side state: ask for a fresh copy every two seconds while it is open.
+            long nowMs = System.currentTimeMillis();
+            if (debugPage == 9 && nowMs - stateRequested >= 2000 && ClientPlayNetworking.canSend(ControlPayload.TYPE)) {
+                stateRequested = nowMs;
+                ClientPlayNetworking.send(new ControlPayload("{\"type\":\"debug_state\"}"));
+            }
             while (scrollUp.consumeClick()) debugScroll = Math.max(0, debugScroll - 10);
             while (scrollDown.consumeClick()) debugScroll += 10; // Clamped against the page length when drawn.
             if (pending && System.currentTimeMillis() - requestTime > 15_000) {
@@ -212,6 +224,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             if (client.screen != null) continue;
             debugPage = debugPage == page ? 0 : page;
             debugScroll = 0;
+            stateRequested = 0;
             diagnosticRefresh = 0;
         }
     }
@@ -267,6 +280,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         try {
             JsonObject message = JsonParser.parseString(raw).getAsJsonObject();
             switch (message.get("type").getAsString()) {
+                case "debug_state" -> { debugState = message; diagnosticRefresh = 0; }
                 case "villager_expression" -> VillagerExpressions.update(
                     java.util.UUID.fromString(message.get("villagerId").getAsString()), message.get("expression").getAsString(),
                     message.has("standing") ? message.get("standing").getAsInt() : 0);

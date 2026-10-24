@@ -104,6 +104,18 @@ tasks.register('testDestinations', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testDestinations' }
 
+tasks.register('compileWildsTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/Wilds.java', 'src/test/dev/higgs/WildsTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('wilds-test')
+}
+tasks.register('testWilds', JavaExec) {
+    dependsOn 'compileWildsTest'
+    classpath = files(layout.buildDirectory.dir('wilds-test'))
+    mainClass = 'dev.higgs.WildsTest'
+}
+tasks.named('check') { dependsOn 'testWilds' }
+
 tasks.register('compileJournalTest', JavaCompile) {
     source = files('src/main/java/dev/higgs/VillagerJournal.java', 'src/main/java/dev/higgs/TextTerms.java',
         'src/test/dev/higgs/VillagerJournalTest.java')

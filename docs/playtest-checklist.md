@@ -10,7 +10,7 @@ One pass through every feature in a running game. Everything here has unit or in
 
 - Rebuild and install the jar on the **server and client**, then restart the Node backend, the server and the client.
 - Turn on fast chatter for the run, then remove these settings afterwards: `HIGGS_CHATTER_INTERVAL_SECONDS=10`, `HIGGS_CHATTER_CHANCE_PERCENT=100`, `HIGGS_CHATTER_COOLDOWN_SECONDS=30`.
-- Keep the backend terminal and `server-cardboard/logs/latest.log` open. **F6** shows the conversation and Boson, **F7** the context, and **F8** audio and connection.
+- Keep the backend terminal and `server-cardboard/logs/latest.log` open. **F6** shows the conversation and Boson, **F7** the context, **F8** audio and connection, and **F9** your quests, earned deals, errand and villager standings.
 - Use a village with at least three adult villagers close together, including one with no profession or a nitwit. Set the time to day (`/time set day`).
 
 ## 1. Conversation basics
@@ -100,6 +100,10 @@ One pass through every feature in a running game. Everything here has unit or in
 | 9.4 | Ask "show me the bell" | It leads you to the bell and says you're here, then heads home after you part | Backend `guide_arrived` |
 | 9.5 | Ask for something the village lacks ("the cartographer" in a village without one) | It says it doesn't know of one and suggests someone else | `status=not_found` |
 | 9.6 | Ask a NoAI demo villager | It guides, then returns to its exact spot with AI off | `/data get entity … NoAI` |
+| 9.7 | Ask a stranger "where's the nearest forest?" | Direction and rough distance as a rumour; grey chat note | Server log `Rumour is_forest asked of …` |
+| 9.8 | Ask about something absent ("an igloo" far from snow) | It says it has never heard of one; no invented direction | `Rumour igloo … none nearby` |
+| 9.9 | As a friend, ask "take me to the nearest pyramid" (within ~320 blocks) | It leads you out, comments on the way, points it out, then heads home | Backend `expedition_arrived` |
+| 9.10 | Walk away from it on the way home | Once nobody is within 32 blocks it is back in the village | Find it at home |
 
 ## 10. Growing closer
 

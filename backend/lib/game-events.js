@@ -17,6 +17,8 @@ const CUES = {
     + 'and point it out.',
   guide_failed: event => `You could not find the way to ${event.place ?? 'where the player asked'}. Apologise, and tell them where `
     + `it is instead: ${event.details ?? 'somewhere in the village'}.`,
+  expedition_arrived: event => `You have brought the player out to ${event.place ?? 'the place they asked about'}. Point it out, wish them `
+    + `luck, and tell them you are heading back to ${event.details ?? 'the village'} now.`,
   walk_ended: () => 'Your walk together is over. Say a brief goodbye; you are heading back home.',
   milestone: event => `You have just come to think of the player as ${event.details}. Let it show warmly in what you say next, `
     + 'without naming any stage or level.',

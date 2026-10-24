@@ -99,6 +99,18 @@ final class DebugPages {
         return lines;
     }
 
+    /** The F9 page: what the server holds for this player (quote, errand, quests, earned deals, villagers). */
+    static List<String> state(JsonObject message) {
+        List<String> lines = new ArrayList<>();
+        JsonObject state = object(message, "state");
+        if (state == null) { lines.add("Asking the server…"); return lines; }
+        for (var entry : state.entrySet()) {
+            if (!lines.isEmpty()) lines.add("");
+            render(lines, "", entry.getKey(), entry.getValue());
+        }
+        return lines;
+    }
+
     /** Generic JSON tree: objects nest, arrays list their entries, and flat objects collapse onto one row. */
     private static void render(List<String> lines, String indent, String key, JsonElement value) {
         if (value == null || value.isJsonNull()) lines.add(indent + key + ": —");

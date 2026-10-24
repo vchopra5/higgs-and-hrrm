@@ -35,6 +35,9 @@ final class VillagerOuting {
     private static final double WAIT_FOR_PLAYER = 8, ARRIVED = 3;
     private static final long LAG_EVERY_MS = 20_000, SCENERY_EVERY_MS = 45_000, LOST_AFTER_MS = 10_000, HOMEWARD_MS = 60_000;
     private static final double LAGGING = 10, LOST = 16;
+    /** Expeditions beyond the village: a looser arrival, a slower clock for being stuck, and no one watching the trip home. */
+    private static final double WILD_ARRIVED = 10, WAYPOINT = 16, UNWATCHED = 32;
+    private static final long WILD_PROGRESS_MS = 20_000, MS_PER_BLOCK = 1_200, SETTLE_WAIT_MS = 15_000;
 
     private static final class Outing {
         final Villager villager;
@@ -53,6 +56,10 @@ final class VillagerOuting {
         long lastProgress, guideUntil;
         /** Arrived and handed over: stays put until the player's conversation ends. */
         boolean staying;
+        /** Out beyond the village, to a place known by rumour: always walks back, and is set down at home if unwatched. */
+        boolean wild;
+        String homeName;
+        long settleSince = -1;
         boolean guiding() { return label != null; }
         long lastLag, lastScenery, farSince = -1, homewardUntil = -1;
         Outing(Villager villager, ServerPlayer player, long now) {
@@ -78,6 +85,20 @@ final class VillagerOuting {
     boolean following(Villager villager, ServerPlayer player) {
         Outing outing = outings.get(villager.getUUID());
         return outing != null && !outing.homeward() && outing.player == player;
+    }
+
+    /** The player's current walk, for the debug page; null when none. */
+    String describe(ServerPlayer player) {
+        for (Outing outing : outings.values()) {
+            if (outing.player != player || outing.homeward()) continue;
+            String who = outing.villager.getName().getString();
+            if (outing.staying) return who + " waiting after an introduction";
+            if (!outing.guiding()) return who + " walking with you (" + Math.round(outing.walked) + " blocks)";
+            double left = Math.sqrt(outing.villager.distanceToSqr(outing.targetVillager != null ? outing.targetVillager.position()
+                : Vec3.atBottomCenterOf(outing.targetPos)));
+            return who + (outing.wild ? " taking you out to " : " guiding you to ") + outing.label + " (" + Math.round(left) + " blocks left)";
+        }
+        return null;
     }
 
     /** Starts a walk; returns why the villager will not come, or null when it sets off. */
@@ -124,6 +145,28 @@ final class VillagerOuting {
         return null;
     }
 
+    /**
+     * Takes the player out of the village to a place it has heard of; returns why it will not, or null when it sets off.
+     * Afterwards it walks back to the village.
+     */
+    String expedition(ServerPlayer player, Villager villager, BlockPos place, String label) {
+        String refusal = refusal(player, villager);
+        if (refusal != null) return refusal;
+        Outing outing = begin(player, villager);
+        long now = System.currentTimeMillis();
+        VillageTracker.Village village = host.village(villager);
+        outing.wild = true;
+        outing.homeName = village == null ? "home" : village.name();
+        outing.targetVillager = null;
+        outing.targetPos = place;
+        outing.label = label;
+        outing.best = Double.MAX_VALUE;
+        outing.lastProgress = now;
+        outing.lastScenery = now;
+        outing.guideUntil = now + 60_000 + (long) (Math.sqrt(villager.blockPosition().distSqr(place)) * MS_PER_BLOCK);
+        return null;
+    }
+
     /** The player's conversation is over: every walk with them ends, including a guide that stayed after a hand-over. */
     void release(ServerPlayer player) {
         for (Outing outing : List.copyOf(outings.values())) {
@@ -143,8 +186,14 @@ final class VillagerOuting {
         if (outing == null || outing.homeward()) return;
         if (cue != null) host.event(outing.player, cue.equals("walk_boundary") ? place(event(cue), villager) : event(cue));
         remember(outing);
-        if (!outing.wasNoAi) { outings.remove(villager.getUUID()); return; }
-        outing.homewardUntil = System.currentTimeMillis() + HOMEWARD_MS;
+        if (!outing.wasNoAi && !outing.wild) { outings.remove(villager.getUUID()); return; }
+        outing.homewardUntil = homewardDeadline(outing);
+    }
+
+    private static long homewardDeadline(Outing outing) {
+        long now = System.currentTimeMillis();
+        if (!outing.wild) return now + HOMEWARD_MS;
+        return now + HOMEWARD_MS + (long) (Math.sqrt(outing.villager.blockPosition().distSqr(outing.home)) * MS_PER_BLOCK);
     }
 
     void tick(int ticks) {
@@ -155,10 +204,13 @@ final class VillagerOuting {
             Villager villager = outing.villager;
             if (!villager.isAlive()) { it.remove(); continue; }
             if (outing.homeward()) {
-                if (villager.blockPosition().distSqr(outing.home) <= 4 || now > outing.homewardUntil) {
-                    settle(outing);
-                    it.remove();
-                } else steer(villager, Vec3.atBottomCenterOf(outing.home), 0.6f);
+                boolean home = villager.blockPosition().distSqr(outing.home) <= 4;
+                // Far from the village with nobody watching: no need to make the whole walk back.
+                boolean unwatched = outing.wild && villager.level().getNearestPlayer(villager, UNWATCHED) == null;
+                if (home || unwatched || now > outing.homewardUntil) {
+                    if (settle(outing, now)) it.remove();
+                } else steer(villager, outing.wild ? waypoint(villager, Vec3.atBottomCenterOf(outing.home)) : Vec3.atBottomCenterOf(outing.home),
+                    outing.wild ? 0.7f : 0.6f);
                 continue;
             }
             ServerPlayer player = outing.player;
@@ -198,16 +250,30 @@ final class VillagerOuting {
         Villager villager = outing.villager;
         ServerPlayer player = outing.player;
         if (outing.targetVillager != null && !outing.targetVillager.isAlive()) { fail(outing); return; }
+        if (outing.wild && HiggsVillagers.bedtime(villager)) { outing.label = null; stopNow(outing, "walk_night"); return; }
+        if (outing.wild && VillagerAlarm.chased(villager)) { outing.label = null; stopNow(outing, "walk_danger"); return; }
+        if (!player.isAlive() || player.level() != villager.level()) { outing.label = null; stopNow(outing, null); return; }
         Vec3 destination = outing.targetVillager != null ? outing.targetVillager.position() : Vec3.atBottomCenterOf(outing.targetPos);
         double remaining = Math.hypot(destination.x - villager.getX(), destination.z - villager.getZ());
-        if (remaining <= ARRIVED && playerDistance > 6) {
+        double reach = outing.wild ? WILD_ARRIVED : ARRIVED;
+        if (remaining <= reach && playerDistance > 6) {
             // At the destination: wait for the player to catch up before announcing it.
             villager.getNavigation().stop();
             villager.getLookControl().setLookAt(player, 30, 30);
             return;
         }
-        if (remaining <= ARRIVED) {
-            if (outing.targetVillager != null) {
+        if (remaining <= reach) {
+            if (outing.wild) {
+                JsonObject there = event("expedition_arrived");
+                there.addProperty("place", outing.label.length() > 40 ? outing.label.substring(0, 40) : outing.label);
+                there.addProperty("details", outing.homeName.length() > 40 ? outing.homeName.substring(0, 40) : outing.homeName);
+                host.event(player, there);
+                long out = Math.round(Math.sqrt(villager.blockPosition().distSqr(outing.home)));
+                host.observe(villager, player, "guided", "I took " + player.getName().getString() + " out to " + outing.label
+                    + ", about " + out + " blocks from " + outing.homeName, 4);
+                outing.label = null;
+                stopNow(outing, null);
+            } else if (outing.targetVillager != null) {
                 outing.staying = true;
                 host.observe(villager, player, "guided", "I showed " + player.getName().getString() + " the way to " + outing.label, 3);
                 host.arrived(player, villager, outing.targetVillager);
@@ -236,9 +302,20 @@ final class VillagerOuting {
             return;
         }
         if (outing.targetVillager != null) steer(villager, outing.targetVillager.position(), 0.6f);
+        else if (outing.wild) steer(villager, waypoint(villager, destination), 0.7f);
         else steer(villager, destination, 0.6f);
         if (remaining < outing.best - 0.5) { outing.best = remaining; outing.lastProgress = now; }
-        if (now - outing.lastProgress > PROGRESS_MS || now > outing.guideUntil) fail(outing);
+        if (now - outing.lastProgress > (outing.wild ? WILD_PROGRESS_MS : PROGRESS_MS) || now > outing.guideUntil) { fail(outing); return; }
+        if (outing.wild && now - outing.lastScenery > SCENERY_EVERY_MS) {
+            outing.lastScenery = now;
+            JsonObject scenery = event("walk_scenery");
+            String biome = villager.level().getBiome(villager.blockPosition()).unwrapKey()
+                .map(key -> key.identifier().getPath().replace('_', ' ')).orElse("open country");
+            scenery.addProperty("details", "you are leading the player out of " + outing.homeName + " through " + biome + ", about "
+                + Math.round(Math.sqrt(villager.blockPosition().distSqr(outing.home))) + " blocks from home; " + outing.label
+                + " is " + Wilds.distance(remaining) + " ahead");
+            host.event(player, scenery);
+        }
     }
 
     /** Lost the way: apologise and give directions from here instead. */
@@ -259,7 +336,16 @@ final class VillagerOuting {
     private void stopNow(Outing outing, String cue) {
         if (cue != null) host.event(outing.player, cue.equals("walk_boundary") ? place(event(cue), outing.villager) : event(cue));
         remember(outing);
-        outing.homewardUntil = outing.wasNoAi ? System.currentTimeMillis() + HOMEWARD_MS : 0;
+        outing.homewardUntil = outing.wasNoAi || outing.wild ? homewardDeadline(outing) : 0;
+    }
+
+    /** A walkable point up to 16 blocks along the way: villagers cannot path to somewhere hundreds of blocks off. */
+    private static Vec3 waypoint(Villager villager, Vec3 destination) {
+        double dx = destination.x - villager.getX(), dz = destination.z - villager.getZ(), length = Math.hypot(dx, dz);
+        if (length <= WAYPOINT) return destination;
+        int x = (int) Math.floor(villager.getX() + dx / length * WAYPOINT), z = (int) Math.floor(villager.getZ() + dz / length * WAYPOINT);
+        int y = villager.level().getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z);
+        return new Vec3(x + 0.5, y, z + 0.5);
     }
 
     /** Villagers passed on the way, for the scenery cues and the memory of the walk. */
@@ -286,7 +372,7 @@ final class VillagerOuting {
 
     private void remember(Outing outing) {
         long blocks = Math.round(outing.walked);
-        if (blocks < 4 || outing.guiding()) return; // Guided walks are remembered as "guided" on arrival.
+        if (blocks < 4 || outing.guiding() || outing.wild) return; // Guided walks and expeditions are remembered on arrival.
         VillageTracker.Village village = host.village(outing.villager);
         String through = village == null ? "" : " through " + village.name();
         String past = outing.passed.isEmpty() ? "" : ", past " + String.join(", ", outing.passed);
@@ -294,14 +380,27 @@ final class VillagerOuting {
             + " (about " + blocks + " blocks)", blocks > 80 ? 4 : 3);
     }
 
-    /** Back at its post: a villager that had no AI is set down exactly there, with AI off again. */
-    private static void settle(Outing outing) {
+    /**
+     * Back at its post: a villager that had no AI is set down exactly there, with AI off again; one back from an
+     * expedition is set down at home too. Returns false while waiting for the home chunk to load (it is loaded on demand,
+     * since a villager must never be moved into an unloaded chunk).
+     */
+    private static boolean settle(Outing outing, long now) {
         Villager villager = outing.villager;
         villager.getBrain().eraseMemory(MemoryModuleType.WALK_TARGET);
-        if (!outing.wasNoAi) return;
+        if (!outing.wasNoAi && !outing.wild) return true;
         villager.getNavigation().stop();
+        if (outing.wild && villager.level() instanceof net.minecraft.server.level.ServerLevel level && !level.isPositionEntityTicking(outing.home)) {
+            if (outing.settleSince < 0) {
+                outing.settleSince = now;
+                level.getChunkSource().addTicketWithRadius(net.minecraft.server.level.TicketType.PORTAL,
+                    net.minecraft.world.level.ChunkPos.containing(outing.home), 2);
+            }
+            if (now - outing.settleSince < SETTLE_WAIT_MS) return false;
+        }
         villager.teleportTo(outing.home.getX() + 0.5, outing.home.getY(), outing.home.getZ() + 0.5);
-        villager.setNoAi(true);
+        if (outing.wasNoAi) villager.setNoAi(true);
+        return true;
     }
 
     private static void steer(Villager villager, Object target, float speed) {
@@ -323,7 +422,7 @@ final class VillagerOuting {
 
     /** Server stopping: everyone is put straight back where they started. */
     void clear() {
-        for (Outing outing : outings.values()) if (outing.villager.isAlive()) settle(outing);
+        for (Outing outing : outings.values()) if (outing.villager.isAlive()) { outing.settleSince = 0; settle(outing, Long.MAX_VALUE); }
         outings.clear();
     }
 }
