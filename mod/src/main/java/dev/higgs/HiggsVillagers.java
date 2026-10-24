@@ -511,7 +511,7 @@ public final class HiggsVillagers implements ModInitializer {
             }
             s.proposal = p;
             JsonObject result = quote(p, bundle.counteroffer() ? "counteroffer" : "awaiting_confirmation",
-                "Say the exact costs and received quantity once, then ask Confirm trade? Wait for one spoken yes. No extra explanation.");
+                "Say the exact costs and received quantity once, then ask Confirm trade? Wait for one clear spoken acceptance, such as yes, yeah, sure, okay, sounds good, deal, or go ahead. Natural equivalents count; refusals, questions and changed or conditional terms do not. No extra explanation.");
             result.addProperty("relationship", limits.name());
             result.addProperty("minPricePercent", limits.min()); result.addProperty("maxPricePercent", limits.max());
             return result;

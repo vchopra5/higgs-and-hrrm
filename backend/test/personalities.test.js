@@ -69,7 +69,7 @@ test('Rook is mildly confrontational while retaining trade boundaries and previo
   assert.match(config.session.instructions, /Back down when the evidence changes/);
   assert.match(config.session.instructions, /restrained irritation/);
   assert.match(config.session.instructions, /never overrides.*purchase consent/);
-  assert.match(config.session.tools.find(tool => tool.name === 'confirm_trade').description, /explicit spoken yes/);
+  assert.match(config.session.tools.find(tool => tool.name === 'confirm_trade').description, /clear spoken acceptance/);
   assert.throws(() => resolveCharacter({ personality: { ...personality, catalogueVersion: 1 } }));
   assert.equal(resolveCharacter({ personality: profile('bram', 'understated') }).voice, 'marcus');
 });

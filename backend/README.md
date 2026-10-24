@@ -65,8 +65,11 @@ player-specific quote without opening any screen. `confirm_trade` requires one
 spoken confirmation after the quote; the server guards a new input
 turn ID, expiry and single-use purchase. `cancel_trade` clears the quote when
 the player refuses. The final native trade happens entirely server-side, then
-its result is spoken by Higgs. The model interprets affirmative speech; the
-server enforces turn separation and transaction validation.
+its result is spoken by Higgs. The model interprets affirmative speech in context, including “yeah,” “sure,”
+“okay,” “sounds good,” “deal,” and “go ahead”; the literal word “yes” is not
+required. Refusals, questions, and conditional replies such as “yes if it is
+cheaper” do not accept the current quote. The server enforces turn separation
+and transaction validation.
 
 `remember_conversation` accepts `{summary, private, interest, reason, audiences}`. The voice model judges what normal speech is worth saving, using a 0–100 newsworthiness assessment and relevant professions. The server persists the statement and gates public gossip at 55; routine memories can still be recalled. `recall_memories` accepts `{query, scope}` where scope is `player` or `village`. The server supplies UUIDs, sources, storage, and gossip eligibility. Private entries cannot spread; village scope can include public stories about other players. The bridge validates bounded strings and booleans and preserves the existing batch, duplicate-call, and interruption handling. A memory write returns `saved` only after disk persistence completes. See the [memory and rumours guide](../docs/memory-rumours.md).
 
