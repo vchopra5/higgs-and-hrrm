@@ -28,6 +28,7 @@ export function submitToolResult(session, callId, result) {
   const pending = session.pending.get(callId);
   if (!pending || !session.pending.delete(callId)) return false;
   session.traceTool?.(pending, result);
+  session.noteToolResult?.(pending, result);
   if (pending.memoryContext) {
     session.memoryContext.acceptResult(pending, result);
     return true;
@@ -60,8 +61,9 @@ function validArguments(name, args) {
   if (name === 'preview_trade') return Number.isInteger(args.offerIndex) && args.offerIndex >= 0;
   if (name === 'report_treatment') return ['polite', 'neutral', 'rude'].includes(args.treatment);
   return name === 'propose_trade' && Number.isInteger(args.offerIndex) && args.offerIndex >= 0
-    && Object.keys(args).every(key => ['offerIndex', 'quantity', 'payment'].includes(key))
-    && ['quantity', 'payment'].every(key => args[key] === undefined || (Number.isInteger(args[key]) && args[key] >= 1 && args[key] <= 64));
+    && Object.keys(args).every(key => ['offerIndex', 'quantity', 'payment', 'discount'].includes(key))
+    && ['quantity', 'payment'].every(key => args[key] === undefined || (Number.isInteger(args[key]) && args[key] >= 1 && args[key] <= 64))
+    && (args.discount === undefined || typeof args.discount === 'boolean');
 }
 
 export function receiveToolCall(session, event) {
@@ -80,6 +82,7 @@ export function receiveToolCall(session, event) {
     args = null;
   }
   session.hasTools = true;
+  session.noteToolCall?.(event.name);
   session.pending.set(event.call_id, {
     callId: event.call_id,
     name: event.name,

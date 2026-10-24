@@ -39,7 +39,8 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private long lastOverflowNotice;
     private volatile double micDbfs = -96;
     private volatile long lastMicFrame;
-    private volatile long sentChunks, sentBytes, droppedChunks, receivedChunks, receivedBytes;
+    private volatile long sentChunks, sentBytes, droppedChunks, staleChunks, receivedChunks, receivedBytes;
+    private final RealtimeGate realtime = new RealtimeGate(200);
     private volatile String lastEvent = "connecting", lastError = "";
     private volatile String inputDevice = "opening", outputDevice = "Minecraft positional audio / Friendly Creatures";
     private volatile JsonObject backendDiagnostics = new JsonObject();
@@ -127,18 +128,15 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                 if (!line.isRunning()) {
                     line.flush();
                     line.start();
-                    // Some Linux mixers keep buffering while stopped; drop that backlog so it is not sent as one burst.
-                    for (int stale = line.available() / format.getFrameSize() * format.getFrameSize(); stale > 0;) {
-                        int count = line.read(frame, 0, Math.min(frame.length, stale));
-                        if (count <= 0) break;
-                        stale -= count;
-                    }
+                    realtime.start(System.nanoTime());
                 }
                 long frameGeneration;
                 synchronized (this) { frameGeneration = microphoneGeneration; }
                 int count = line.read(frame, 0, frame.length);
                 synchronized (this) {
-                    if (!muted && !closed.get() && frameGeneration == microphoneGeneration && count > 0) {
+                    if (count > 0 && !realtime.accept(count * 1_000_000L / ((long) format.getSampleRate() * format.getFrameSize()), System.nanoTime())) {
+                        staleChunks++; // Backlog replayed faster than real time; never send it.
+                    } else if (!muted && !closed.get() && frameGeneration == microphoneGeneration && count > 0) {
                         byte[] pcm = converter.convert(frame, count);
                         if (pcm.length == 0) continue;
                         micDbfs = AudioLevels.dbfs(pcm, pcm.length);
@@ -284,7 +282,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
             String.format(java.util.Locale.ROOT, "Mic %.1f dBFS  frame %s  %s", microphoneDbfs(), age < 0 ? "none" : age + "ms ago", muted ? "MUTED" : isTransmitting() ? "LIVE" : "INACTIVE"),
             "Input " + inputDevice,
             "Output " + outputDevice,
-            "Sent " + sentChunks + " chunks / " + sentBytes + " B  pending " + outgoing.size() + "  dropped " + droppedChunks,
+            "Sent " + sentChunks + " chunks / " + sentBytes + " B  pending " + outgoing.size() + "  dropped " + droppedChunks + "  stale " + staleChunks,
             "Audio received " + receivedChunks + " / " + receivedBytes + " B  queued " + ((playback == null ? 0 : playback.queuedBytes()) / 48) + "ms",
             "Voice " + field(remote, "voice", "?") + (field(remote, "voiceFallback", "false").equals("true") ? " (fallback)" : ""),
             "Backend in/out " + field(remote, "inputBytes", "0") + "/" + field(remote, "outputBytes", "0") + " B  ready " + field(remote, "upstreamReady", "?"),

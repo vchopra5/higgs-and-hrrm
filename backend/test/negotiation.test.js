@@ -23,7 +23,9 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
       assert.equal(session.pending.has(key+i), false);
     }
   }
-  for (const [i, extra] of [{discount:true}, {discount:false}, {turnId:999}].entries()) {
+  call('haggle', 'propose_trade', {offerIndex:0, discount:true});
+  assert.ok(session.pending.has('haggle'));
+  for (const [i, extra] of [{discount:'yes'}, {discount:1}, {turnId:999}].entries()) {
     call('extra'+i, 'propose_trade', {offerIndex:0, ...extra});
     assert.equal(session.pending.has('extra'+i), false);
   }
@@ -37,22 +39,24 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   assert.ok(outputs.every(event => JSON.parse(event.item.output).error === 'Invalid tool request'));
 });
 
-test('trade schema and instructions use only current reputation prices', () => {
+test('trade schema opens at normal prices and lets reputation decide haggling', () => {
   const { tools, instructions } = sessionConfig({}).session;
   assert.ok(tools.some(t => t.name === 'report_treatment'));
   const proposal = tools.find(t => t.name === 'propose_trade');
-  assert.deepEqual(Object.keys(proposal.parameters.properties), ['offerIndex', 'quantity', 'payment']);
+  assert.deepEqual(Object.keys(proposal.parameters.properties), ['offerIndex', 'quantity', 'payment', 'discount']);
+  assert.equal(proposal.parameters.properties.discount.type, 'boolean');
   assert.deepEqual(proposal.parameters.required, ['offerIndex']);
   assert.equal(proposal.parameters.additionalProperties, false);
   assert.equal(proposal.parameters.properties.quantity.maximum, 64);
   assert.equal(proposal.parameters.properties.payment.maximum, 64);
-  assert.doesNotMatch(instructions + tools.map(tool => tool.description).join(' '), /discount|counteroffer|haggl|baseline/i);
-  assert.match(instructions, /Prices depend only on the player's current reputation/);
+  assert.match(instructions, /Always open with your normal price/);
+  assert.match(instructions, /call propose_trade with that payment or discount true/);
+  assert.match(instructions, /Never invent a price or discount yourself/);
+  assert.match(instructions, /When relationship is hostile, you are furious with this player/);
   assert.match(instructions, /Never repeat a price from earlier in the conversation or from memory/);
   assert.match(instructions, /call get_trades or propose_trade for the current price every time/);
   assert.match(instructions, /Say a price only from the latest tool result/);
-  assert.match(instructions, /Asking for a lower price does not change the price; kindness does/);
-  assert.match(tools.find(t => t.name === 'get_trades').description, /current reputation/);
+  assert.match(tools.find(t => t.name === 'get_trades').description, /normal asking prices/);
   assert.match(tools.find(t => t.name === 'remember_conversation').description, /Never include prices or quotes in summaries/);
 });
 

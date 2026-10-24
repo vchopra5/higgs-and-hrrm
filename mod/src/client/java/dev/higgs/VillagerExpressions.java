@@ -35,7 +35,7 @@ public final class VillagerExpressions {
                     if (entity instanceof net.minecraft.world.entity.npc.villager.Villager villager) {
                         return switch (face(villager.getUUID(), false)) {
                             case "friendly" -> 1f;
-                            case "annoyed" -> -1f;
+                            case "annoyed", "hostile" -> -1f;
                             default -> 0f;
                         };
                     }

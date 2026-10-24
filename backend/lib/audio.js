@@ -14,6 +14,7 @@ export function interruptAudio(session, cancelProvider) {
   interruptTools(session);
   if (cancelProvider && !session.responseDone && !session.awaitingCancellation) {
     session.awaitingCancellation = true;
+    session.cancelRequestedAt = session.now();
     session.sendProvider({ type: 'response.cancel' });
   }
   session.sendClient({ type: 'clear' });

@@ -120,6 +120,18 @@ tasks.register('testVoiceCaptions', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testVoiceCaptions' }
 
+tasks.register('compileRealtimeGateTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/RealtimeGate.java', 'src/client/test/dev/higgs/RealtimeGateTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('realtime-gate-test')
+}
+tasks.register('testRealtimeGate', JavaExec) {
+    dependsOn 'compileRealtimeGateTest'
+    classpath = files(layout.buildDirectory.dir('realtime-gate-test'))
+    mainClass = 'dev.higgs.RealtimeGateTest'
+}
+tasks.named('check') { dependsOn 'testRealtimeGate' }
+
 tasks.register('compileDebugPagesTest', JavaCompile) {
     source = files('src/client/java/dev/higgs/DebugPages.java', 'src/client/test/dev/higgs/DebugPagesTest.java')
     classpath = sourceSets.main.compileClasspath

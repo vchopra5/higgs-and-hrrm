@@ -6,8 +6,9 @@ const POLITE = new Set(['beautiful', 'lovely', 'gorgeous', 'pretty', 'handsome',
   'favourite', 'favorite', 'talented', 'generous', 'friendly', 'helpful', 'impressive', 'cool', 'perfect']);
 const RUDE = new Set(['stupid', 'idiot', 'ugly', 'dumb', 'moron', 'hate', 'useless', 'loser', 'pathetic', 'disgusting',
   'scam', 'scammer', 'thief', 'liar', 'worthless', 'trash', 'garbage', 'fool', 'jerk', 'smelly', 'stinky', 'annoying',
-  'greedy', 'cheat', 'cheater', 'awful', 'terrible', 'horrible', 'rubbish', 'idiotic', 'clown']);
-const RUDE_PHRASES = ['shut up', 'get lost', 'go away', 'rip off', 'ripoff'];
+  'greedy', 'cheat', 'cheater', 'awful', 'terrible', 'horrible', 'rubbish', 'idiotic', 'clown', 'dummy', 'imbecile',
+  'fraud', 'crook', 'coward', 'creep', 'freak', 'weirdo', 'lame', 'sucks', 'nitwit', 'buffoon', 'muppet', 'dimwit']);
+const RUDE_PHRASES = ['shut up', 'get lost', 'go away', 'rip off', 'ripoff', 'you suck', 'screw you', 'piss off', 'drop dead'];
 const NEGATIONS = new Set(['not', "don't", 'dont', 'never', 'no', "isn't", 'isnt', "aren't", 'arent', "wasn't", "doesn't"]);
 
 /** Returns 'polite', 'rude' or 'neutral' for one player utterance. Insults win over compliments. */

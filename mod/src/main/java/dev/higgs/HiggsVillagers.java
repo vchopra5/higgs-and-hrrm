@@ -7,6 +7,10 @@ import net.fabricmc.fabric.api.event.lifecycle.v1.ServerLifecycleEvents;
 import net.fabricmc.fabric.api.networking.v1.*;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundEvents;
+import net.minecraft.world.entity.EntityReference;
+import net.minecraft.world.entity.LivingEntity;
+import net.minecraft.world.entity.animal.golem.IronGolem;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.inventory.MerchantMenu;
@@ -65,6 +69,7 @@ public final class HiggsVillagers implements ModInitializer {
             relationships.put(key, hurtOpinion);
             saveTradeReputations();
         }
+        if (Negotiation.hostile(hurtOpinion.score())) rallyGolems(player, villager);
         Session s = sessions.get(player.getUUID());
         if (s == null || s.villager != villager) {
             if (now - lastStart.getOrDefault(player.getUUID(), 0L) < 1500 || token.isBlank()) return;
@@ -89,6 +94,18 @@ public final class HiggsVillagers implements ModInitializer {
         event.addProperty("tradeCancelled", wasTrading || (s.hitEvent != null && s.hitEvent.get("tradeCancelled").getAsBoolean()));
         s.hitEvent = event;
         s.hitAt = now;
+    }
+    /** Nearby golems defend a villager who has turned hostile, exactly as if the player had attacked them. */
+    private static void rallyGolems(ServerPlayer player, Villager villager) {
+        if (player.isCreative() || player.isSpectator()) return;
+        // canAttack keeps vanilla's rule that player-built golems never attack players.
+        for (IronGolem golem : villager.level().getEntitiesOfClass(IronGolem.class, villager.getBoundingBox().inflate(16),
+                golem -> golem.isAlive() && golem.canAttack(player))) {
+            golem.setLastHurtByMob(player);
+            golem.setTarget(player);
+            golem.setPersistentAngerTarget(EntityReference.<LivingEntity>of(player));
+            golem.startPersistentAngerTimer();
+        }
     }
     /** Opinion is per player, so only that player sees the hearts or angry clouds. */
     private static void moodParticles(ServerPlayer player, Villager villager, boolean happy) {
@@ -116,8 +133,11 @@ public final class HiggsVillagers implements ModInitializer {
     private JsonObject treatment(Session s, String tone, int turn) {
         if (!Set.of("polite", "neutral", "rude").contains(tone)) return outcome("invalid", "Unknown treatment");
         if (turn <= 0 || turn <= s.treatmentTurn) return outcome("unchanged", "Treatment already assessed for this turn");
-        s.treatmentTurn = turn;
-        if (!tone.equals("neutral")) moodParticles(s.player, s.villager, tone.equals("polite"));
+        // A neutral verdict must not use up the turn: the keyword fallback may still catch an insult the model missed.
+        if (!tone.equals("neutral")) {
+            s.treatmentTurn = turn;
+            moodParticles(s.player, s.villager, tone.equals("polite"));
+        }
         String key = relationshipKey(s);
         TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
         long now = System.currentTimeMillis();
@@ -134,7 +154,10 @@ public final class HiggsVillagers implements ModInitializer {
         Negotiation.Band limits = band(s);
         org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Treatment turn={} tone={} relationship={} band={}",
             turn, tone, next.score(), limits.name());
-        JsonObject result = outcome("assessed", changed
+        if (tone.equals("rude") && Negotiation.hostile(next.score())) rallyGolems(s.player, s.villager);
+        JsonObject result = outcome("assessed", Negotiation.hostile(next.score())
+            ? "You are now hostile towards this player: refuse every trade and speak coldly until they make amends."
+            : changed
             ? "Reputation changed. Any earlier price is outdated: call propose_trade again before saying a price."
             : "Reputation unchanged. Call get_trades or propose_trade for the current price before saying it.");
         result.addProperty("relationship", limits.name());
@@ -181,6 +204,14 @@ public final class HiggsVillagers implements ModInitializer {
             ctx.server().execute(() -> receive(ctx.server(), ctx.player(), payload.json())));
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             end(handler.player, false); lastStart.remove(handler.player.getUUID());
+        });
+        // A hostile villager also refuses the vanilla trading screen.
+        net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+            if (world.isClientSide() || !(player instanceof ServerPlayer sp) || !(entity instanceof Villager villager)
+                || !Negotiation.hostile(standing(new Session(sp, villager)))) return net.minecraft.world.InteractionResult.PASS;
+            villager.playSound(SoundEvents.VILLAGER_NO);
+            moodParticles(sp, villager, false);
+            return net.minecraft.world.InteractionResult.FAIL;
         });
         net.fabricmc.fabric.api.event.player.AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
             if (player instanceof ServerPlayer sp && entity instanceof Villager villager)
@@ -310,6 +341,7 @@ public final class HiggsVillagers implements ModInitializer {
             context.addProperty("profession", VillagerMemoryService.profession(villager));
             context.addProperty("level", villager.getVillagerData().level());
             context.addProperty("playerName", player.getName().getString());
+            context.addProperty("relationship", band(s).name());
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
@@ -410,7 +442,10 @@ public final class HiggsVillagers implements ModInitializer {
                             });
                             continue;
                         }
-                        if (name.equals("get_trades")) result.add("offers", offers(s));
+                        if (name.equals("get_trades")) {
+                            if (Negotiation.hostile(standing(s))) result = refused();
+                            else result.add("offers", offers(s));
+                        }
                         else if (name.equals("report_treatment")) {
                             result = treatment(s, call.getAsJsonObject("arguments").get("treatment").getAsString(), call.get("turnId").getAsInt());
                         } else if (name.equals("cancel_trade")) {
@@ -484,8 +519,13 @@ public final class HiggsVillagers implements ModInitializer {
         result.addProperty("message", "Suggest this item briefly and ask Interested? A yes means interest only: call propose_trade next to quote exact terms. Do not call confirm_trade.");
         return result;
     }
+    private JsonObject refused() {
+        return outcome("refused", "You refuse to trade with this player after how they treated you. Say so angrily in one short sentence; "
+            + "they must make amends before you trade again. Do not quote prices.");
+    }
     private JsonObject proposeTrade(Session s, JsonObject arguments, int turn) {
         if (turn == s.lastPurchaseTurn && s.lastReceipt != null) return s.lastReceipt;
+        if (Negotiation.hostile(standing(s))) { s.proposal = null; return refused(); }
         int index = arguments.get("offerIndex").getAsInt();
         Proposal previous = s.proposal;
         s.proposal = null;
@@ -498,10 +538,17 @@ public final class HiggsVillagers implements ModInitializer {
             if (offer.isOutOfStock()) return outcome("unavailable", "That offer is sold out.");
             Integer quantity = arguments.has("quantity") ? arguments.get("quantity").getAsInt() : null;
             Integer payment = arguments.has("payment") ? arguments.get("payment").getAsInt() : null;
+            boolean discount = arguments.has("discount") && arguments.get("discount").getAsBoolean();
             Negotiation.Band limits = band(s);
             Negotiation.Bundle bundle;
+            boolean counteroffer = false;
             try {
-                bundle = bundle(offer, limits, quantity, payment);
+                bundle = bundle(offer, limits, quantity, payment, discount);
+                // An offer below the villager's floor gets its best price instead of a refusal.
+                if (bundle == null && payment != null) {
+                    bundle = bundle(offer, limits, quantity, null, true);
+                    counteroffer = bundle != null;
+                }
             } catch (IllegalArgumentException e) { return outcome("invalid", "Use whole quantities from one to sixty-four."); }
             if (bundle == null) return outcome("unavailable", "No whole-item bundle fits this budget, stack limits and remaining stock. Try a different offer.");
             ItemStack costA = offer.getCostA().copyWithCount(bundle.payment());
@@ -517,9 +564,14 @@ public final class HiggsVillagers implements ModInitializer {
                 offer.getCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(), bundle.stockUses());
             s.proposal = p;
             boolean retained = previous != null && approval.gate() == previous.confirmation();
-            JsonObject result = quote(p, "awaiting_confirmation", retained && !stale
+            String haggle = counteroffer
+                ? "The player's offer is below the lowest you will accept. Turn it down kindly and counter with these terms as your best offer. "
+                : bundle.discounted() ? "You accept a better price than usual because you like this player; sound a little generous. "
+                : discount || (payment != null && limits.floor() >= limits.rate()) ? "This is already your best price for this player; hold firm politely. " : "";
+            JsonObject result = quote(p, "awaiting_confirmation", haggle + (retained && !stale
                 ? "These current terms match the quote just presented. If the player's latest utterance accepts it, call confirm_trade with this proposalId now. Otherwise say the exact costs and quantity, then ask Confirm trade?"
-                : RESTATE_QUOTE);
+                : RESTATE_QUOTE));
+            result.addProperty("discounted", bundle.discounted());
             result.addProperty("relationship", limits.name());
             result.addProperty("pricePercent", limits.rate());
             return result;
@@ -527,6 +579,7 @@ public final class HiggsVillagers implements ModInitializer {
     }
     private JsonObject confirmTrade(Session s, String id, int turn) {
         if (s.purchases.containsKey(id)) return s.purchases.get(id);
+        if (Negotiation.hostile(standing(s))) { s.proposal = null; return refused(); }
         Proposal p = s.proposal;
         if (p == null || !p.id().equals(id)) return outcome("unavailable", "No matching proposal. Ask for a new quote.");
         if (System.currentTimeMillis() >= p.expires() || !availableForVoiceTrade(s)) {
@@ -623,17 +676,17 @@ public final class HiggsVillagers implements ModInitializer {
             }
         }
     }
-    private Negotiation.Bundle bundle(MerchantOffer offer, Negotiation.Band rate, Integer quantity, Integer payment) {
+    private Negotiation.Bundle bundle(MerchantOffer offer, Negotiation.Band rate, Integer quantity, Integer payment, boolean discount) {
         return Negotiation.quote(offer.getCostA().getCount(), offer.getCostB().getCount(), offer.getResult().getCount(),
             offer.getMaxUses() - offer.getUses(), offer.getCostA().getMaxStackSize(),
             offer.getCostB().isEmpty() ? 64 : offer.getCostB().getMaxStackSize(), offer.getResult().getMaxStackSize(),
-            rate, quantity, payment);
+            rate, quantity, payment, discount);
     }
     private JsonArray offers(Session s) {
         JsonArray result = new JsonArray(); int index = 0;
         for (var offer : s.villager.getOffers()) {
             JsonObject o = new JsonObject(); o.addProperty("offerIndex", index++);
-            Negotiation.Bundle bundle = bundle(offer, band(s), null, null);
+            Negotiation.Bundle bundle = bundle(offer, band(s), null, null, false);
             o.addProperty("outOfStock", offer.isOutOfStock());
             if (bundle == null) {
                 o.add("result", item(offer.getResult()));

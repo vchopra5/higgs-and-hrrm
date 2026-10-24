@@ -696,3 +696,53 @@ test('politeness logs distinguish transcript fallback, model labels and applied 
   assert.ok(f.logs.some(e => e.source === 'keyword_fallback' && e.treatment === 'neutral' && e.queued === false));
   assert.equal(f.bridge.sessions.get(f.sessionId).pending.size, 0);
 });
+
+test('a villager that invents a trade is made to correct itself once per turn', async t => {
+  const f = await fixture(t, { mode: 'ptt' });
+  const session = f.bridge.sessions.get(f.sessionId);
+  const creates = () => f.received.filter(event => event.type === 'response.create').length;
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+  f.client.send(JSON.stringify({ type: 'commit' }));
+  await prepareMemory(f);
+  await until(() => creates() === 1);
+  f.emit({ type: 'response.created', response: { id: 'invented' } });
+  f.emit({ type: 'response.output_audio_transcript.done', response_id: 'invented', transcript: 'Done, thanks.' });
+  f.emit({ type: 'response.done', response: { id: 'invented', status: 'completed' } });
+  await until(() => creates() === 2);
+  const note = f.received.findLast(event => event.type === 'conversation.item.create');
+  assert.match(note.item.content[0].text, /^\[Server check, not player speech\] You said the trade was done, but nothing was purchased/);
+  assert.ok(f.logs.some(entry => entry.stage === 'grounding_correction'));
+  // The corrected reply repeats the mistake: no second correction in the same turn.
+  f.emit({ type: 'response.created', response: { id: 'again' } });
+  f.emit({ type: 'response.output_audio_transcript.done', response_id: 'again', transcript: 'Done, thanks.' });
+  f.emit({ type: 'response.done', response: { id: 'again', status: 'completed' } });
+  await delay(50);
+  assert.equal(creates(), 2);
+  assert.equal(session.responseDone, true);
+});
+
+test('a greeting cancelled before it starts cannot silence every later turn', async t => {
+  for (const release of ['error', 'timeout']) {
+    let clock = Date.now();
+    const f = await fixture(t, { context: { autoGreeting: true }, mode: 'ptt', now: () => clock });
+    const session = f.bridge.sessions.get(f.sessionId);
+    const creates = () => f.received.filter(event => event.type === 'response.create').length;
+    await until(() => creates() === 1);
+    // Push-to-talk lands before the provider ever creates the greeting response.
+    f.client.send(JSON.stringify({ type: 'interrupt' }));
+    f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+    f.client.send(JSON.stringify({ type: 'commit' }));
+    await until(() => session.queuedResponse);
+    assert.ok(f.received.some(event => event.type === 'response.cancel'));
+    assert.equal(f.received.some(event => event.type === 'input_audio_buffer.commit'), false, 'commit waits for the cancellation');
+    if (release === 'error') f.emit({ type: 'error', error: { code: 'response_cancel_not_active' } });
+    else clock += 3500;
+    // The deferred turn is committed, recalled, then answered.
+    await prepareMemory(f);
+    await until(() => creates() === 2);
+    assert.equal(session.awaitingCancellation, false);
+    assert.equal(session.queuedResponse, false);
+    assert.ok(f.logs.some(entry => entry.stage === 'cancellation_released'));
+  }
+});

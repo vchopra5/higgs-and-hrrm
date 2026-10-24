@@ -10,10 +10,12 @@ import {
 } from './audio.js';
 import { completeToolBatch, expireTools, receiveToolCall } from './tools.js';
 import { MemoryContext } from './memory-context.js';
+import { TRADE_TOOLS, ungroundedTrade } from './grounding.js';
 
 const DURATION_MESSAGE = 'The ten-minute conversation limit was reached. '
   + 'Start a new conversation to continue.';
 const RESPONSE_STATUSES = new Set(['completed', 'cancelled', 'failed', 'incomplete']);
+const CANCELLATION_MS = 3000;
 const DEBUG_EVENTS = 12;
 const DEBUG_TOOLS = 8;
 const debugText = value => (typeof value === 'string' ? value : JSON.stringify(value) ?? '').slice(0, 240);
@@ -63,6 +65,10 @@ export class BridgeSession {
     // Player-facing debug HUD (F6): provider event codes only, never provider error text.
     this.debugEvents = [];
     this.debugTools = [];
+    // Trade facts established this turn, used to catch invented prices and purchases.
+    this.trade = { turnId: -1, tools: new Set(), purchased: false, quote: null };
+    this.correctedTurn = -1;
+    this.responseText = '';
     this.timer = setTimeout(() => {
       this.sendError(true, 'session_duration_limit', DURATION_MESSAGE);
       this.close('session_duration_limit');
@@ -123,12 +129,69 @@ export class BridgeSession {
     this.stage('environment_reaction', { hitCount: reaction.count, windowMs: reaction.windowMs });
   }
 
+  // Boson can drop a response cancelled before it started without sending response.created or
+  // response.done. Waiting forever would queue every later turn behind it and silence the villager.
+  releaseCancellation(reason) {
+    if (!this.awaitingCancellation) return;
+    this.awaitingCancellation = false;
+    this.responseDone = true;
+    this.traceEvent('cancellation_released');
+    this.stage('cancellation_released', { reason });
+    // Same hand-off as finishResponse: commit the deferred turn, then answer it once memory is ready.
+    if (this.queuedAudioCommit !== null && !this.recording && !this.muted) {
+      const turnId = this.queuedAudioCommit;
+      this.queuedAudioCommit = null;
+      this.commitAudioTurn(turnId);
+    }
+    this.flushPreparedResponse();
+  }
+
   traceEvent(type) {
     const last = this.debugEvents.at(-1);
     // Collapse streams such as audio deltas into one counted row.
     if (last?.type === type) { last.count++; last.at = this.now(); return; }
     this.debugEvents.push({ type, count: 1, at: this.now() });
     if (this.debugEvents.length > DEBUG_EVENTS) this.debugEvents.shift();
+  }
+
+  tradeTurn() {
+    if (this.trade.turnId !== this.turnId) this.trade = { turnId: this.turnId, tools: new Set(), purchased: false, quote: null };
+    return this.trade;
+  }
+
+  noteToolCall(name) {
+    if (TRADE_TOOLS.has(name)) this.tradeTurn().tools.add(name);
+  }
+
+  noteToolResult(tool, result) {
+    if (!TRADE_TOOLS.has(tool.name) || tool.turnId !== this.turnId || !result || typeof result !== 'object') return;
+    const trade = this.tradeTurn();
+    if (tool.name === 'confirm_trade' && result.status === 'purchased') trade.purchased = true;
+    if (result.costA && result.receive) {
+      trade.quote = [result.costA, result.costB, result.receive]
+        .map(item => item?.count).filter(count => Number.isInteger(count) && count > 0);
+    }
+  }
+
+  // Corrects at most once per turn, so a stubborn model cannot loop.
+  correctUngroundedTrade(response) {
+    const text = this.responseText;
+    this.responseText = '';
+    if (response?.status !== 'completed' || this.turnId <= 0 || this.correctedTurn === this.turnId
+        || this.recording || this.cancelled || this.hasTools || [...this.pending.values()].some(tool => !tool.internal)) return false;
+    const trade = this.tradeTurn();
+    const problem = ungroundedTrade(text, trade);
+    if (!problem) return false;
+    this.correctedTurn = this.turnId;
+    this.traceEvent('grounding_correction');
+    this.stage('grounding_correction', { turnId: this.turnId });
+    this.responseDone = false;
+    this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text',
+      text: '[Server check, not player speech] ' + problem + ' Nothing was agreed or purchased. Briefly correct yourself, '
+        + 'then call propose_trade for the deal the player wants and say only the exact terms it returns, then ask Confirm trade? '
+        + 'Never say a trade is done unless confirm_trade returns purchased.' }] } });
+    this.sendProvider({ type: 'response.create' });
+    return true;
   }
 
   traceTool(tool, result) {
@@ -327,6 +390,7 @@ export class BridgeSession {
             if (typeof text === 'string') this.reactionText = (final ? text : this.reactionText + text).slice(0, 4000);
             break;
           }
+          if (final && typeof text === 'string') this.responseText += ' ' + text;
           if (typeof text === 'string') this.sendClient({ type: 'transcript', speaker: 'villager',
             id: event.item_id ?? event.response_id ?? this.responseId ?? 'output',
             text: text.slice(0, 4000), replace: final });
@@ -424,6 +488,7 @@ export class BridgeSession {
 
   startResponse(responseId) {
     this.responseId = responseId;
+    this.responseText = '';
     this.responseDone = false;
     // A just-created opening may already have been cancelled by the player's first turn.
     this.cancelled = this.awaitingCancellation;
@@ -449,7 +514,7 @@ export class BridgeSession {
     }
     if (this.queuedResponse) {
       this.flushPreparedResponse();
-    } else completeToolBatch(this);
+    } else if (!this.correctUngroundedTrade(response)) completeToolBatch(this);
   }
 
   finishReaction(response) {
@@ -491,6 +556,7 @@ export class BridgeSession {
     }
     const code = sanitizeCode(error?.code ?? error?.type ?? 'provider_error');
     this.diagnostics.lastError = code;
+    if (code === 'response_cancel_not_active') this.releaseCancellation('nothing_to_cancel');
     this.log({ event: 'provider_error', sessionId: this.id, code });
     const message = this.ready
       ? `Higgs reported ${code}; the conversation is still connected.`
@@ -512,6 +578,7 @@ export class BridgeSession {
       speaking: Boolean(this.recording), cancelled: Boolean(this.cancelled),
       debug: this.debugState(),
     });
+    if (this.awaitingCancellation && this.now() - this.cancelRequestedAt > CANCELLATION_MS) this.releaseCancellation('timeout');
     expireTools(this);
     this.flushReaction();
   }

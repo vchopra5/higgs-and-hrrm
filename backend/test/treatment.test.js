@@ -14,6 +14,8 @@ test('insults are rude and win over compliments', () => {
   assert.equal(classifyTreatment('Shut up and sell me bread.'), 'rude');
   assert.equal(classifyTreatment('Nice hat, you idiot.'), 'rude');
   assert.equal(classifyTreatment('That price is a rip-off'), 'rude');
+  assert.equal(classifyTreatment('You suck, you dummy.'), 'rude');
+  assert.equal(classifyTreatment('Your shop sucks'), 'rude');
 });
 
 test('ordinary and negated speech is neutral', () => {
