@@ -391,7 +391,7 @@ final class VillageDashboard {
                 UUID player = uuid(command, "playerId");
                 host.setStanding(player, villager.getUUID(), 0);
                 if (journal != null) journal.forget(villager.getUUID(), player);
-                return villager.getName().getString() + " no longer remembers that player";
+                return villager.getName().getString() + " standing and relationship journal reset; saved memories remain";
             }
             case "forget_episode" -> {
                 if (journal == null || !journal.remove(uuid(command, "episodeId"))) throw new IllegalArgumentException("No such episode");

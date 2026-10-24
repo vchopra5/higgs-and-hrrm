@@ -26,9 +26,15 @@ final class AmbientChatter implements WebSocket.Listener {
     private volatile boolean closed;
     private SpatialVoice stream;
     private int linesPlayed;
+    private final boolean whisper;
 
     AmbientChatter(String sceneId, String url) {
+        this(sceneId, url, false);
+    }
+
+    AmbientChatter(String sceneId, String url, boolean whisper) {
         this.sceneId = sceneId;
+        this.whisper = whisper;
         URI endpoint = URI.create(url);
         if (!"ws".equals(endpoint.getScheme()) && !"wss".equals(endpoint.getScheme())) throw new IllegalArgumentException("Invalid chatter endpoint");
         http.newWebSocketBuilder().buildAsync(endpoint, this).whenComplete((ws, error) -> {
@@ -112,7 +118,7 @@ final class AmbientChatter implements WebSocket.Listener {
                 sequence.advance(now);
                 return;
             }
-            stream = new SpatialVoice(speaker);
+            stream = new SpatialVoice(speaker, whisper);
             while (!line.pending.isEmpty()) stream.offer(line.pending.removeFirst());
             if (client.getSoundManager().play(stream) == SoundEngine.PlayResult.NOT_STARTED) {
                 stream.cancel();
@@ -127,7 +133,7 @@ final class AmbientChatter implements WebSocket.Listener {
         if (line.captioned || !line.ended || line.text.isBlank()) return;
         line.captioned = true;
         Entity speaker = client.level.getEntity(line.speaker);
-        if (speaker == null || client.player.distanceToSqr(speaker) > CAPTION_RANGE_SQUARED) return;
+        if (speaker == null || client.player.distanceToSqr(speaker) > (whisper ? 25 : CAPTION_RANGE_SQUARED)) return;
         client.gui.getChat().addClientSystemMessage(Component.literal("<" + line.name + "> " + line.text)
             .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
     }

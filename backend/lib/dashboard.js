@@ -45,7 +45,7 @@ export function createDashboard({ token, sessions, now = Date.now, log = () => {
   let commands = [];
   const results = [];
   const clients = new Set();
-  let watchedAt = 0;
+  let watchedAt = -Infinity;
 
   function allowed(request, url) {
     const header = request.headers.authorization ?? '';
@@ -64,7 +64,6 @@ export function createDashboard({ token, sessions, now = Date.now, log = () => {
   }
 
   function state() {
-    watchedAt = now();
     return { snapshot, snapshotAt, stale: !snapshot || now() - snapshotAt > DASHBOARD_LIMITS.staleMs, live: live(),
       pending: commands.map(({ id, type }) => ({ id, type })), results: results.slice(-20) };
   }
@@ -111,7 +110,7 @@ export function createDashboard({ token, sessions, now = Date.now, log = () => {
       response.end(page);
       return true;
     }
-    if (request.method === 'GET' && path === '/dashboard/state') { replyJson(response, 200, state()); return true; }
+    if (request.method === 'GET' && path === '/dashboard/state') { watchedAt = now(); replyJson(response, 200, state()); return true; }
     if (request.method === 'GET' && path === '/dashboard/events') {
       response.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-store', Connection: 'keep-alive' });
       response.write(`event: state\ndata: ${JSON.stringify(state())}\n\n`);

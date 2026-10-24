@@ -80,6 +80,18 @@ tasks.register('testMemory', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testMemory' }
 
+tasks.register('compileGossipEncounterTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/GossipEncounter.java', 'src/test/dev/higgs/GossipEncounterTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('gossip-encounter-test')
+}
+tasks.register('testGossipEncounter', JavaExec) {
+    dependsOn 'compileGossipEncounterTest'
+    classpath = files(layout.buildDirectory.dir('gossip-encounter-test'))
+    mainClass = 'dev.higgs.GossipEncounterTest'
+}
+tasks.named('check') { dependsOn 'testGossipEncounter' }
+
 tasks.register('compileTextTermsTest', JavaCompile) {
     source = files('src/main/java/dev/higgs/TextTerms.java', 'src/test/dev/higgs/TextTermsTest.java')
     classpath = files()
@@ -413,3 +425,41 @@ tasks.register('testVoicePcm', JavaExec) {
     mainClass = 'dev.higgs.VoicePcmBufferTest'
 }
 tasks.named('check') { dependsOn 'testVoicePcm' }
+
+
+tasks.register('compileCompanionPresenceTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/CompanionPresence.java', 'src/test/dev/higgs/CompanionPresenceTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('companion-presence-test')
+}
+tasks.register('testCompanionPresence', JavaExec) {
+    dependsOn 'compileCompanionPresenceTest'
+    classpath = files(layout.buildDirectory.dir('companion-presence-test'))
+    mainClass = 'dev.higgs.CompanionPresenceTest'
+}
+tasks.named('check') { dependsOn 'testCompanionPresence' }
+
+tasks.register('compilePlaybackCompletionTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/PlaybackCompletion.java', 'src/client/test/dev/higgs/PlaybackCompletionTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('playback-completion-test')
+}
+tasks.register('testPlaybackCompletion', JavaExec) {
+    dependsOn 'compilePlaybackCompletionTest'
+    classpath = files(layout.buildDirectory.dir('playback-completion-test'))
+    mainClass = 'dev.higgs.PlaybackCompletionTest'
+}
+tasks.named('check') { dependsOn 'testPlaybackCompletion' }
+
+tasks.register('compileMerchantTurnTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/MerchantTurn.java', 'src/main/java/dev/higgs/QuoteConfirmation.java',
+        'src/main/java/dev/higgs/VoiceConfirmation.java', 'src/confirmation/test/dev/higgs/MerchantTurnTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('merchant-turn-test')
+}
+tasks.register('testMerchantTurn', JavaExec) {
+    dependsOn 'compileMerchantTurnTest'
+    classpath = files(layout.buildDirectory.dir('merchant-turn-test'))
+    mainClass = 'dev.higgs.MerchantTurnTest'
+}
+tasks.named('check') { dependsOn 'testMerchantTurn' }

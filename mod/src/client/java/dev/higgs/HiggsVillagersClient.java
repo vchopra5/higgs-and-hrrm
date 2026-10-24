@@ -29,6 +29,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     private String activeSessionId;
     private boolean pending;
     private int targetId = -1;
+    private final java.util.Map<java.util.UUID, Long> gossiping = new java.util.HashMap<>();
     private final SwitchTalkGate switchTalkGate = new SwitchTalkGate();
     private boolean wasTalking;
     private long nextConnectAt;
@@ -153,7 +154,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             (graphics, delta) -> tracker.render(graphics));
         ClientPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) ->
             context.client().execute(() -> receive(payload.json())));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); stopChatter(); stopScreams(); handoff.clear(); VillagerExpressions.clear(); });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); stopChatter(); stopScreams(); handoff.clear(); VillagerExpressions.clear(); gossiping.clear(); });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             handoff.tick(client);
             if (client.player == null || client.level == null) { stop(false); stopChatter(); return; }
@@ -182,6 +183,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             toggleDebugPage(client, stateDebug, 9);
             // F9 shows server-side state: ask for a fresh copy every two seconds while it is open.
             long nowMs = System.currentTimeMillis();
+            gossiping.values().removeIf(until -> until <= nowMs);
             if (debugPage == 9 && nowMs - stateRequested >= 2000 && ClientPlayNetworking.canSend(ControlPayload.TYPE)) {
                 stateRequested = nowMs;
                 ClientPlayNetworking.send(new ControlPayload("{\"type\":\"debug_state\"}"));
@@ -204,14 +206,18 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                         && client.player.distanceToSqr(v) <= 64 && client.player.hasLineOfSight(v))
                     .stream().min(java.util.Comparator.comparingDouble(v -> client.player.distanceToSqr(v))).orElse(null);
             }
-            // Warm up the connection while looking at a villager. Switch partners only
-            // on a fresh push-to-talk press, never halfway through an utterance.
-            if (held && !wasTalking && target != null && target.getId() != targetId && !pending) {
+            // Ordinary villagers connect on look; gossiping villagers require B.
+            // Switch partners only on a fresh press, never halfway through an utterance.
+            if (held && !wasTalking && target != null && voice != null && voice.isParticipant(target.getId()))
+                voice.selectAddressee(target.getId());
+            if (held && !wasTalking && target != null && target.getId() != targetId && !pending
+                && (voice == null || !voice.isParticipant(target.getId()))) {
                 switchTalkGate.switched();
                 stop(false); // The start request replaces the server session without an old end acknowledgement.
                 nextConnectAt = Math.max(System.currentTimeMillis(), requestTime + 1500);
             }
             if (voice == null && !pending && target != null && System.currentTimeMillis() >= nextConnectAt
+                && (held || !gossiping.containsKey(target.getUUID()))
                 && client.screen == null && client.isWindowActive()) start(client, target);
             boolean recordSpeech = switchTalkGate.talking(held);
             if (voice != null) voice.setTalking(recordSpeech);
@@ -280,11 +286,20 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         try {
             JsonObject message = JsonParser.parseString(raw).getAsJsonObject();
             switch (message.get("type").getAsString()) {
+                case "gossip_activity" -> {
+                    var id = java.util.UUID.fromString(message.get("villagerId").getAsString());
+                    if (message.get("busy").getAsBoolean()) gossiping.put(id, System.currentTimeMillis() + 3000);
+                    else gossiping.remove(id);
+                }
                 case "debug_state" -> { debugState = message; diagnosticRefresh = 0; }
                 case "villager_expression" -> VillagerExpressions.update(
                     java.util.UUID.fromString(message.get("villagerId").getAsString()), message.get("expression").getAsString(),
                     message.has("standing") ? message.get("standing").getAsInt() : 0);
                 case "trade_complete" -> handoff.start(Minecraft.getInstance(), message);
+                case "companion_departed" -> {
+                    if (voice != null && activeSessionId != null && activeSessionId.equals(message.get("sessionId").getAsString()))
+                        voice.dismissCompanion(message.get("entityId").getAsInt());
+                }
                 case "companion_join" -> {
                     if (voice == null || activeSessionId == null || !activeSessionId.equals(message.get("sessionId").getAsString())) return;
                     var entity = Minecraft.getInstance().level.getEntity(message.get("entityId").getAsInt());
@@ -300,7 +315,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 case "chatter" -> {
                     if (voice != null || pending) return;
                     stopChatter();
-                    chatter = new AmbientChatter(message.get("sceneId").getAsString(), message.get("url").getAsString());
+                    chatter = new AmbientChatter(message.get("sceneId").getAsString(), message.get("url").getAsString(),
+                        message.has("whisper") && message.get("whisper").getAsBoolean());
                 }
                 case "chatter_end" -> {
                     if (chatter != null && chatter.sceneId.equals(message.get("sceneId").getAsString())) stopChatter();

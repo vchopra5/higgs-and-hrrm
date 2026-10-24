@@ -1,3 +1,5 @@
+import { ConversationFloor } from './conversation-floor.js';
+import { EXPRESSIVE_DELIVERY } from './vocal-delivery.js';
 import { resolveCharacter, isVoiceSelectionError } from './personalities.js';
 
 import { repeatedReaction } from './reaction-variety.js';
@@ -39,6 +41,38 @@ export class BridgeSession {
     this.created = now();
     this.playerId = body.playerId;
     this.context = body.context;
+    this.followupUsed = false;
+    this.floor = body.context.coordinated === true ? new ConversationFloor(
+      event => sendJson(this.client, event),
+      (owner, line, interrupted) => {
+        const name = owner === 'main' ? this.context.name ?? 'The villager' : owner.spec.name;
+        const text = interrupted ? '[Speech interrupted; remaining words were not heard.]' : line;
+        if (!text) return;
+        if (owner === 'main') { this.remember(name, text); this.companion?.hear(name, text); }
+        else { owner.hear(`${name} (you)`, text); this.hearCompanion(name, text); }
+      },
+      (owner, line) => {
+        if (owner !== 'main' && owner.leaving) { this.companionLeft(owner); return; }
+        if (!line || this.followupUsed || this.recording || this.closed || this.context.bedtime
+            || this.hasTools || [...this.pending.values()].some(tool => !tool.internal || tool.name === '_share_news_depart' || tool.name === '_switch_merchant')
+            || this.turnId - (this.bargainTurn ?? -10) <= 2) return;
+        const other = owner === 'main' ? this.companion?.spec.name : this.context.name;
+        const name = owner === 'main' ? this.context.name : owner.spec.name;
+        if (owner === 'main' && this.companion?.greetingPending) {
+          if (this.companion.flushGreeting()) this.followupUsed = true;
+          return;
+        }
+        if (!other || !line.includes('?') || !addressedTo(line, other, name)) {
+          if (owner === 'main' && this.companion?.maybeInterject(this.turnId)) this.followupUsed = true;
+          return;
+        }
+        this.followupUsed = true;
+        if (owner === 'main') this.companion?.respond('[Your neighbour asked you a question] Answer briefly, then let the player speak.');
+        else { this.cancelled = false; this.responseDone = false; this.createConversationResponse(); }
+      }, 90000, () => {
+        this.sendError(true, 'playback_timeout', 'Voice playback stopped responding. Start a new conversation to reconnect.');
+        this.close('playback_timeout');
+      }) : null;
     this.voiceOverrides = voiceOverrides;
     this.character = resolveCharacter(this.context, voiceOverrides);
     this.voiceFallback = false;
@@ -105,6 +139,16 @@ export class BridgeSession {
   }
 
   environmentEvent(event) {
+    if (event?.type === 'companion_departed' && Number.isInteger(event.entityId)) {
+      if (this.companionSpec?.entityId === event.entityId) this.companionSpec = null;
+      const companion = this.companion;
+      if (companion?.spec.entityId === event.entityId) {
+        const turn = companion.answerTurn;
+        companion.close();
+        this.companionFailed(companion, turn);
+      }
+      return;
+    }
     if (event?.type === 'gift') { this.giftEvent(event); return; }
     if (GAME_EVENTS.has(event?.type)) { this.queueCue(parseGameEvent(event)); return; }
     if (event?.type !== 'hit' || event.windowMs !== 30_000
@@ -131,6 +175,7 @@ export class BridgeSession {
     this.pendingGift = { item: event.item, verdict: event.verdict, repeat: event.repeat, change: event.change, at: this.now() };
     this.flushGift();
     this.flushCues();
+    if (!this.followupUsed && this.companion?.flushGreeting()) this.followupUsed = true;
   }
 
   /** At most one pending cue per event type; spoken when nobody else is talking, dropped when stale. */
@@ -138,6 +183,7 @@ export class BridgeSession {
     this.pendingCues = (this.pendingCues ?? []).filter(cue => cue.type !== event.type);
     this.pendingCues.push({ ...event, at: this.now() });
     this.flushCues();
+    if (!this.followupUsed && this.companion?.flushGreeting()) this.followupUsed = true;
   }
 
   flushCues() {
@@ -210,7 +256,7 @@ export class BridgeSession {
     this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
       content: [{ type: 'input_text', text: '[Game event, not player speech] The player hit you. Recent attack attempts (not damage): ' + JSON.stringify(hitStats) + '. ' + delivery + ' Do not trade, call tools, or treat this event as purchase consent.' }] } });
     this.sendProvider({ type: 'response.create', response: { instructions:
-      'You are the Minecraft villager who was just hit. ' + (this.character?.instructions ?? '') + delivery
+      'You are the Minecraft villager who was just hit. ' + (this.character?.instructions ?? '') + EXPRESSIVE_DELIVERY + delivery
       + ' Express that emotion in your voice. No narration, trading, or tool calls.' } });
     this.stage('environment_reaction', { hitCount: reaction.count, windowMs: reaction.windowMs });
   }
@@ -223,6 +269,7 @@ export class BridgeSession {
     this.responseDone = true;
     this.traceEvent('cancellation_released');
     this.stage('cancellation_released', { reason });
+    if (this.context.bedtime === true) { this.close('bedtime'); return; }
     // Same hand-off as finishResponse: commit the deferred turn, then answer it once memory is ready.
     if (this.queuedAudioCommit !== null && !this.recording && !this.muted) {
       const turnId = this.queuedAudioCommit;
@@ -252,6 +299,9 @@ export class BridgeSession {
   }
 
   noteToolResult(tool, result) {
+    if (tool.name === 'share_news' && tool.turnId === this.turnId && result?.status === 'ready')
+      this.newsDeparture = { turnId: this.turnId, memoryId: tool.arguments.memoryId };
+
     if (!TRADE_TOOLS.has(tool.name) || tool.turnId !== this.turnId || !result || typeof result !== 'object') return;
     const trade = this.tradeTurn();
     if (tool.name === 'confirm_trade' && result.status === 'purchased') trade.purchased = true;
@@ -304,16 +354,32 @@ export class BridgeSession {
     };
   }
 
-  sendClient(event) { return sendJson(this.client, event); }
-  sendProvider(event) { return sendJson(this.upstream, event); }
+  sendClient(event) {
+    if (event.type === 'audio' && this.floor)
+      return this.floor.audio(event.speaker === 'companion' ? this.companion : 'main', event);
+    return sendJson(this.client, event);
+  }
 
-  createConversationResponse() {
+  sendProvider(event) {
+    if (event.type === 'response.create' && this.floor) return this.floor.request('main', () => {
+      // A queued response must hear lines that finished playing while it waited.
+      this.deliverCompanionLines();
+      return sendJson(this.upstream, event);
+    });
+    return sendJson(this.upstream, event);
+  }
+
+  deliverCompanionLines() {
     if (this.companionLines?.length) {
       this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text',
         text: '[What your neighbour said since you last spoke. Context only: not player speech, never read it out or repeat it]\n'
           + this.companionLines.join('\n') }] } });
       this.companionLines = [];
     }
+  }
+
+  createConversationResponse() {
+    if (!this.floor) this.deliverCompanionLines();
     // Keep the configured persona and dialogue intact. Provider instruction
     // overrides did not reliably retain the current audio turn in live probes.
     if (this.preparedMemory && this.deliveredMemory !== this.preparedMemory) {
@@ -334,14 +400,17 @@ export class BridgeSession {
 
   flushPreparedResponse() {
     // At bedtime the villager has said goodnight and will not take up a new topic.
-    if (this.context.bedtime === true) { this.queuedResponse = false; return; }
+    if (this.context.bedtime === true) {
+      if (this.queuedResponse) this.close('bedtime');
+      return;
+    }
     if (this.closed || this.recording || this.muted || this.awaitingCancellation
         || !this.responseDone || !this.queuedResponse || this.queuedAudioCommit !== null || this.memoryContext.waiting) return;
     // Addressed by name (or asked to leave), the companion answers instead; the main villager just hears it.
     if (this.companion && this.lastTranscript && this.lastTranscript.at >= this.lastCommitAt) {
       const said = this.lastTranscript.text, partner = this.context.name ?? '';
       const routed = askedToLeave(said, this.companion.spec.name, partner) ? this.companion.askToLeave()
-        : addressedTo(said, this.companion.spec.name, partner) && this.companion.answer();
+        : this.resolveRecipient(said) === this.companion.spec.entityId && this.companion.answer();
       if (routed) {
         this.queuedResponse = false;
         this.stage('companion_answer', { turnId: this.turnId });
@@ -442,6 +511,8 @@ export class BridgeSession {
       const event = JSON.parse(data);
       if (event.type === 'end') {
         this.close('client_requested_end');
+      } else if (event.type === 'playback_done') {
+        this.floor?.acknowledge(event.floorId);
       } else if (event.type === 'mute') {
         setMuted(this, event.muted);
       } else if (!this.ready) {
@@ -506,8 +577,9 @@ export class BridgeSession {
           }
           if (final && typeof text === 'string') {
             this.responseText += ' ' + text;
-            this.remember(this.context.name ?? 'The villager', text);
-            this.companion?.hear(this.context.name ?? 'Your neighbour', text.slice(0, 600));
+            if (this.floor) this.floor.line('main', text);
+            else { this.remember(this.context.name ?? 'The villager', text);
+              this.companion?.hear(this.context.name ?? 'Your neighbour', text.slice(0, 600)); }
           }
           if (typeof text === 'string') this.sendClient({ type: 'transcript', speaker: 'villager',
             id: event.item_id ?? event.response_id ?? this.responseId ?? 'output',
@@ -568,6 +640,11 @@ export class BridgeSession {
         turnId: this.turnId, created: this.now() });
     }
     this.stage('upstream_ready');
+    // A missing greeting completion must never leave a bedtime session connected indefinitely.
+    if (this.context.bedtime === true) {
+      this.bedtimeDeadline = setTimeout(() => this.close('bedtime'), 30_000);
+      this.bedtimeDeadline.unref?.();
+    }
     if (this.companionSpec && !this.companion) {
       this.notePresent(this.companionSpec);
       this.companion = new Companion(this, this.companionSpec, {
@@ -591,6 +668,8 @@ export class BridgeSession {
       if (this.context.bedtime === true) this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
         content: [{ type: 'input_text', text: BEDTIME_CUE }] } });
       // Brought here by a guide: an explicit cue, or the model narrates the scene in the third person.
+      else if (typeof this.context.merchantRequest === 'string') this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
+        content: [{ type: 'input_text', text: '[Merchant handoff: the player is now asking YOU to trade. The previous merchant’s quote is cancelled. This is a fresh request, never purchase consent. Do not greet again. Use your own trade tools to obtain current offers and quote fresh terms.]\nPlayer request (quoted data): ' + JSON.stringify(this.context.merchantRequest) }] } });
       else if (typeof this.context.introducedBy === 'string') this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
         content: [{ type: 'input_text', text: introductionCue(this.context.introducedBy) }] } });
       if (this.sendProvider({ type: 'response.create' }) && this.context.openingRumour && this.context.bedtime !== true) {
@@ -607,7 +686,21 @@ export class BridgeSession {
       villager: String(this.context.name ?? '').slice(0, 120), turnId: this.turnId, ...entry });
   }
 
+  resolveRecipient(transcript) {
+    const companion = this.companion?.spec;
+    if (!companion) return null;
+    if (addressedTo(transcript, this.context.name ?? '', companion.name)) return null;
+    if (addressedTo(transcript, companion.name, this.context.name ?? '')) return companion.entityId;
+    return this.floor && this.selectedAddressee === companion.entityId ? companion.entityId : null;
+  }
+
   reportTreatment(transcript, itemId) {
+    this.treatmentRecipient = this.resolveRecipient(transcript);
+    if (this.floor && Number.isInteger(this.context.entityId)) {
+      const callId = `recipient-${this.id}-${this.turnId}`;
+      this.pending.set(callId, { callId, name: '_turn_recipient', internal: true, turnId: this.turnId, created: this.now(),
+        arguments: { entityId: this.treatmentRecipient ?? this.context.entityId } });
+    }
     const treatment = classifyTreatment(transcript);
     const callId = `treatment-${this.id}-${this.turnId}`;
     const skipped = treatment === 'neutral' ? 'neutral' : this.turnId <= 0 ? 'no_player_turn'
@@ -616,7 +709,7 @@ export class BridgeSession {
       transcript, treatment, queued: skipped === null, skipped });
     if (skipped) return;
     this.seen.add(callId);
-    this.pending.set(callId, { callId, name: 'report_treatment', arguments: { treatment }, internal: true,
+    this.pending.set(callId, { callId, name: 'report_treatment', arguments: { treatment, recipientEntityId: this.treatmentRecipient }, internal: true,
       turnId: this.turnId, created: this.now() });
   }
 
@@ -667,7 +760,9 @@ export class BridgeSession {
   }
 
   finishResponse(response) {
-    if (this.isStaleResponse(response?.id)) return;
+    if (this.isStaleResponse(response?.id) || response?.id && response.id === this.lastFinishedResponseId) return;
+    this.lastFinishedResponseId = response?.id;
+    const finishingFloor = this.floor?.active;
     this.responseDone = true;
     if (this.reactionActive) this.finishReaction(response);
     this.reactionActive = false;
@@ -681,11 +776,26 @@ export class BridgeSession {
       this.commitAudioTurn(turnId);
     }
     const spoken = this.responseText.trim();
+    if (this.newsDeparture && status === 'completed' && spoken && !this.hasTools && !this.recording && !this.cancelled) {
+      const departure = this.newsDeparture;
+      this.newsDeparture = null;
+      const playMs = Math.max(0, this.diagnostics.outputBytes - (this.responseStartBytes ?? 0)) / 48;
+      clearTimeout(this.newsDepartureTimer);
+      const depart = () => {
+        if (this.closed || this.turnId !== departure.turnId || !this.quiet() || this.cancelled) return;
+        const callId = `share-news-${this.id}-${departure.turnId}`;
+        this.pending.set(callId, { callId, name: '_share_news_depart', arguments: { memoryId: departure.memoryId },
+          internal: true, turnId: departure.turnId, created: this.now() });
+      };
+      if (this.floor?.active) this.floor.active.onPlayed = depart;
+      else { this.newsDepartureTimer = setTimeout(depart, playMs + 500); this.newsDepartureTimer.unref?.(); }
+    }
     if (this.context.bedtime === true && !this.bedtimeTimer) {
       // Night: one line about heading to bed, then goodbye, once the client has played it (24 kHz PCM16 = 48 B/ms).
       // Ends even when the player cut the line off: nothing else will be said.
       const playMs = Math.max(0, this.diagnostics.outputBytes - (this.responseStartBytes ?? 0)) / 48;
-      this.bedtimeTimer = setTimeout(() => this.close('bedtime'), playMs + 1500);
+      if (this.floor?.active) this.floor.active.onPlayed = () => this.close('bedtime');
+      this.bedtimeTimer = setTimeout(() => this.close('bedtime'), this.floor ? 30000 : playMs + 1500);
       this.bedtimeTimer.unref?.();
       this.stage('bedtime', { playMs: Math.round(playMs) });
     }
@@ -694,9 +804,10 @@ export class BridgeSession {
     } else if (!this.correctUngroundedTrade(response)) completeToolBatch(this);
     if (this.responseDone) this.reactToHeardErrand();
     // Nothing else started: the neighbour may chime in after a finished spoken line.
-    if (response?.status === 'completed' && spoken && this.responseDone && !this.hasTools && !this.recording
+    if (!this.floor && response?.status === 'completed' && spoken && this.responseDone && !this.hasTools && !this.recording
         && !this.queuedResponse && ![...this.pending.values()].some(tool => !tool.internal)
         && !(this.turnId - (this.bargainTurn ?? -10) <= 2)) this.companion?.maybeInterject(this.turnId);
+    if (finishingFloor && this.floor?.active === finishingFloor) this.floor.finish('main', status === 'completed' && !this.cancelled);
   }
 
   /** Companions who heard this conversation also remember being there. */
@@ -723,7 +834,8 @@ export class BridgeSession {
 
   /** Nobody is speaking or about to: safe for a joining neighbour to say hello. */
   quiet() {
-    return this.responseDone && !this.recording && !this.queuedResponse && !this.awaitingCancellation && !this.closed;
+    return ![...this.pending.values()].some(tool => tool.name === '_switch_merchant')
+      && !this.floor?.active && this.responseDone && !this.recording && !this.queuedResponse && !this.awaitingCancellation && !this.closed;
   }
 
   /** A neighbour walked up mid-conversation (sent by the game server). */
@@ -736,12 +848,25 @@ export class BridgeSession {
     this.companion = new Companion(this, spec, {
       partner: { name: this.context.name ?? 'your neighbour', profession: this.context.profession ?? 'villager' },
       playerName: this.context.playerName ?? 'the traveller',
-      history: this.recentLines.slice(-6),
+      history: [],
       joined: true,
     });
     this.companion.connect(); // The main session is long since ready: no stagger needed.
     this.stage('companion_joined', { name: spec.name });
     return 'joined';
+  }
+
+  /** Recover a routed turn only if it is still current and the companion produced no audio. */
+  companionFailed(companion, turnId) {
+    if (this.companion !== companion || this.closed) return;
+    this.companion = null;
+    if (this.floor?.active?.owner === companion) this.floor.release(false);
+    this.sendClient({ type: 'companion_left', entityId: companion.spec.entityId, discardAudio: true });
+    if (turnId !== this.turnId || this.recording || this.muted || this.queuedResponse || !this.responseDone) return;
+    this.cancelled = false;
+    this.responseDone = false;
+    this.stage('companion_fallback', { turnId });
+    this.createConversationResponse();
   }
 
   /** The companion said goodbye: the game server walks it away, the client stops outlining it. */
@@ -775,7 +900,8 @@ export class BridgeSession {
         this.recentReactionLines.push(text.slice(0, 500));
         this.recentReactionLines = this.recentReactionLines.slice(-6);
         this.sendClient({ type: 'transcript', speaker: 'villager', id: response.id ?? 'reaction', text, replace: true });
-        this.companion?.hear(this.context.name ?? 'Your neighbour', text);
+        if (this.floor) this.floor.line('main', text);
+        else this.companion?.hear(this.context.name ?? 'Your neighbour', text);
         for (const event of this.reactionAudio) relayProviderAudio(this, event);
       } else {
         this.stage('reaction_filtered', { repeated, retry: this.currentReaction.retry ?? 0 });
@@ -834,6 +960,7 @@ export class BridgeSession {
     this.flushReaction();
     this.flushGift();
     this.flushCues();
+    if (!this.followupUsed && this.companion?.flushGreeting()) this.followupUsed = true;
   }
 
   close(reason = 'session_ended', code = 1000) {
@@ -849,6 +976,9 @@ export class BridgeSession {
     clearTimeout(this.timer);
     clearTimeout(this.connectTimer);
     clearTimeout(this.bedtimeTimer);
+    clearTimeout(this.bedtimeDeadline);
+    clearTimeout(this.newsDepartureTimer);
+    this.floor?.interrupt();
     this.memoryContext.close();
     this.companion?.close();
     for (const socket of [this.client, this.upstream]) {

@@ -355,7 +355,7 @@
       bond.episodes?.length ? el('details', {}, el('summary', {}, `Journal (${bond.episodes.length} most recent)`),
         el('ul', { class: 'episodes' }, bond.episodes.map(entry => episode(entry, true)))) : null,
       el('div', { class: 'row', style: 'margin-top:8px' }, el('button', { class: 'btn small danger', onclick: () => {
-        if (confirm(`Reset ${who}? Standing goes to 0 and ${villager.name} forgets everything about ${bond.playerName}.`))
+        if (confirm(`Reset ${who}? Standing goes to 0 and the journal for this relationship is cleared. Saved memories and rumours remain.`))
           edit({ type: 'reset_relationship', ...ids }, `${who} reset`);
       } }, 'Reset relationship')));
   }

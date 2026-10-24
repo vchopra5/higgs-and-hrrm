@@ -6,7 +6,7 @@
 
 Mention something surprising in normal conversation. The villager decides whether it is worth remembering and spreading. Let it meet a neighbour, then start a conversation with that neighbour and hear its reaction.
 
-Persistent memory, local gossip, and the particle indicator are implemented and covered by local regression tests. The actual voice-to-memory demo and particles still need live in-game rehearsal.
+Persistent memory and visible gossip visits are implemented and covered by local regression tests. Movement, live whisper delivery, and the complete voice-to-memory demo still need in-game rehearsal.
 
 ## Try it
 
@@ -15,7 +15,7 @@ Install the rebuilt mod on **both the server and client**, restart the server, a
 1. Prepare two named adult villagers within 16 blocks of each other. Keep a third villager isolated, beyond gossip range with no intermediate villagers. All must be awake, with their chunks loaded.
 2. Look at the first villager, wait for the automatic connection, and let it greet you. Hold **B** and casually say: **“I found a hidden library under the old well. There were enchanted books everywhere.”** Release **B**. The model decides what to save and how newsworthy it is; no “remember this” command is required. The story remains a player claim, not a verified discovery.
 3. Walk more than 12 blocks away to end the session. The saved summary is available across visits. For an explicit persistence check, start another conversation and refer naturally to the well or ask what you discussed earlier.
-4. End the conversation and wait for a brief burst of green particles above the nearby villagers. This indicates a new story was passed and saved. The default gossip check is every 10 seconds. [Personalities](villager-personalities.md) add a 5–60 second delay after hearing a story and scale the default 60-second pair cooldown.
+4. End the conversation and watch the storyteller approach a neighbour. They face each other, exchange the story, then show green particles after the recipient's copy is saved. Stories rated at least 80 trigger a faster approach and small excited hops. Looking at an active pair lets you observe; pressing **B** addresses a participant and interrupts the visit. The default gossip check is every 10 seconds. [Personalities](villager-personalities.md) add a 5–60 second delay after hearing a story and scale the default 60-second pair cooldown.
 5. Look at the second villager to connect. If the first session is still active, tap **B** while facing the neighbour to switch; release it and let the neighbour speak first. When it has a fresh noteworthy rumour, it can lead with a curious or surprised reaction and credit the source. You do not need to ask for news. A librarian prioritises the library story. The isolated control villager should offer a normal greeting because it has not heard the story.
 6. Restart the server cleanly and ask the first villager again to demonstrate persistence. Memories expire after seven real-time days by default, including time while the server is offline.
 
@@ -34,8 +34,9 @@ Public stories can spread across players. Asking for village news can return pub
 - Every rumour retains its root story, original villager, most recent source, and hop count. Rephrasing comes from the voice model; deliberate story distortion is not implemented.
 - Recipients learn a story once while they retain its root ID. Hop limits prevent circulating stories from travelling indefinitely even after older entries are evicted.
 - Stories newly received in a gossip pass can spread only on a later pass. Distance, dimension, eligibility, and pair cooldowns gate each transfer.
-- Only loaded, awake, adult villagers participate. The server does not load chunks to spread gossip. It processes at most 32 source villagers, 16 neighbours per source, and 64 transfers per pass.
-- Villagers signal gossip visually. There are no background audible conversations between villagers or extra idle model calls.
+- Only loaded, awake, adult villagers participate. The server does not load chunks to spread gossip. Each pass examines at most 32 sources and 16 neighbours per source, with one visible visit active at a time.
+- A visit requires the villagers to approach within two blocks with line of sight before a story can transfer. Trading, player conversations, danger, bedtime, separation, or blocked movement cancel it. Approach attempts time out after 20 seconds or six seconds without progress. Both participants rest for 30 seconds after a visit. Authored NoAI villagers temporarily move, then regain their original AI setting at their new position.
+- When chatter is enabled and a connected player is nearby, the pair uses two short Higgs Realtime turns. The literal `<|style:whispering|>` is appended to `session.instructions`; it is not spoken dialogue or a TTS request. Realtime support for this style tag needs a live audition. Whisper playback and captions reach five blocks, with reduced playback volume. With no audience, chatter disabled, or a failed voice request, a short silent visual exchange still permits the story to transfer.
 
 ## Save and configuration
 
@@ -68,3 +69,5 @@ npm --prefix backend test
 The build includes standalone `testMemory` checks for persistence, player separation, gossip boundaries, source attribution, privacy, deduplication, cooldowns, hop limits, expiry, failed writes, and unreadable saves. Backend tests exercise memory-tool validation, result batching, duplicate calls, and stale calls after interruption.
 
 Tests also cover interest metadata, routine-story filtering, profession relevance, opening-topic cooldowns, old-save migration, and interruptible automatic greetings. They do not validate microphone capture, the live model's judgment of a real utterance, or visible particles in a running client. Story selection and the wording of reactions need live rehearsal; generated dialogue is not a fixed script.
+
+`testGossipEncounter` covers approach, interruption, timeouts, separation, failed saves, and exactly-once delivery. Backend scene tests verify that whisper styling appears only in Realtime instructions and that completion waits for estimated audio playback. Rehearse an open path, a blocked path, a B interruption, and a private story in-game; listen close to the pair and again beyond five blocks.

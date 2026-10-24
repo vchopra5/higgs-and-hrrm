@@ -82,3 +82,17 @@ test('without a dashboard token the dashboard is off', async t => {
   const sync = await (await call('/dashboard/sync', { method: 'POST', auth: token, body: {} })).json();
   assert.equal(sync.watching, false);
 });
+
+
+test('background sync does not keep the dashboard watching after the browser leaves', async t => {
+  let now = 100_000;
+  const { call } = await start(t, { now: () => now });
+  const sync = async () => (await call('/dashboard/sync', { method: 'POST', auth: token, body: {} })).json();
+  assert.equal((await sync()).watching, false);
+  await call('/dashboard/state', { auth: dashboardToken });
+  for (let i = 0; i < 10; i++) { now += 3000; assert.equal((await sync()).watching, true); }
+  now += 3000;
+  assert.equal((await sync()).watching, false);
+  await call('/dashboard/state', { auth: dashboardToken });
+  assert.equal((await sync()).watching, true);
+});

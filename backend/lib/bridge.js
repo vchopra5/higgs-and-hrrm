@@ -151,6 +151,7 @@ export function createBridge({
       if (sceneMatch) {
         const scene = scenes.get(sceneMatch[1]);
         if (!scene) return replyJson(response, 404, { error: 'Scene not found' });
+        if (request.method === 'GET') return replyJson(response, 200, scene.status());
         if (request.method !== 'DELETE') return replyJson(response, 405, { error: 'Method not allowed' });
         scene.close();
         return replyJson(response, 200, { ok: true });

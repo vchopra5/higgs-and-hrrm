@@ -37,3 +37,45 @@ test('asking the companion to leave, and how likely it is to go', () => {
   assert.ok(leaveChance('neutral') > leaveChance('annoyed') && leaveChance('annoyed') > 0, 'others may linger');
   assert.equal(leaveChance('hostile'), 0);
 });
+
+test('companion rejects failed sends and bounds a provider that never answers', async t => {
+  const { Companion } = await import('../lib/companion.js');
+  const failures = [];
+  const session = { turnId: 3, companionFailed: (who, turn) => failures.push(turn) };
+  const make = socket => {
+    const c = new Companion(session, { name: 'Bram' }, { partner: { name: 'Iris' }, playerName: 'Steve' });
+    c.ready = true; c.upstream = socket;
+    return c;
+  };
+  const failed = make({ readyState: 1, bufferedAmount: 0, send() { throw Error('closed during send'); }, close() {} });
+  assert.equal(failed.answer(), false);
+  assert.equal(failed.ready, false);
+  await Promise.resolve();
+  assert.deepEqual(failures, [undefined], 'no accepted turn to replay after a synchronous failure');
+  t.mock.timers.enable({ apis: ['setTimeout'] });
+  const stalled = make({ readyState: 1, bufferedAmount: 0, send() {}, close() {} });
+  assert.equal(stalled.answer(), true);
+  t.mock.timers.tick(20_001);
+  await Promise.resolve();
+  assert.equal(stalled.closed, true);
+  assert.equal(failures.at(-1), 3, 'recover the exact turn which received no audio');
+});
+
+test('a new companion reply waits for cancellation so late audio cannot answer the wrong turn', async t => {
+  const { Companion } = await import('../lib/companion.js');
+  const audio = [];
+  const session = { turnId: 1, sendClient: e => audio.push(e), companionFailed() {} };
+  const c = new Companion(session, { name: 'Bram' }, { partner: { name: 'Iris' }, playerName: 'Steve' });
+  t.after(() => c.close());
+  c.ready = true;
+  c.upstream = { readyState: 1, bufferedAmount: 0, send() {}, close() {} };
+  assert.equal(c.answer(), true);
+  c.cancel(); // Cancellation before response.created.
+  session.turnId++;
+  assert.equal(c.answer(), false, 'main villager must answer while cancellation is unresolved');
+  c.receive(JSON.stringify({ type: 'response.created', response: { id: 'old' } }));
+  c.receive(JSON.stringify({ type: 'response.output_audio.delta', response_id: 'old', delta: 'AAAA' }));
+  assert.equal(audio.length, 0);
+  c.receive(JSON.stringify({ type: 'response.done', response: { id: 'old', status: 'cancelled' } }));
+  assert.equal(c.answer(), true, 'available again after cancellation completes');
+});

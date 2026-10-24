@@ -32,6 +32,11 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private int companionPendingBytes;
     private long mainQuietSince = -1;
     private volatile long playbackGeneration;
+    private final PlaybackCompletion playbackCompletion = new PlaybackCompletion();
+    private int selectedAddressee = -1;
+
+    boolean isParticipant(int id) { return villager.getId() == id || companion != null && companion.getId() == id; }
+    void selectAddressee(int id) { if (isParticipant(id)) selectedAddressee = id; }
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean microphoneStarted = new AtomicBoolean();
     private final StringBuilder incoming = new StringBuilder();
@@ -105,7 +110,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         speaking = held;
         if (held) clearPlayback();
         // Serialized with captured frames: release commits only the preceding turn.
-        enqueue(held ? "{\"type\":\"interrupt\"}" : "{\"type\":\"commit\"}");
+        enqueue(held ? "{\"type\":\"interrupt\",\"addressee\":" + selectedAddressee + "}" : "{\"type\":\"commit\"}");
         notifyAll();
         status.accept(held ? "Speaking… release B to send." : "Sent. Hold B to speak again; ");
     }
@@ -196,6 +201,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private void clearPlayback() {
         playbackGeneration++;
         net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            playbackCompletion.clear();
             SpatialVoice previous = playback;
             playback = null;
             if (previous != null) previous.cancel();
@@ -207,9 +213,10 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     }
 
     private void playCompanion(byte[] bytes) {
+        var speaker = companion;
         long generation = playbackGeneration;
         net.minecraft.client.Minecraft.getInstance().execute(() -> {
-            if (closed.get() || !muted || companion == null || generation != playbackGeneration
+            if (closed.get() || !muted || companion == null || companion != speaker || generation != playbackGeneration
                 || companionPendingBytes + bytes.length > 48000 * 30) return;
             companionPending.addLast(bytes);
             companionPendingBytes += bytes.length;
@@ -217,14 +224,30 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         });
     }
 
-    /** A neighbour joined or (null) left; what it already said finishes playing. Client thread. */
+    /** A neighbour joined or (null) left; discard departed speech. Client thread. */
     void setCompanion(net.minecraft.world.entity.Entity entity) {
         companion = entity;
         ConversationOutline.setCompanion(entity == null ? -1 : entity.getId());
     }
 
+    void dismissCompanion(int entityId) {
+        if (companion != null && companion.getId() != entityId) return;
+        setCompanion(null);
+        companionPending.clear();
+        companionPendingBytes = 0;
+        if (companionPlayback != null) companionPlayback.cancel();
+        companionPlayback = null;
+    }
+
     /** Client tick: start held companion audio once the main villager has been quiet for a moment. */
-    void tick() { if (!closed.get()) pumpCompanion(); }
+    void tick() {
+        if (closed.get()) return;
+        pumpCompanion();
+        boolean busy = !companionPending.isEmpty() || playback != null && playback.queuedBytes() > 0
+            || companionPlayback != null && companionPlayback.queuedBytes() > 0;
+        long completed = playbackCompletion.poll(busy, System.nanoTime() / 1_000_000);
+        if (completed >= 0) enqueue("{\"type\":\"playback_done\",\"floorId\":" + completed + "}");
+    }
 
     private void pumpCompanion() {
         long now = System.currentTimeMillis();
@@ -282,7 +305,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                         // Companion lines arrive final only; the caption assembler handles player and main villager.
                         if (speaker.equals("companion")) {
                             String line = event.get("text").getAsString().replaceAll("§.", "").replaceAll("[\\p{Cntrl}]", " ").strip();
-                            if (!line.isEmpty()) chat.accept(new VoiceCaptions.Line("companion", line));
+                            if (companion != null && (!event.has("entityId") || companion.getId() == event.get("entityId").getAsInt()) && !line.isEmpty()) chat.accept(new VoiceCaptions.Line("companion", line));
                         } else captions.update(speaker, event.get("id").getAsString(),
                             event.get("text").getAsString(), event.get("replace").getAsBoolean()).forEach(chat);
                     }
@@ -293,11 +316,25 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                         byte[] bytes = Base64.getDecoder().decode(event.get("audio").getAsString());
                         receivedChunks++; receivedBytes += bytes.length;
                         if ((bytes.length & 1) != 0) throw new IllegalArgumentException("Invalid PCM");
-                        if (bytes.length > 0 && event.has("speaker") && "companion".equals(event.get("speaker").getAsString())) playCompanion(bytes);
+                        if (bytes.length > 0 && event.has("speaker") && "companion".equals(event.get("speaker").getAsString())) {
+                            if (companion != null && (!event.has("entityId") || companion.getId() == event.get("entityId").getAsInt())) playCompanion(bytes);
+                        }
                         else if (bytes.length > 0) play(bytes);
                     }
+                    case "playback_end" -> {
+                        long generation = playbackGeneration;
+                        long id = event.get("floorId").getAsLong();
+                        net.minecraft.client.Minecraft.getInstance().execute(() -> {
+                            if (generation == playbackGeneration && muted && !closed.get()) {
+                                playbackCompletion.end(id);
+                            }
+                        });
+                    }
                     case "clear" -> clearPlayback();
-                    case "companion_left" -> net.minecraft.client.Minecraft.getInstance().execute(() -> setCompanion(null));
+                    case "companion_left" -> net.minecraft.client.Minecraft.getInstance().execute(() -> {
+                        if (event.has("discardAudio") && event.get("discardAudio").getAsBoolean()) dismissCompanion(event.get("entityId").getAsInt());
+                        else if (companion != null && companion.getId() == event.get("entityId").getAsInt()) setCompanion(null);
+                    });
                     case "speech" -> speaking = event.get("active").getAsBoolean();
                     case "status" -> {
                         String message = event.get("message").getAsString();

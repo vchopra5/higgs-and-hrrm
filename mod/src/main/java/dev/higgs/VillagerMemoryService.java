@@ -25,6 +25,15 @@ public final class VillagerMemoryService {
     private VillagerJournal journal;
     private int cursor;
     private volatile boolean stopping;
+    private GossipPresentation gossipPresentation;
+
+    interface GossipPresentation {
+        boolean offer(MinecraftServer server, Villager source, Villager target, VillagerMemoryStore.Memory story,
+                      java.util.function.BooleanSupplier valid,
+                      java.util.function.Supplier<CompletableFuture<Boolean>> deliver);
+    }
+
+    void gossipPresentation(GossipPresentation presentation) { gossipPresentation = presentation; }
     private Bonds bonds = new Bonds() {
         public int standing(Villager villager, UUID player) { return 0; }
         public void reached(Villager villager, ServerPlayer player, RelationshipStage stage) {}
@@ -351,10 +360,14 @@ public final class VillagerMemoryService {
     }
 
     public void tick(MinecraftServer server, int ticks) {
-        if (store == null || stopping || ticks % intervalTicks != 0) return;
+        if (store == null || stopping || (ticks % intervalTicks != 0 && ticks % Math.min(intervalTicks, 40) != 0)) return;
         long now = System.currentTimeMillis();
         // Snapshot before any transfers: newly heard stories wait until a later pass.
         var snapshot = store.gossipSnapshot(now);
+        if (ticks % intervalTicks != 0) {
+            snapshot.replaceAll((owner, stories) -> stories.stream().filter(m -> m.interest().score() >= 75).toList());
+            snapshot.values().removeIf(List::isEmpty);
+        }
         List<UUID> owners = new ArrayList<>(snapshot.keySet());
         List<Villager[]> delivered = new ArrayList<>();
         int count = Math.min(32, owners.size());
@@ -366,9 +379,29 @@ public final class VillagerMemoryService {
                 if (sourcePolicy == null) break;
                 var neighbours = level.getEntitiesOfClass(Villager.class, source.getBoundingBox().inflate(radius),
                     target -> !target.getUUID().equals(id) && eligible(target));
+                // Bound the work before ranking: prefer a listener whose profession fits the news.
+                if (gossipPresentation != null) {
+                    neighbours = new ArrayList<>(neighbours.subList(0, Math.min(16, neighbours.size())));
+                    neighbours.sort(Comparator.comparingLong((Villager target) -> {
+                        var story = gossip.select(contact(source), contact(target), snapshot.get(id), store, now,
+                            sourcePolicy, personalities.policy(target));
+                        return story == null ? Long.MIN_VALUE : VillagerMemoryStore.priority(story, profession(target), null, now);
+                    }).reversed());
+                }
                 int checked = 0;
                 for (Villager target : neighbours) {
                     if (++checked > 16 || delivered.size() >= 64) break;
+                    if (gossipPresentation != null) {
+                        var story = gossip.select(contact(source), contact(target), snapshot.get(id), store, now,
+                            sourcePolicy, personalities.policy(target));
+                        if (story != null && gossipPresentation.offer(server, source, target, story,
+                                () -> shareable(source, target, story), () -> deliver(server, source, target, story))) {
+                            cursor = Math.floorMod(cursor + i + 1, owners.size());
+                            personalities.flush();
+                            return;
+                        }
+                        continue;
+                    }
                     if (gossip.spread(contact(source), contact(target), snapshot.get(id), store, now, sourcePolicy, personalities.policy(target)))
                         delivered.add(new Villager[]{source, target});
                 }
@@ -393,6 +426,42 @@ public final class VillagerMemoryService {
                     }
                 }
             });
+        });
+    }
+
+    record SharePlan(Villager source, Villager target, VillagerMemoryStore.Memory story) {}
+
+    SharePlan planShare(Villager source, String memoryId, java.util.function.Predicate<Villager> available) {
+        if (store == null || stopping || gossipPresentation == null) return null;
+        var stories = store.gossipSnapshot(System.currentTimeMillis()).getOrDefault(source.getUUID(), List.of());
+        var story = stories.stream().filter(m -> m.rootId().toString().equals(memoryId)).findFirst().orElse(null);
+        if (story == null) return null;
+        return source.level().getEntitiesOfClass(Villager.class, source.getBoundingBox().inflate(radius),
+                v -> v != source && available.test(v) && shareable(source, v, story)).stream()
+            .max(Comparator.comparingLong(v -> VillagerMemoryStore.priority(story, profession(v), null, System.currentTimeMillis())))
+            .map(target -> new SharePlan(source, target, story)).orElse(null);
+    }
+    boolean startShare(MinecraftServer server, SharePlan plan) {
+        return gossipPresentation != null && shareable(plan.source, plan.target, plan.story)
+            && gossipPresentation.offer(server, plan.source, plan.target, plan.story,
+                () -> shareable(plan.source, plan.target, plan.story), () -> deliver(server, plan.source, plan.target, plan.story));
+    }
+
+    private boolean shareable(Villager source, Villager target, VillagerMemoryStore.Memory story) {
+        return !stopping && store != null && source.level() == target.level()
+            && gossip.select(contact(source), contact(target), List.of(story), store, System.currentTimeMillis(),
+                personalities.policy(source), personalities.policy(target)) != null;
+    }
+
+    /** Recheck the exact story on arrival; no replacement story may silently be delivered instead. */
+    private CompletableFuture<Boolean> deliver(MinecraftServer server, Villager source, Villager target,
+                                               VillagerMemoryStore.Memory story) {
+        if (!shareable(source, target, story) || !gossip.spread(contact(source), contact(target), List.of(story), store,
+                System.currentTimeMillis(), personalities.policy(source), personalities.policy(target)))
+            return CompletableFuture.completedFuture(false);
+        return store.flush().handle((ignored, failure) -> {
+            if (failure != null) LOG.error("Could not save a gossip exchange", failure);
+            return failure == null;
         });
     }
 }

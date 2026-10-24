@@ -33,7 +33,7 @@ Villagers have professions, stock, and a place in your world. Now you can ask th
   <tr>
     <td width="33%" valign="top">
       <h3>01 &nbsp; Meet</h3>
-      <p>Look at a nearby villager to connect automatically. Let it greet you.</p>
+      <p>Look at a nearby villager to connect automatically. If they are gossiping, tap <kbd>B</kbd> to interrupt and connect. Let it greet you.</p>
     </td>
     <td width="33%" valign="top">
       <h3>02 &nbsp; Speak</h3>
@@ -125,7 +125,7 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and w
 
 | Key | Action |
 | :--- | :--- |
-| **Look at a villager** | Connect automatically; look at another and press B to switch |
+| **Look at a villager** | Connect automatically; gossiping villagers require B. Look at another and press B to switch |
 | **Hold B → release** | Speak, then send your turn |
 | **F6** | Debug: conversation / Boson session (state, tool calls, provider events) |
 | **F7** | Debug: context sent to Boson (personality, rumours, memories, offers) |
@@ -172,7 +172,7 @@ tab after the first visit. The dashboard only accepts local connections.
 - **Live conversations:** each conversation's transcript and the exact context sent to Boson.
 - **Edits:** set standing, rename, restock, turn AI on or off, set or clear a nickname, mark a
   quest delivered, clear a quest or earned deal, clear an errand, forget a journal episode, or
-  reset a relationship (standing 0 and memories of that player wiped).
+  reset a relationship (standing 0 and its journal cleared; saved memories and rumours remain).
 
 The game server syncs every 3 seconds. It builds a full snapshot only while the page is open, and
 edits apply on the next sync. Only loaded villagers are shown.
@@ -245,27 +245,44 @@ corrected, like an invented trade.
 
 ## Three-way conversations
 
-When you start talking to a villager, the nearest idle neighbour within four blocks (one
-that is not hostile to you) joins in, outlined alongside your partner and turned to face
-you. It hears everything, and now and then adds a short remark of its own after your
-partner speaks: agreeing, teasing, or gossiping about you from its own opinion. Say its
-name (“Bram, what do you think?”) and it answers instead. The neighbour has its own
-personality and voice and speaks from where it stands, never over your partner, but it
-never trades, takes gifts, or hands out quests or errands; talk to it directly for that.
-Its lines appear in chat under its name.
+A nearby idle neighbour can join your conversation, with its own voice and personality.
+One villager owns the turn through generation and playback. The client acknowledges
+completion after its PCM queues drain, allowing 500 ms for Minecraft's native audio
+buffers. A named, direct question can hand the turn to the other villager. Listeners also get
+occasional opportunities to add a relevant thought, with permission to remain silent.
+Casual mentions do not force an answer. At most one NPC follow-up runs before yielding
+to the player. Newcomer greetings wait for a free turn instead of being lost during speech.
 
-Villagers who wander within four blocks of you or your partner mid-conversation may join
-too (a one-in-five chance every two seconds while nobody else has joined): they catch up
-on the last few lines and greet you or react to what was said. Ask a companion to leave
-(“Bram, could you give us a moment?”, “leave us alone, please”): one who likes you always
-says goodbye and walks off; a neutral one goes half the time, and an annoyed one usually
-stays to listen, with a nosy or pointed reply. One that leaves will not rejoin you for two
-minutes. Each three-way conversation uses a second Boson session; set
-`HIGGS_COMPANION_ENABLED=false` in `.env` to turn it off.
+Say a participant's name to address them, or look at them when pressing **B**. Explicit
+spoken address takes priority over gaze. Selecting someone already in the group keeps
+the existing sessions; selecting an outsider retains the normal partner-switch flow.
+Compliment and insult effects use that same recipient: hearts, reputation, and memories
+apply to the addressed villager. An absent recipient does not redirect those effects
+to the main partner, and a companion reputation change does not cancel the main trade.
+B interrupts the entire group and clears queued replies. A companion asked directly to trade can request a merchant handoff. The previous
+quote is cancelled, the old merchant stays as a listener, and the new merchant loads
+their own offers and reputation. The request is carried across without a new greeting.
+Purchasing requires a fresh quote and a subsequent confirmation addressed to that
+merchant. Ordinary conversation does not rebuild sessions. Gifts and quest actions
+remain with the main partner.
+
+Shared conversation history receives completed lines after playback acknowledgement.
+Interrupted speech receives an incomplete marker rather than its potentially unheard
+transcript. This conservatively omits the spoken prefix too; it does not claim word-level
+playback alignment. A joining neighbour does not receive dialogue from before arrival.
+Private memories remain separate. Companion failures release the turn and recover an
+unanswered routed request through the main partner. Missing playback acknowledgements
+expire the session with a reconnect message instead of holding the floor indefinitely.
+
+Ask a companion to leave (“Bram, could you give us a moment?”): its willingness depends
+on its opinion of you. Goodbye finishes playing before departure. Each three-way
+conversation uses a second Boson session; `HIGGS_COMPANION_ENABLED=false` disables it.
+The updated mod opts into the acknowledgement protocol with `context.coordinated`;
+older bridge clients retain their existing behavior and do not need to send acknowledgements.
 
 ## Night and danger
 
-From dusk (in-game 12500, or whenever a villager's routine switches to rest) villagers
+From dusk until dawn (in-game 12500–23500) villagers
 want to go to bed: try to talk to one and it says a short goodnight in character, then
 the conversation ends once the line has played. For the next 90 seconds it just shows
 “heading to bed” instead of starting another conversation. Chatter and companions also
@@ -489,3 +506,16 @@ A hit costs 2 reputation, down to the minimum of -5; a changed score cancels an 
 The bridge keeps only the latest queued statistics, waits until player speech/provider work finishes, and drops events older than 10 seconds. Higgs delivery uses per-response `instructions` for tone and energy: https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices.
 
 Test isolated hits, then several rapid hits, and listen for context-sensitive reactions. Wait 30 seconds for previous hits to age out. Hit during an active quote to see cancellation fade; hit outside a trade to check that no trade card appears.
+
+### Expressive reactions and urgent gossip
+
+Higgs can choose a short physical reaction with `express_emotion`: excitement, worry,
+anger, thoughtfulness, or gratitude grounded in the conversation. Gestures use vanilla
+head movement and selected particles, with a hop for excitement and an eight-second cooldown.
+
+With `share_news`, a villager can choose to leave after a spoken farewell to tell a free
+neighbour a specific saved public story. The server checks privacy, relevance, proximity,
+trade state, and availability again before departure. Interrupting the farewell cancels it.
+Major news (interest 75–84) uses one-third of ordinary sharing delays; exceptional news
+(85+) uses one-sixth. High-interest stories are considered every two seconds by default.
+Spread remains person-to-person, with existing privacy and forwarding limits.
