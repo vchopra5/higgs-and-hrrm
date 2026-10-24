@@ -41,7 +41,7 @@ export function receiveToolCall(session, event) {
   // Late calls from an interrupted response must never reach the game server.
   if (session.isStaleResponse(event.response_id) || session.seen.has(event.call_id)) return;
   session.seen.add(event.call_id);
-  if (session.recording || session.cancelled) {
+  if (session.recording || session.cancelled || session.reactionActive) {
     sendToolOutput(session, event.call_id, { error: 'Conversation interrupted' });
     return;
   }

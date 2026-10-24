@@ -208,6 +208,12 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     if (activeSessionId != null && activeSessionId.equals(message.get("sessionId").getAsString())
                         && targetId == message.get("entityId").getAsInt()) tracker.update(message);
                 }
+                case "reaction_start" -> {
+                    stop(false);
+                    targetId = message.get("entityId").getAsInt();
+                    pending = true;
+                    requestTime = System.currentTimeMillis();
+                }
                 case "session" -> {
                     if (!pending) return;
                     pending = false;

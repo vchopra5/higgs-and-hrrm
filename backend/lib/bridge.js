@@ -53,7 +53,7 @@ export function createBridge({
       if (request.method === 'POST' && path === '/sessions') {
         return await createSession(request, response);
       }
-      const match = path.match(/^\/sessions\/([^/]+)(?:\/tools(?:\/([^/]+)\/result)?)?$/);
+      const match = path.match(/^\/sessions\/([^/]+)(?:\/tools(?:\/([^/]+)\/result)?|\/events)?$/);
       if (!match) return replyJson(response, 404, { error: 'Not found' });
       const session = sessions.get(match[1]);
       if (!session) return replyJson(response, 404, { error: 'Session not found' });
@@ -61,6 +61,10 @@ export function createBridge({
       if (request.method === 'DELETE' && path === `/sessions/${session.id}`) {
         session.close();
         return replyJson(response, 200, { ok: true });
+      }
+      if (request.method === 'POST' && path.endsWith('/events')) {
+        session.environmentEvent(await readJsonBody(request));
+        return replyJson(response, 202, { ok: true });
       }
       if (request.method === 'GET' && path.endsWith('/tools')) {
         const pending = [...session.pending.values()].map(({ created, ...tool }) => tool);

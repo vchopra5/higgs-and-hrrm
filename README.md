@@ -180,3 +180,11 @@ A compact, non-interactive trade tracker shows the villager and the current serv
 Repeated quotes with identical terms retain the original proposal ID, confirmation turn, and expiry. A repeated confirmation returns the existing purchase receipt without buying again. Trade diagnostics log tool names, turn numbers, and outcomes without speech content.
 
 Trade suggestions now use an optional “Interested?” preview, which cannot be purchased. Interest leads to an exact “Confirm trade?” quote; one yes then completes it. Direct purchase requests skip browsing. The tracker sits at the right edge, and captions use the native crisp font at bottom left with two lines per speaker. Villagers are instructed to keep trading replies to one short sentence.
+
+### Environmental reactions
+
+Hitting a nearby adult villager starts voice automatically, including the invulnerable demo villagers. Hits spaced at least 750 ms apart escalate from startled to angry to forceful; 30 seconds without a hit resets the escalation. A hit cancels the current quote and worsens the current conversation's mood. Reactions cannot execute trade tools or count as spoken confirmation.
+
+The bridge keeps only the latest queued reaction, waits until player speech/provider work finishes, and drops events older than 10 seconds. The ordinary microphone and villager captions display the response. Higgs delivery uses per-response `instructions` for tone and energy, as documented in https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices and https://docs.boson.ai/api-reference/realtime/client-events. No separate TTS service or undocumented `vibe` field is used.
+
+Test: hit once and listen, hit again after a second and listen, then hit a third time. Expect stronger delivery each time; wording/delivery are model-generated. Wait 30 seconds and repeat for the mild reaction. Also hit during a quoted trade: the tracker should cancel it and a later yes must not purchase that cancelled quote.

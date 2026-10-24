@@ -170,3 +170,35 @@ test('the src.js entry point still starts and shuts down as a process', async t 
   const [code] = await exited;
   assert.equal(code, 0, errors);
 });
+
+
+test('hit reactions escalate, coalesce and cannot execute trade tools or count as consent', async t => {
+  let clock = 1000;
+  const f = await fixture(t, { now: () => clock });
+  const path = `/sessions/${f.sessionId}/events`;
+  assert.equal((await f.request(path, 'POST', {type:'hit', level:4})).status, 400);
+  assert.equal((await f.request(path, 'POST', {type:'hit', level:1})).status, 202);
+  await until(() => f.received.some(e => e.type === 'response.create'));
+  assert.match(f.received.find(e => e.type === 'response.create').response.instructions, /Startled/);
+  const session = f.bridge.sessions.get(f.sessionId);
+  assert.equal(session.turnId, 0);
+  f.emit({ type:'response.created', response:{id:'reaction1'} });
+  f.emit({ type:'response.function_call_arguments.done', response_id:'reaction1', call_id:'bad-trade', name:'confirm_trade', arguments:JSON.stringify({proposalId:'a'.repeat(36)}) });
+  await until(() => f.received.some(e => e.item?.call_id === 'bad-trade'));
+  assert.equal(session.pending.size, 0);
+  await f.request(path, 'POST', {type:'hit', level:2});
+  await f.request(path, 'POST', {type:'hit', level:3});
+  assert.equal(f.received.filter(e => e.type === 'response.create').length, 1);
+  f.emit({ type:'response.done', response:{id:'reaction1',status:'completed'} });
+  await until(() => session.responseDone);
+  session.sweep();
+  await until(() => f.received.filter(e => e.type === 'response.create').length === 2);
+  assert.match(f.received.filter(e => e.type === 'response.create')[1].response.instructions, /Very upset/);
+  assert.equal(session.turnId, 0);
+  session.environmentEvent({type:'hit',level:1});
+  clock += 11000;
+  f.emit({ type:'response.done', response:{id:'reaction1',status:'completed'} });
+  await until(() => session.responseDone);
+  session.sweep();
+  assert.equal(session.pendingReaction, null);
+});

@@ -34,6 +34,34 @@ public final class HiggsVillagers implements ModInitializer {
     private final Map<UUID, Long> lastStart = new HashMap<>();
     private String backend, token, publicBackend;
     private int ticks;
+    private record HitState(int level, long at) {}
+    private final Map<String, HitState> hits = new HashMap<>();
+    private void hit(MinecraftServer server, ServerPlayer player, Villager villager) {
+        Session candidate = new Session(player, villager);
+        if (!valid(candidate) || player.distanceToSqr(villager) > 25) return;
+        long now = System.currentTimeMillis();
+        hits.entrySet().removeIf(entry -> now - entry.getValue().at() > 30_000);
+        String key = relationshipKey(candidate);
+        HitState previous = hits.get(key);
+        if (previous != null && now - previous.at() < 750) return;
+        int level = previous == null ? 1 : Math.min(3, previous.level() + 1);
+        hits.put(key, new HitState(level, now));
+        Session s = sessions.get(player.getUUID());
+        if (s == null || s.villager != villager) {
+            if (now - lastStart.getOrDefault(player.getUUID(), 0L) < 1500 || token.isBlank()) return;
+            JsonObject starting = new JsonObject(); starting.addProperty("type", "reaction_start");
+            starting.addProperty("entityId", villager.getId()); send(player, starting);
+            JsonObject request = new JsonObject(); request.addProperty("type", "start");
+            request.addProperty("entityId", villager.getId()); receive(server, player, GSON.toJson(request));
+            s = sessions.get(player.getUUID());
+        }
+        if (s == null || s.villager != villager) return;
+        s.mood = -2;
+        s.proposal = null;
+        tradeStatus(s, outcome("cancelled", "Trade cancelled after being hit."));
+        s.hitLevel = level;
+        s.hitAt = now;
+    }
     private final Map<String, Relationship> relationships = new HashMap<>();
     private Path relationshipFile;
     private record Relationship(int score, long updated) {}
@@ -78,7 +106,8 @@ public final class HiggsVillagers implements ModInitializer {
         boolean polling;
         Proposal proposal;
         int pollFailures;
-        int mood, treatmentTurn;
+        int mood, treatmentTurn, hitLevel;
+        long hitAt;
         int lastPurchaseTurn = -1;
         JsonObject lastReceipt;
         final Map<String, JsonObject> purchases = new HashMap<>();
@@ -99,6 +128,11 @@ public final class HiggsVillagers implements ModInitializer {
         ServerPlayConnectionEvents.DISCONNECT.register((handler, server) -> {
             end(handler.player, false); lastStart.remove(handler.player.getUUID());
         });
+        net.fabricmc.fabric.api.event.player.AttackEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
+            if (player instanceof ServerPlayer sp && entity instanceof Villager villager)
+                hit(sp.level().getServer(), sp, villager);
+            return net.minecraft.world.InteractionResult.PASS;
+        });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             if (++ticks % 10 != 0) return;
             for (Session s : List.copyOf(sessions.values())) {
@@ -107,6 +141,15 @@ public final class HiggsVillagers implements ModInitializer {
                     if (s.proposal != null && System.currentTimeMillis() >= s.proposal.expires()) {
                         s.proposal = null;
                         tradeStatus(s, outcome("expired", "Offer expired. Ask for a fresh quote."));
+                    }
+                    if (s.id != null && s.hitLevel > 0) {
+                        JsonObject event = new JsonObject(); event.addProperty("type", "hit");
+                        event.addProperty("level", s.hitLevel); s.hitLevel = 0;
+                        if (System.currentTimeMillis() - s.hitAt < 10_000)
+                            request("POST", "/sessions/" + s.id + "/events", event).exceptionally(ex -> {
+                                org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not deliver villager hit reaction");
+                                return null;
+                            });
                     }
                     if (s.id != null && !s.polling) poll(server, s);
                 }
@@ -126,6 +169,7 @@ public final class HiggsVillagers implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             for (Session s : List.copyOf(sessions.values())) end(s.player, false);
             lastStart.clear();
+            hits.clear();
         });
     }
     private void receive(MinecraftServer server, ServerPlayer player, String json) {

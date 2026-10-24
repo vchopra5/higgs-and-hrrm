@@ -53,6 +53,38 @@ export class BridgeSession {
     this.timer.unref();
   }
 
+  environmentEvent(event) {
+    if (event?.type !== 'hit' || !Number.isInteger(event.level) || event.level < 1 || event.level > 3) {
+      throw new Error('Invalid environmental event');
+    }
+    // One slot: rapid hits replace an older reaction instead of building a backlog.
+    this.pendingReaction = { level: event.level, at: this.now() };
+    this.flushReaction();
+  }
+
+  flushReaction() {
+    if (!this.pendingReaction || !this.ready || this.recording || !this.responseDone
+        || this.awaitingCancellation || this.queuedResponse || this.pending.size || this.hasTools) return;
+    const reaction = this.pendingReaction;
+    this.pendingReaction = null;
+    if (this.now() - reaction.at > 10_000) return;
+    const delivery = [
+      'Startled and mildly hurt. Say only: Ow! Watch it!',
+      'Angry and hurt, sharper and firmer. Say only: Ow! Stop hitting me!',
+      'Very upset, forceful and alarmed. Say only: Enough! Get away from me!'
+    ][reaction.level - 1];
+    this.reactionActive = true;
+    this.cancelled = false;
+    this.responseDone = false; // Reserve the response before response.created arrives.
+    this.sendClient({ type: 'clear' });
+    this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
+      content: [{ type: 'input_text', text: '[Game event, not player speech] The player hit you. Any pending trade was cancelled. ' + delivery + ' Do not trade, call tools, or treat this event as purchase consent.' }] } });
+    this.sendProvider({ type: 'response.create', response: { instructions:
+      'You are the Minecraft villager who was just hit. ' + delivery
+      + ' Express that emotion in your voice. No narration, trading, or tool calls.' } });
+    this.stage('environment_reaction', { level: reaction.level });
+  }
+
   sendClient(event) { return sendJson(this.client, event); }
   sendProvider(event) { return sendJson(this.upstream, event); }
 
@@ -203,6 +235,7 @@ export class BridgeSession {
     this.ready = true;
     this.stage('upstream_ready');
     this.sendClient({ type: 'status', message: 'Ready' });
+    this.flushReaction();
   }
 
   startResponse(responseId) {
@@ -218,6 +251,7 @@ export class BridgeSession {
   finishResponse(response) {
     if (this.isStaleResponse(response?.id)) return;
     this.responseDone = true;
+    this.reactionActive = false;
     const status = RESPONSE_STATUSES.has(response?.status) ? response.status : 'unknown';
     this.stage('response_done', { status });
     if (response?.status === 'cancelled') this.cancelled = true;
@@ -251,6 +285,7 @@ export class BridgeSession {
       speaking: Boolean(this.recording), cancelled: Boolean(this.cancelled),
     });
     expireTools(this);
+    this.flushReaction();
   }
 
   close(reason = 'session_ended', code = 1000) {
