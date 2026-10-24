@@ -24,6 +24,7 @@ test('accepting a gift needs receive_gift', () => {
   assert.equal(ungroundedTrade("I'll take that diamond, Itzahria. Thank you, traveller.", { tools: new Set(['receive_gift']) }), null);
   assert.equal(ungroundedTrade('Oh? A gift for me? What have you got there, traveller?'), null);
   assert.doesNotMatch(ungroundedTrade('Done, thanks.'), /receive_gift/, 'trade corrections keep their own fix');
+  assert.equal(ungroundedTrade("Wolves again? I'll take it from here. It's done, thank you.", { tools: new Set(['deliver_errand']) }), null);
 });
 
 test('grounded trade speech passes', () => {

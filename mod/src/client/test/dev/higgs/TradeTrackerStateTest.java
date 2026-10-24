@@ -37,6 +37,11 @@ public final class TradeTrackerStateTest {
         state.clear();
         state.update("Idris", "gift_precious", new TradeTrackerState.Quote("gift", "1 × Diamond", "Very grateful (+2)", 0), 100000);
         check(!state.active && state.opacity(106000) == 1 && state.opacity(108000) == 0, "a gift card never asks for a yes and fades");
+        state.update("Iris", "errand", new TradeTrackerState.Quote("card", "\"Wolves are back\"", "Bram · farmer", 0), "",
+            new TradeTrackerState.Card("ERRAND", "CARRY", "DELIVER TO", "30 blocks north-east"), 200000);
+        check(!state.active && state.card.heading().equals("ERRAND") && state.opacity(215000) == 1, "errand card is informational and lingers");
+        state.update("Iris", "awaiting_confirmation", new TradeTrackerState.Quote("q", "1 × Emerald", "6 × Bread", 400000), 216000);
+        check(state.card == null && state.active, "a normal quote drops the errand labels");
         System.out.println("Trade tracker lifecycle checks passed");
     }
     static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }

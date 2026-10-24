@@ -12,7 +12,13 @@ final class TradeTracker {
     void update(JsonObject event) {
         long now = System.currentTimeMillis();
         TradeTrackerState.Quote next = null;
-        if (event.has("reaction")) {
+        TradeTrackerState.Card card = null;
+        if (event.has("card")) {
+            JsonObject labels = event.getAsJsonObject("card");
+            next = new TradeTrackerState.Quote("card", clean(labels.get("left").getAsString()), clean(labels.get("right").getAsString()), now + 20000);
+            card = new TradeTrackerState.Card(clean(labels.get("heading").getAsString()), clean(labels.get("leftLabel").getAsString()),
+                clean(labels.get("rightLabel").getAsString()), clean(labels.get("footer").getAsString()));
+        } else if (event.has("reaction")) {
             // Gift card: what was given and how it landed.
             next = new TradeTrackerState.Quote("gift", item(event.getAsJsonObject("costA")), clean(event.get("reaction").getAsString()), now + 8000);
         } else if (event.has("costA")) {
@@ -23,7 +29,7 @@ final class TradeTracker {
                 item(event.getAsJsonObject("receive")), now + (event.has("expiresInMs") ? Math.max(0, Math.min(120_000, event.get("expiresInMs").getAsLong())) : 15000));
         }
         state.update(clean(event.get("villager").getAsString()), event.get("status").getAsString(), next,
-            event.has("quest") ? clean(event.get("quest").getAsString()) : "", now);
+            event.has("quest") ? clean(event.get("quest").getAsString()) : "", card, now);
     }
 
     private String item(JsonObject item) { return item.get("count").getAsInt() + " × " + clean(item.get("name").getAsString()); }
@@ -45,14 +51,15 @@ final class TradeTracker {
         int rows = Math.max(pay.size(), receive.size());
         boolean old = !state.previous.isEmpty() && now - state.updated < 4000;
         int height = 74 + rows * 10 + (old ? 14 : 0);
+        TradeTrackerState.Card card = state.card;
         boolean quest = state.status.startsWith("quest");
         boolean gift = state.status.startsWith("gift");
         boolean refused = state.status.equals("gift_disliked");
-        int tint = state.active ? 0xA5D8FF : state.status.equals("purchased") ? 0xA6E9BA : quest ? 0xD7B8FF
+        int tint = card != null ? 0x9FE3D0 : state.active ? 0xA5D8FF : state.status.equals("purchased") ? 0xA6E9BA : quest ? 0xD7B8FF
             : gift ? (refused ? 0xFFCF70 : 0xFFB3D9) : 0xFFCF70;
         graphics.fill(x, y, x + width, y + height, ((alpha * 2 / 3) << 24) | 0x101B20);
         graphics.fill(x, y, x + 2, y + height, (alpha << 24) | tint);
-        String heading = gift ? (refused ? "GIFT REFUSED" : "GIFT GIVEN") : quest ? (state.status.equals("quest_delivered") ? "QUEST COMPLETE" : "QUEST")
+        String heading = card != null ? card.heading() : gift ? (refused ? "GIFT REFUSED" : "GIFT GIVEN") : quest ? (state.status.equals("quest_delivered") ? "QUEST COMPLETE" : "QUEST")
             : state.status.equals("interest") ? "INTERESTED?"
             : state.active ? "CONFIRM TRADE?"
             : state.status.equals("purchased") ? "TRADE COMPLETE" : "NO ACTIVE OFFER";
@@ -67,11 +74,11 @@ final class TradeTracker {
             graphics.fill(x + 12, top + 4, x + 12 + client.font.width(text), top + 5, (Math.max(5, oldAlpha) << 24) | 0x8795A1);
             top += 14;
         }
-        graphics.text(client.font, gift ? (refused ? "YOU OFFERED" : "YOU GAVE") : quest ? "THEN YOU GIVE" : "YOU GIVE", x + 12, top, (alpha << 24) | 0xABB9C5, false);
-        graphics.text(client.font, gift ? "REACTION" : "YOU GET", x + 24 + column, top, (alpha << 24) | 0xABB9C5, false);
+        graphics.text(client.font, card != null ? card.leftLabel() : gift ? (refused ? "YOU OFFERED" : "YOU GAVE") : quest ? "THEN YOU GIVE" : "YOU GIVE", x + 12, top, (alpha << 24) | 0xABB9C5, false);
+        graphics.text(client.font, card != null ? card.rightLabel() : gift ? "REACTION" : "YOU GET", x + 24 + column, top, (alpha << 24) | 0xABB9C5, false);
         for (int i = 0; i < pay.size(); i++) graphics.text(client.font, pay.get(i), x + 12, top + 13 + i * 10, (alpha << 24) | 0xF2F5F4, false);
         for (int i = 0; i < receive.size(); i++) graphics.text(client.font, receive.get(i), x + 24 + column, top + 13 + i * 10, (alpha << 24) | 0xF2F5F4, false);
-        String footer = state.active ? "Say yes to confirm" : quest ? state.quest
+        String footer = card != null ? card.footer() : state.active ? "Say yes to confirm" : quest ? state.quest
             : gift ? (refused ? "Handed back · they will remember" : "Gift remembered") : switch (state.status) {
             case "interest" -> "Just browsing · no purchase";
             case "purchased" -> "Items exchanged successfully";

@@ -199,6 +199,24 @@ remembers what you gave and what it refused (saved in `data/higgs-gifts.json`). 
 what it likes. A villager that says it took a gift without actually receiving one is
 corrected, like an invented trade.
 
+## Errands
+
+Ask a villager for work (“anything I can help with?”) and it may send you to a neighbour
+in the same village: either to pass on a short message it writes (“Tell Bram the wolves
+are back”) or to deliver a package from its wares, which it hands you. The recipient
+glows for two minutes, and an **ERRAND** card shows what you carry, who it is for, and
+roughly where they are (“30 blocks north-east”). Talk to the recipient and pass it on:
+it confirms the delivery (taking the package), gains 1 reputation, and the villager who
+sent you gains 2 and remembers the favour. One errand at a time; it lapses after two
+hours. Hostile villagers do not hand out errands, so errands are a good way to rebuild
+a damaged reputation. Saved in `data/higgs-errands.json`.
+
+## Villagers who dislike you
+
+A villager who dislikes you may refuse to talk: a 25% chance at -2, rising to 75% when
+hostile. It says no, turns its back and walks off (villagers with AI disabled can only
+turn away), and keeps refusing for 30 seconds. Hitting it still gets a reaction.
+
 ## Villages
 
 Every generated village gets a name the first time a player comes near it, picked at

@@ -3,6 +3,9 @@ package dev.higgs;
 /** Only the latest server quote can display an acceptance prompt. */
 final class TradeTrackerState {
     record Quote(String id, String payment, String received, long expires) {}
+    /** Server-labelled card (errands): its own heading, column labels and footer. */
+    record Card(String heading, String leftLabel, String rightLabel, String footer) {}
+    Card card;
     Quote quote;
     String villager = "", status = "", previous = "", quest = "";
     long updated;
@@ -10,14 +13,17 @@ final class TradeTrackerState {
 
     /** Quest updates show the deal a quest unlocks; like interest, they never invite a purchase yes. */
     static boolean informational(String status) {
-        return status.equals("interest") || status.startsWith("quest") || status.startsWith("gift");
+        return status.equals("interest") || status.startsWith("quest") || status.startsWith("gift") || status.startsWith("errand");
     }
 
     void update(String villager, String status, Quote next, long now) { update(villager, status, next, "", now); }
 
-    void update(String villager, String status, Quote next, String quest, long now) {
+    void update(String villager, String status, Quote next, String quest, long now) { update(villager, status, next, quest, null, now); }
+
+    void update(String villager, String status, Quote next, String quest, Card card, long now) {
         if (status.equals("cancelled") && !active) return;
         this.quest = quest;
+        this.card = card;
         if (next != null && quote != null && !next.id().equals(quote.id())
             && (!next.payment().equals(quote.payment()) || !next.received().equals(quote.received())))
             previous = quote.payment() + " → " + quote.received();
@@ -36,8 +42,8 @@ final class TradeTrackerState {
     }
     float opacity(long now) {
         expire(now);
-        long hold = status.startsWith("quest") ? 20000 : status.equals("interest") ? 15000 : status.startsWith("gift") ? 8000 : 6000;
+        long hold = status.startsWith("quest") || status.equals("errand") ? 20000 : status.equals("interest") ? 15000 : status.startsWith("gift") ? 8000 : 6000;
         return status.isEmpty() ? 0 : active ? 1 : Math.max(0, Math.min(1, (hold - (now - updated)) / 1500f));
     }
-    void clear() { quote = null; villager = ""; status = ""; previous = ""; quest = ""; active = false; updated = 0; }
+    void clear() { quote = null; card = null; villager = ""; status = ""; previous = ""; quest = ""; active = false; updated = 0; }
 }

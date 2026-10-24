@@ -225,6 +225,40 @@ public final class HiggsVillagers implements ModInitializer {
             org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not save villager gifts");
         }
     }
+    /** Carry a message or a package from one villager to another in the same village. One per player. */
+    private record Errand(String id, String kind, String giverId, String giverName, String targetId, String targetName,
+                          String targetProfession, String message, String item, String itemName, long created) {
+        String describe() {
+            return kind.equals("message") ? "tell " + targetName + ": \"" + message + "\"" : "bring " + targetName + " the " + itemName;
+        }
+    }
+    private static final long ERRAND_MS = 2 * 60 * 60_000L;
+    private final Map<String, Errand> errands = new HashMap<>();
+    private final Map<String, List<String>> errandHistory = new HashMap<>();
+    private Path errandFile;
+    private void saveErrands() {
+        if (errandFile == null) return;
+        try {
+            Files.createDirectories(errandFile.getParent());
+            JsonObject saved = new JsonObject();
+            saved.add("open", GSON.toJsonTree(errands));
+            saved.add("history", GSON.toJsonTree(errandHistory));
+            Path temporary = errandFile.resolveSibling("higgs-errands.json.tmp");
+            Files.writeString(temporary, GSON.toJson(saved));
+            Files.move(temporary, errandFile, StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.io.IOException e) {
+            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not save villager errands");
+        }
+    }
+    private Errand errand(ServerPlayer player) {
+        Errand errand = errands.get(player.getUUID().toString());
+        if (errand != null && System.currentTimeMillis() - errand.created() > ERRAND_MS) {
+            errands.remove(player.getUUID().toString());
+            saveErrands();
+            return null;
+        }
+        return errand;
+    }
     private final Map<String, Quest> quests = new HashMap<>();
     private Path questFile;
     private void saveQuests() {
@@ -362,6 +396,18 @@ public final class HiggsVillagers implements ModInitializer {
             }
         });
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            errandFile = server.getWorldPath(LevelResource.ROOT).resolve("data/higgs-errands.json");
+            errands.clear();
+            errandHistory.clear();
+            if (Files.exists(errandFile)) try {
+                JsonObject saved = JsonParser.parseString(Files.readString(errandFile)).getAsJsonObject();
+                for (var entry : saved.getAsJsonObject("open").entrySet()) errands.put(entry.getKey(), GSON.fromJson(entry.getValue(), Errand.class));
+                for (var entry : saved.getAsJsonObject("history").entrySet()) {
+                    List<String> done = new ArrayList<>();
+                    entry.getValue().getAsJsonArray().forEach(item -> done.add(item.getAsString()));
+                    errandHistory.put(entry.getKey(), done);
+                }
+            } catch (Exception e) { org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not load villager errands"); }
             giftFile = server.getWorldPath(LevelResource.ROOT).resolve("data/higgs-gifts.json");
             gifts.clear();
             if (Files.exists(giftFile)) try {
@@ -413,6 +459,11 @@ public final class HiggsVillagers implements ModInitializer {
             Session s = new Session(player, villager);
             if (!valid(s)) { error(player, "That villager is unavailable or too far away."); return; }
             if (token.isBlank()) { error(player, "Set HIGGS_BRIDGE_TOKEN in the server environment or project .env."); return; }
+            // Player-initiated only: a hit still gets its reaction from a villager who would rather not talk.
+            if (autoGreeting && shuns(player, villager, now)) {
+                error(player, villager.getName().getString() + " turns away and won't talk to you.");
+                return;
+            }
             end(player, false);
             sessions.put(player.getUUID(), s);
             chatter.villagerBusy(villager);
@@ -445,6 +496,8 @@ public final class HiggsVillagers implements ModInitializer {
             JsonObject village = villages.context(player, villager);
             if (village != null) context.add("village", village);
             context.add("gifts", giftContext(player, villager));
+            JsonObject errands = errandContext(player, villager);
+            if (!errands.isEmpty()) context.add("errands", errands);
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
@@ -534,6 +587,18 @@ public final class HiggsVillagers implements ModInitializer {
                             });
                             continue;
                         }
+                        if (name.equals("offer_errand")) {
+                            s.pendingTools.add(callId);
+                            offerErrand(server, s, call.getAsJsonObject("arguments")).whenComplete((offered, errandFailure) -> server.execute(() -> {
+                                s.pendingTools.remove(callId);
+                                if (sessions.get(s.player.getUUID()) != s) return;
+                                JsonObject response = errandFailure == null ? offered : outcome("unavailable", "The errand could not be set up. Apologise.");
+                                org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Tool=offer_errand status={}", response.get("status").getAsString());
+                                s.toolResults.put(callId, response);
+                                submitToolResult(s, callId, response);
+                            }));
+                            continue;
+                        }
                         if (memory.handles(name)) {
                             s.pendingTools.add(callId);
                             JsonObject arguments;
@@ -572,12 +637,14 @@ public final class HiggsVillagers implements ModInitializer {
                             result = confirmTrade(s, call.getAsJsonObject("arguments").get("proposalId").getAsString(), call.get("turnId").getAsInt());
                         } else if (name.equals("offer_quest")) {
                             result = offerQuest(s, call.getAsJsonObject("arguments").get("item").getAsString());
+                        } else if (name.equals("deliver_errand")) {
+                            result = deliverErrand(s);
                         } else if (name.equals("receive_gift")) {
                             result = receiveGift(s, call.getAsJsonObject("arguments"));
                         } else if (name.equals("complete_quest")) {
                             result = completeQuest(s, call.get("turnId").getAsInt());
                         } else result.addProperty("error", "Unknown tool.");
-                        if (Set.of("offer_quest", "complete_quest", "receive_gift").contains(name))
+                        if (Set.of("offer_quest", "complete_quest", "receive_gift", "deliver_errand").contains(name))
                             org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Tool={} turn={} status={}",
                                 name, call.get("turnId").getAsInt(), result.has("status") ? result.get("status").getAsString() : "unknown");
                         if (Set.of("preview_trade", "propose_trade", "confirm_trade", "cancel_trade").contains(name)) {
@@ -789,6 +856,149 @@ public final class HiggsVillagers implements ModInitializer {
         message.addProperty("reaction", reaction);
         send(s.player, message);
     }
+    private CompletableFuture<JsonObject> offerErrand(MinecraftServer server, Session s, JsonObject arguments) {
+        if (Negotiation.hostile(standing(s))) return CompletableFuture.completedFuture(refused());
+        Errand open = errand(s.player);
+        if (open != null) return CompletableFuture.completedFuture(outcome("errand_open",
+            "The player already has an errand from " + open.giverName() + ": " + open.describe() + ". Remind them of it instead."));
+        String kind = arguments.get("kind").getAsString();
+        String message = arguments.has("message") ? arguments.get("message").getAsString().trim() : "";
+        if (kind.equals("message") && (message.isEmpty() || message.length() > Errands.MESSAGE_LIMIT))
+            return CompletableFuture.completedFuture(outcome("invalid", "A message errand needs the short message to pass on."));
+        Villager giver = s.villager;
+        // Someone else in the same village, preferably a short walk away.
+        VillageTracker.Village village = villages.villageOf(giver);
+        var centre = village == null ? giver.position() : new net.minecraft.world.phys.Vec3(village.x(), village.y(), village.z());
+        double range = village == null ? 48 : 64;
+        List<Villager> candidates = new ArrayList<>(giver.level().getEntitiesOfClass(Villager.class,
+            new net.minecraft.world.phys.AABB(centre, centre).inflate(range, 32, range),
+            v -> v != giver && v.isAlive() && !v.isBaby() && v.position().distanceToSqr(centre) <= range * range));
+        if (candidates.isEmpty()) return CompletableFuture.completedFuture(outcome("no_target",
+            "There is nobody else nearby to send them to. Say so; no errand was set."));
+        Collections.shuffle(candidates);
+        candidates.sort(java.util.Comparator.comparing(v -> v.distanceToSqr(giver) < 64));
+        Villager target = candidates.getFirst();
+        ItemStack parcel = ItemStack.EMPTY;
+        if (kind.equals("item")) {
+            for (var offer : giver.getOffers()) {
+                if (!offer.isOutOfStock()) { parcel = offer.getResult().copyWithCount(1); break; }
+            }
+            if (parcel.isEmpty()) parcel = new ItemStack(net.minecraft.world.item.Items.BREAD);
+            if (s.player.getInventory().getFreeSlot() < 0) return CompletableFuture.completedFuture(outcome("inventory_full",
+                "The player has no room to carry a package. Ask them to make space first."));
+        }
+        ItemStack carried = parcel;
+        // Naming the target may touch disk; the errand itself is built back on the server thread.
+        return personalities.prepare(target).thenCompose(prepared -> CompletableFuture.supplyAsync(() -> {
+                personalities.applyName(target, prepared);
+                if (!carried.isEmpty() && !s.player.getInventory().add(carried.copy()))
+                    return outcome("inventory_full", "The player has no room to carry a package. Ask them to make space first.");
+                Errand errand = new Errand(UUID.randomUUID().toString(), kind, giver.getUUID().toString(), giver.getName().getString(),
+                    target.getUUID().toString(), target.getName().getString(), VillagerMemoryService.profession(target),
+                    kind.equals("message") ? message : "", carried.isEmpty() ? "" : id(carried),
+                    carried.isEmpty() ? "" : carried.getHoverName().getString(), System.currentTimeMillis());
+                errands.put(s.player.getUUID().toString(), errand);
+                saveErrands();
+                target.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.GLOWING, 20 * 120));
+                s.player.inventoryMenu.broadcastChanges();
+                String where = where(s.player, target);
+                errandStatus(s, "errand", errand.kind().equals("message") ? "\"" + errand.message() + "\"" : "1 × " + errand.itemName(),
+                    errand.targetName() + " · " + errand.targetProfession(), where);
+                org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Errand {} for {}: {} -> {}", kind, s.player.getName().getString(),
+                    errand.giverName(), errand.targetName());
+                JsonObject result = outcome("errand_offered", "In character and briefly, send the player on this errand: "
+                    + errand.describe() + ". " + errand.targetName() + " the " + errand.targetProfession() + " is " + where
+                    + (carried.isEmpty() ? "" : "; you have handed them the " + errand.itemName()) + ". Promise to be grateful when it is done.");
+                result.addProperty("target", errand.targetName());
+                result.addProperty("direction", where);
+                return result;
+            }, server));
+    }
+    private static String where(ServerPlayer player, Villager target) {
+        double dx = target.getX() - player.getX(), dz = target.getZ() - player.getZ();
+        return Math.round(Math.sqrt(dx * dx + dz * dz)) + " blocks " + Errands.compass(dx, dz);
+    }
+    private JsonObject deliverErrand(Session s) {
+        Errand errand = errand(s.player);
+        if (errand == null || !errand.targetId().equals(s.villager.getUUID().toString()))
+            return outcome("no_errand", "The player is not carrying an errand for you. Do not pretend otherwise.");
+        if (errand.kind().equals("item")) {
+            var identifier = net.minecraft.resources.Identifier.tryParse(errand.item());
+            var item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
+            var match = (java.util.function.Predicate<ItemStack>) stack -> item != null && stack.getItem() == item;
+            if (item == null || s.player.getInventory().clearOrCountMatchingItems(match, 1, s.player.inventoryMenu.getCraftSlots()) < 1)
+                return outcome("errand_missing", "The player does not have the " + errand.itemName() + " from " + errand.giverName()
+                    + " with them. Nothing was delivered; tell them kindly.");
+            s.player.inventoryMenu.broadcastChanges();
+        }
+        String key = s.player.getUUID().toString();
+        errands.remove(key);
+        List<String> history = new ArrayList<>(errandHistory.getOrDefault(key + ":" + errand.giverId(), List.of()));
+        history.add(errand.describe());
+        while (history.size() > 3) history.removeFirst();
+        errandHistory.put(key + ":" + errand.giverId(), history);
+        saveErrands();
+        long now = System.currentTimeMillis();
+        int targetGain = reward(s.player, s.villager.getUUID().toString(), Errands.TARGET_REWARD, now);
+        int giverGain = reward(s.player, errand.giverId(), Errands.GIVER_REWARD, now);
+        saveTradeReputations();
+        s.villager.removeEffect(net.minecraft.world.effect.MobEffects.GLOWING);
+        moodParticles(s.player, s.villager, true);
+        s.player.sendSystemMessage(net.minecraft.network.chat.Component.literal("Errand complete: " + errand.targetName()
+            + String.format(" (%+d)", targetGain) + ", " + errand.giverName() + String.format(" (%+d)", giverGain))
+            .withStyle(net.minecraft.ChatFormatting.GREEN), true);
+        errandStatus(s, "errand_done", errand.kind().equals("message") ? "\"" + errand.message() + "\"" : "1 × " + errand.itemName(),
+            errand.targetName() + String.format(" %+d", targetGain) + " · " + errand.giverName() + String.format(" %+d", giverGain),
+            "Errand complete");
+        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Errand delivered by {}: {} -> {}", s.player.getName().getString(),
+            errand.giverName(), errand.targetName());
+        return outcome("errand_complete", "The player " + (errand.kind().equals("message")
+            ? "passed on a message from " + errand.giverName() + ": \"" + errand.message() + "\""
+            : "brought you the " + errand.itemName() + " from " + errand.giverName()) + ". React to it in character and thank them warmly.");
+    }
+    private int reward(ServerPlayer player, String villagerId, int gain, long now) {
+        String key = player.getUUID() + ":" + villagerId;
+        TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
+        int next = Errands.reward(previous.score(), gain);
+        relationships.put(key, new TradeReputation(next, now, previous.lastHit()));
+        return next - previous.score();
+    }
+    /** Both ends of an errand know about it; the giver also remembers errands the player finished. */
+    private JsonObject errandContext(ServerPlayer player, Villager villager) {
+        JsonObject context = new JsonObject();
+        Errand errand = errand(player);
+        String id = villager.getUUID().toString();
+        if (errand != null && errand.giverId().equals(id)) context.addProperty("youGaveThePlayer", errand.describe() + " (not yet done)");
+        if (errand != null && errand.targetId().equals(id)) context.addProperty("forYouFromVillager",
+            errand.giverName() + " sent the player to " + (errand.kind().equals("message")
+                ? "tell you: \"" + errand.message() + "\"" : "bring you the " + errand.itemName())
+                + ". Do not mention it until the player brings it up; then call deliver_errand.");
+        List<String> done = errandHistory.get(player.getUUID() + ":" + id);
+        if (done != null && !done.isEmpty()) {
+            JsonArray finished = new JsonArray();
+            done.forEach(finished::add);
+            context.add("playerCompletedForYou", finished);
+        }
+        return context;
+    }
+    private void errandStatus(Session s, String status, String carrying, String recipient, String footer) {
+        JsonObject message = new JsonObject();
+        message.addProperty("type", "trade_status");
+        message.addProperty("sessionId", s.id);
+        message.addProperty("entityId", s.villager.getId());
+        message.addProperty("villager", s.villager.getName().getString());
+        message.addProperty("status", status);
+        message.addProperty("message", "");
+        JsonObject card = new JsonObject();
+        card.addProperty("heading", status.equals("errand_done") ? "ERRAND COMPLETE" : "ERRAND");
+        card.addProperty("leftLabel", "CARRY");
+        card.addProperty("left", carrying);
+        card.addProperty("rightLabel", status.equals("errand_done") ? "REPUTATION" : "DELIVER TO");
+        card.addProperty("right", recipient);
+        card.addProperty("footer", footer);
+        message.add("card", card);
+        send(s.player, message);
+    }
     /** The villager's own tastes and its history with this player, so it can talk about gifts and remember refusals. */
     private JsonObject giftContext(ServerPlayer player, Villager villager) {
         var preferences = GiftCatalogue.preferences(villager.getUUID(), VillagerMemoryService.profession(villager));
@@ -810,6 +1020,36 @@ public final class HiggsVillagers implements ModInitializer {
                 ? BuiltInRegistries.ITEM.getValue(identifier).getDefaultInstance().getHoverName().getString() : key);
         }
         return names;
+    }
+    private final Map<String, Long> shunnedUntil = new HashMap<>();
+    private static final long SHUN_MS = 30_000;
+    /** A villager who dislikes the player may refuse to talk and walk off; the refusal stands for a while. */
+    private boolean shuns(ServerPlayer player, Villager villager, long now) {
+        String key = player.getUUID() + ":" + villager.getUUID();
+        if (now < shunnedUntil.getOrDefault(key, 0L)) return true;
+        shunnedUntil.values().removeIf(until -> until < now);
+        if (java.util.concurrent.ThreadLocalRandom.current().nextDouble() >= Errands.shunChance(standing(new Session(player, villager)))) return false;
+        shunnedUntil.put(key, now + SHUN_MS);
+        walkAway(player, villager);
+        return true;
+    }
+    private void walkAway(ServerPlayer player, Villager villager) {
+        var away = villager.position().subtract(player.position()).multiply(1, 0, 1);
+        if (away.lengthSqr() < 0.01) away = new net.minecraft.world.phys.Vec3(1, 0, 0);
+        away = away.normalize().scale(8);
+        float yaw = (float) (Math.toDegrees(Math.atan2(away.z, away.x)) - 90);
+        villager.setYRot(yaw);
+        villager.setYBodyRot(yaw);
+        villager.setYHeadRot(yaw);
+        // Villagers walk through their brain; NoAI villagers (like demo ones) can only turn their back.
+        if (!villager.isNoAi()) villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
+            new net.minecraft.world.entity.ai.memory.WalkTarget(villager.position().add(away), 0.6f, 1));
+        villager.playSound(SoundEvents.VILLAGER_NO);
+        moodParticles(player, villager, false);
+        player.sendSystemMessage(net.minecraft.network.chat.Component.literal(villager.getName().getString() + " turns away from you")
+            .withStyle(net.minecraft.ChatFormatting.GOLD), true);
+        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("{} shunned {} (standing {})", villager.getName().getString(),
+            player.getName().getString(), standing(new Session(player, villager)));
     }
     /** Quest options for a lowball offer: only from villagers who are not annoyed, one open quest at a time. */
     private QuestOffer questOffer(Session s, MerchantOffer offer, Negotiation.Band limits, int index, Integer quantity, Integer payment) {

@@ -34,6 +34,16 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   call('quest-id', 'offer_quest', {item:'minecraft:diamond'});
   assert.ok(session.pending.has('quest-id'));
   call('deliver', 'complete_quest', {});
+  call('errand', 'offer_errand', {kind:'message', message:'Tell Bram the wolves are back.'});
+  assert.ok(session.pending.has('errand'));
+  call('parcel', 'offer_errand', {kind:'item'});
+  assert.ok(session.pending.has('parcel'));
+  call('delivered', 'deliver_errand', {});
+  assert.ok(session.pending.has('delivered'));
+  for (const [i, args] of [{}, {kind:'letter'}, {kind:'message', message:'x'.repeat(161)}, {kind:'item', target:'Bram'}].entries()) {
+    call('bad-errand'+i, 'offer_errand', args);
+    assert.equal(session.pending.has('bad-errand'+i), false);
+  }
   call('gift', 'receive_gift', {item:'diamond'});
   assert.ok(session.pending.has('gift'));
   call('gifts', 'receive_gift', {item:'bread', count:3});
@@ -55,7 +65,7 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   assert.ok(session.pending.has('tone'));
   call('bad-tone', 'report_treatment', {treatment:'give_everything_free'});
   assert.equal(session.pending.has('bad-tone'), false);
-  assert.equal(outputs.length, 25);
+  assert.equal(outputs.length, 29);
   assert.ok(outputs.every(event => JSON.parse(event.item.output).error === 'Invalid tool request'));
 });
 
@@ -75,6 +85,8 @@ test('trade schema opens at normal prices and lets reputation decide haggling', 
   assert.match(instructions, /When relationship is hostile, you are furious with this player/);
   assert.match(instructions, /call offer_quest with the option that suits you/);
   assert.match(instructions, /When the player says they brought the quest items, call complete_quest/);
+  assert.match(instructions, /you may call offer_errand/);
+  assert.match(instructions, /call deliver_errand/);
   assert.deepEqual(tools.find(t => t.name === 'offer_quest').parameters.required, ['item']);
   assert.deepEqual(Object.keys(tools.find(t => t.name === 'complete_quest').parameters.properties), []);
   assert.match(instructions, /Never repeat a price from earlier in the conversation or from memory/);

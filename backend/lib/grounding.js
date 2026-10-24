@@ -3,7 +3,7 @@
 // villager corrects itself in the same turn.
 
 export const TRADE_TOOLS = new Set(['get_trades', 'preview_trade', 'propose_trade', 'confirm_trade', 'cancel_trade',
-  'offer_quest', 'complete_quest', 'receive_gift']);
+  'offer_quest', 'complete_quest', 'receive_gift', 'offer_errand', 'deliver_errand']);
 
 const ONES = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve',
   'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
@@ -36,6 +36,8 @@ function mentions(text, count) {
  */
 export function ungroundedTrade(text, { tools = new Set(), purchased = false, quote = null } = {}) {
   if (typeof text !== 'string' || !text.trim()) return null;
+  // A delivered errand is also something real changing hands.
+  if (tools.has('deliver_errand')) return null;
   if (GIFT_TAKEN.test(text) && !tools.has('receive_gift')) return 'You accepted a gift, but you have not received anything.' + GIFT_FIX;
   if (COMPLETED.test(text) && !purchased) return 'You said the trade was done, but nothing was purchased.' + TRADE_FIX;
   if (CONFIRM.test(text)) {

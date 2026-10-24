@@ -269,6 +269,19 @@ tasks.register('testGiftCatalogue', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testGiftCatalogue' }
 
+tasks.register('compileErrandsTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/Errands.java', 'src/main/java/dev/higgs/Negotiation.java',
+        'src/reactions/test/dev/higgs/ErrandsTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('errands-test')
+}
+tasks.register('testErrands', JavaExec) {
+    dependsOn 'compileErrandsTest'
+    classpath = files(layout.buildDirectory.dir('errands-test'))
+    mainClass = 'dev.higgs.ErrandsTest'
+}
+tasks.named('check') { dependsOn 'testErrands' }
+
 tasks.register('compileAudioDeviceTest', JavaCompile) {
     source = files('src/client/java/dev/higgs/AudioDevices.java',
         'src/client/java/dev/higgs/PcmAudioConverter.java',
