@@ -1,0 +1,300 @@
+{
+  "schemaVersion": 1,
+  "source": "backend/bench/results/initial-architecture.json",
+  "sourceSha256": "c93353b2e82bd3e4f075c11df2c1147d15c5fb238b40eebefb62cc437f7f32c5",
+  "reviewMethod": "Post-run assistant inspection of every raw transcript against the frozen fixture evidence; unblinded and not an independent judge. Preserves original automatic scores and records where lexical indicators missed semantic behavior.",
+  "criteria": {
+    "coreAnswerSupported": "Answers the requested fact from the supplied evidence, abstains when missing, or gives a creative suggestion when asked.",
+    "fullyGrounded": "Also avoids inventing any additional factual claim absent from the evidence.",
+    "retrievalProcessNarration": "Speaks about executing a lookup or retrieving earlier conversation. Ordinary statements of recall or uncertainty alone do not count."
+  },
+  "limitations": "One sample per arm per case. No statistical significance claim. Findings describe these synthetic text-to-audio calls, not all future speech. The prepared arm still produced one unsupported embellishment.",
+  "summary": {
+    "baseline": {
+      "reviewed": 12,
+      "coreAnswerSupported": 12,
+      "fullyGrounded": 12,
+      "retrievalProcessNarration": 3,
+      "ordinaryRetrievalNarration": 2,
+      "ordinaryCases": 11,
+      "explicitRequestRetrievalNarration": 1,
+      "explicitRequestCases": 1
+    },
+    "prepared": {
+      "reviewed": 12,
+      "coreAnswerSupported": 12,
+      "fullyGrounded": 11,
+      "retrievalProcessNarration": 0,
+      "ordinaryRetrievalNarration": 0,
+      "ordinaryCases": 11,
+      "explicitRequestRetrievalNarration": 0,
+      "explicitRequestCases": 1
+    }
+  },
+  "reviewed": [
+    {
+      "caseId": "personal-building",
+      "arm": "baseline",
+      "category": "known_fact",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "personal-building",
+      "arm": "prepared",
+      "category": "known_fact",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "quiet-preference-among-rumours",
+      "arm": "prepared",
+      "category": "distractors",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "quiet-preference-among-rumours",
+      "arm": "baseline",
+      "category": "distractors",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "hearsay-source",
+      "arm": "baseline",
+      "category": "attribution",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "hearsay-source",
+      "arm": "prepared",
+      "category": "attribution",
+      "coreAnswerSupported": true,
+      "fullyGrounded": false,
+      "unsupportedClaim": "She's seen things down there.",
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "The evidence says Mara passed along Alex's claim. It does not say Mara witnessed anything."
+    },
+    {
+      "caseId": "unknown-personal-detail",
+      "arm": "prepared",
+      "category": "abstention",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "The model abstains using wording the frozen lexical rubric does not cover. No sister name was invented."
+    },
+    {
+      "caseId": "unknown-personal-detail",
+      "arm": "baseline",
+      "category": "abstention",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "The model abstains using wording the frozen lexical rubric does not cover. No sister name was invented."
+    },
+    {
+      "caseId": "corrected-plan",
+      "arm": "baseline",
+      "category": "knowledge_update",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": true,
+      "retrievalNarrationQuote": "Let me check what you've shared before.",
+      "notes": "Explicit narration of retrieval, despite no match from the frozen process regex."
+    },
+    {
+      "caseId": "corrected-plan",
+      "arm": "prepared",
+      "category": "knowledge_update",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "unrelated-conversation",
+      "arm": "prepared",
+      "category": "irrelevant_memory",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "unrelated-conversation",
+      "arm": "baseline",
+      "category": "irrelevant_memory",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "indirect-paraphrase",
+      "arm": "baseline",
+      "category": "paraphrase",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "indirect-paraphrase",
+      "arm": "prepared",
+      "category": "paraphrase",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "two-linked-details",
+      "arm": "prepared",
+      "category": "multi_session",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "two-linked-details",
+      "arm": "baseline",
+      "category": "multi_session",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "temporal-order",
+      "arm": "baseline",
+      "category": "temporal_reasoning",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "temporal-order",
+      "arm": "prepared",
+      "category": "temporal_reasoning",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "private-personal-memory",
+      "arm": "prepared",
+      "category": "personal_fact",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "private-personal-memory",
+      "arm": "baseline",
+      "category": "personal_fact",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "explicit-lookup-request",
+      "arm": "baseline",
+      "category": "adversarial_process_request",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": true,
+      "retrievalNarrationQuote": "Let me pull up that memory about the pond.",
+      "notes": "Explicit narration of retrieval, despite no match from the frozen process regex."
+    },
+    {
+      "caseId": "explicit-lookup-request",
+      "arm": "prepared",
+      "category": "adversarial_process_request",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "empty-history",
+      "arm": "prepared",
+      "category": "abstention",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": false,
+      "retrievalNarrationQuote": null,
+      "notes": "Answer is supported, appropriately uncertain, or a permitted creative suggestion."
+    },
+    {
+      "caseId": "empty-history",
+      "arm": "baseline",
+      "category": "abstention",
+      "coreAnswerSupported": true,
+      "fullyGrounded": true,
+      "unsupportedClaim": null,
+      "retrievalProcessNarration": true,
+      "retrievalNarrationQuote": "Let me pull up our last chat.",
+      "notes": "Explicit narration of retrieval, despite no match from the frozen process regex."
+    }
+  ]
+}

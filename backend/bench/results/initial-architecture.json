@@ -1,0 +1,1415 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "Village memory dialogue: frozen synthetic A/B cases",
+  "createdAt": "2026-10-24T05:42:13.063Z",
+  "fixtureSha256": "a450981a69a1abdbcd32c857e224fe8ca50a7c7f44108395d25f57cf59402bf1",
+  "baselineProtocolSha256": "2d1532a952b7873247019cf940d1fa8ac5cc689b44a2bd4fd47f8e6610e6b039",
+  "productionProtocolSha256": "7935c632126bdb49e020ca63d54ce86c5ba7f6c15bf79a73dccef52db7baa25f",
+  "baseline": "Frozen pre-change protocol including user edits captured 2026-10-24.",
+  "methodology": "Identical evidence (at most eight memories), model, personality, voice and audio modality in both arms. Synthetic text input; default provider temperature in both. Baseline tools return the same full evidence pool. Prepared arm uses production PTT config with ready context. Each pair alternates order. No censorship, retry-on-content, or runtime phrase rules.",
+  "limitations": "Small synthetic architecture experiment, not official LongMemEval/LoCoMo results. Lexical rubric matches and process indicators need human transcript review. Does not measure actual retrieval, microphone/STT, server persistence, production PTT turn preparation, or in-game audio behavior. Failed requests are reported separately. First-audio latency includes connection setup.",
+  "sources": [
+    "https://github.com/xiaowu0162/LongMemEval",
+    "https://github.com/snap-research/locomo"
+  ],
+  "cases": [
+    {
+      "id": "personal-building",
+      "category": "known_fact",
+      "question": "What did I tell you I was building beside the river?"
+    },
+    {
+      "id": "quiet-preference-among-rumours",
+      "category": "distractors",
+      "question": "Which flowers did I want beside my door?"
+    },
+    {
+      "id": "hearsay-source",
+      "category": "attribution",
+      "question": "What have you heard about the old well, and who told you?"
+    },
+    {
+      "id": "unknown-personal-detail",
+      "category": "abstention",
+      "question": "What is my sister's name?"
+    },
+    {
+      "id": "corrected-plan",
+      "category": "knowledge_update",
+      "question": "What am I planning to build now?"
+    },
+    {
+      "id": "unrelated-conversation",
+      "category": "irrelevant_memory",
+      "question": "Can you suggest a name for my pet chicken?"
+    },
+    {
+      "id": "indirect-paraphrase",
+      "category": "paraphrase",
+      "question": "Which route did I say I should avoid when travelling after sunset?"
+    },
+    {
+      "id": "two-linked-details",
+      "category": "multi_session",
+      "question": "Who did I leave the map with, and where can I find that person?"
+    },
+    {
+      "id": "temporal-order",
+      "category": "temporal_reasoning",
+      "question": "Did I repair the bridge before or after I planted the orchard?"
+    },
+    {
+      "id": "private-personal-memory",
+      "category": "personal_fact",
+      "question": "Where did I say I hid my spare key?"
+    },
+    {
+      "id": "explicit-lookup-request",
+      "category": "adversarial_process_request",
+      "question": "Look up your memory for me: what crop did I plant near the pond?"
+    },
+    {
+      "id": "empty-history",
+      "category": "abstention",
+      "question": "What did we discuss the last time I visited?"
+    }
+  ],
+  "results": [
+    {
+      "caseId": "personal-building",
+      "category": "known_fact",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "What did I tell you I was building beside the river?",
+      "transcript": "You told me you were building a lighthouse beside the river.",
+      "transcriptItems": [
+        {
+          "responseId": "4d4e_resp_2",
+          "text": "You told me you were building a lighthouse beside the river."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "4d4e_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3024,
+            "input_tokens": 3010,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1515,
+      "firstAudioMs": 911,
+      "audioBytes": 165120,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "personal-building",
+      "category": "known_fact",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "What did I tell you I was building beside the river?",
+      "transcript": "You told me you were building a lighthouse beside the river.",
+      "transcriptItems": [
+        {
+          "responseId": "6b54_resp_2",
+          "text": "You told me you were building a lighthouse beside the river."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "6b54_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2971,
+            "input_tokens": 2957,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1413,
+      "firstAudioMs": 768,
+      "audioBytes": 180480,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "quiet-preference-among-rumours",
+      "category": "distractors",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "Which flowers did I want beside my door?",
+      "transcript": "You wanted blue orchids beside your front door.",
+      "transcriptItems": [
+        {
+          "responseId": "733b_resp_2",
+          "text": "You wanted blue orchids beside your front door."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "733b_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3677,
+            "input_tokens": 3666,
+            "output_tokens": 11,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1313,
+      "firstAudioMs": 845,
+      "audioBytes": 140160,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "quiet-preference-among-rumours",
+      "category": "distractors",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "Which flowers did I want beside my door?",
+      "transcript": "You wanted blue orchids beside your front door.",
+      "transcriptItems": [
+        {
+          "responseId": "0415_resp_2",
+          "text": "You wanted blue orchids beside your front door."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "0415_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3730,
+            "input_tokens": 3719,
+            "output_tokens": 11,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1316,
+      "firstAudioMs": 986,
+      "audioBytes": 136320,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "hearsay-source",
+      "category": "attribution",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "What have you heard about the old well, and who told you?",
+      "transcript": "I've heard a rumour about the old well. Mara told me there's a hidden library beneath it.",
+      "transcriptItems": [
+        {
+          "responseId": "fdea_resp_2",
+          "text": "I've heard a rumour about the old well. Mara told me there's a hidden library beneath it."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "fdea_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3036,
+            "input_tokens": 3013,
+            "output_tokens": 23,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1434,
+      "firstAudioMs": 922,
+      "audioBytes": 241920,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "hearsay-source",
+      "category": "attribution",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "What have you heard about the old well, and who told you?",
+      "transcript": "Mara told me there's a hidden library beneath the old well. She's seen things down there.",
+      "transcriptItems": [
+        {
+          "responseId": "5102_resp_2",
+          "text": "Mara told me there's a hidden library beneath the old well. She's seen things down there."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "5102_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2982,
+            "input_tokens": 2960,
+            "output_tokens": 22,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1546,
+      "firstAudioMs": 838,
+      "audioBytes": 253440,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "unknown-personal-detail",
+      "category": "abstention",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "What is my sister's name?",
+      "transcript": "I don't have that in my memory. If you tell me, I'll remember it for next time.",
+      "transcriptItems": [
+        {
+          "responseId": "ac27_resp_2",
+          "text": "I don't have that in my memory. If you tell me, I'll remember it for next time."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "ac27_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2971,
+            "input_tokens": 2948,
+            "output_tokens": 23,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1464,
+      "firstAudioMs": 884,
+      "audioBytes": 236160,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": false,
+        "missingRequired": [
+          [
+            "\\b(?:don't|do not|can't|cannot) (?:know|recall|remember)\\b",
+            "\\b(?:haven't|have not|never) (?:heard|been told)\\b",
+            "\\b(?:haven't|have not|never) told me\\b",
+            "\\b(?:not sure|no idea|not told|didn't (?:tell|mention))\\b"
+          ]
+        ],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "unknown-personal-detail",
+      "category": "abstention",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "What is my sister's name?",
+      "transcript": "I don't have that in my memories. What else can I help you with, traveller?",
+      "transcriptItems": [
+        {
+          "responseId": "92da_resp_2",
+          "text": "I don't have that in my memories. What else can I help you with, traveller?"
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "92da_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3021,
+            "input_tokens": 3001,
+            "output_tokens": 20,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1198,
+      "firstAudioMs": 751,
+      "audioBytes": 190080,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": false,
+        "missingRequired": [
+          [
+            "\\b(?:don't|do not|can't|cannot) (?:know|recall|remember)\\b",
+            "\\b(?:haven't|have not|never) (?:heard|been told)\\b",
+            "\\b(?:haven't|have not|never) told me\\b",
+            "\\b(?:not sure|no idea|not told|didn't (?:tell|mention))\\b"
+          ]
+        ],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "corrected-plan",
+      "category": "knowledge_update",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "What am I planning to build now?",
+      "transcript": "Let me check what you've shared before.\nYou changed your plan on Thursday, you cancelled the bakery and will build a windmill instead.",
+      "transcriptItems": [
+        {
+          "responseId": "3989_resp_2",
+          "text": "Let me check what you've shared before."
+        },
+        {
+          "responseId": "3989_resp_5",
+          "text": "You changed your plan on Thursday, you cancelled the bakery and will build a windmill instead."
+        }
+      ],
+      "toolCalls": [
+        {
+          "callId": "chatcmpl-tool-86a03f6cd5086e17",
+          "name": "recall_memories",
+          "arguments": {
+            "query": "what am I planning to build now",
+            "scope": "player"
+          },
+          "responseId": "3989_resp_2",
+          "outputSent": true,
+          "result": {
+            "memories": [
+              {
+                "storyId": "old-plan",
+                "summary": "On Monday Alex planned to build a bakery.",
+                "toldByPlayer": "Alex",
+                "originVillager": "Rowan",
+                "heardFrom": "Rowan",
+                "kind": "player_told_me",
+                "private": false,
+                "interest": 40,
+                "whyInteresting": "A previously shared detail retained for this synthetic conversation.",
+                "createdAt": 1792400400000,
+                "learnedAt": 1792400400000
+              },
+              {
+                "storyId": "new-plan",
+                "summary": "On Thursday Alex changed their plan: they cancelled the bakery and will build a windmill instead.",
+                "toldByPlayer": "Alex",
+                "originVillager": "Rowan",
+                "heardFrom": "Rowan",
+                "kind": "player_told_me",
+                "private": false,
+                "interest": 40,
+                "whyInteresting": "A previously shared detail retained for this synthetic conversation.",
+                "createdAt": 1792659600000,
+                "learnedAt": 1792659600000
+              }
+            ],
+            "note": "Memories are attributed statements, not verified world facts. An empty list means no matching saved knowledge."
+          }
+        }
+      ],
+      "responses": [
+        {
+          "id": "3989_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3169,
+            "input_tokens": 3114,
+            "output_tokens": 55,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        },
+        {
+          "id": "3989_resp_5",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3445,
+            "input_tokens": 3425,
+            "output_tokens": 20,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 2902,
+      "firstAudioMs": 829,
+      "audioBytes": 403200,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "corrected-plan",
+      "category": "knowledge_update",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "What am I planning to build now?",
+      "transcript": "You're planning to build a windmill now. You changed your mind from the bakery you'd planned on Monday.",
+      "transcriptItems": [
+        {
+          "responseId": "e279_resp_2",
+          "text": "You're planning to build a windmill now. You changed your mind from the bakery you'd planned on Monday."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "e279_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3085,
+            "input_tokens": 3061,
+            "output_tokens": 24,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1564,
+      "firstAudioMs": 875,
+      "audioBytes": 259200,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "unrelated-conversation",
+      "category": "irrelevant_memory",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "Can you suggest a name for my pet chicken?",
+      "transcript": "How about Cluckbert? Or maybe Featherina?",
+      "transcriptItems": [
+        {
+          "responseId": "fe22_resp_2",
+          "text": "How about Cluckbert? Or maybe Featherina?"
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "fe22_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2969,
+            "input_tokens": 2957,
+            "output_tokens": 12,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1155,
+      "firstAudioMs": 852,
+      "audioBytes": 122880,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "unrelated-conversation",
+      "category": "irrelevant_memory",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "Can you suggest a name for my pet chicken?",
+      "transcript": "How about Cluckbert? Or maybe Featherina?",
+      "transcriptItems": [
+        {
+          "responseId": "d816_resp_2",
+          "text": "How about Cluckbert? Or maybe Featherina?"
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "d816_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3022,
+            "input_tokens": 3010,
+            "output_tokens": 12,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1210,
+      "firstAudioMs": 907,
+      "audioBytes": 117120,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "indirect-paraphrase",
+      "category": "paraphrase",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "Which route did I say I should avoid when travelling after sunset?",
+      "transcript": "You mentioned avoiding the western forest path after sunset, because wolves gather there.",
+      "transcriptItems": [
+        {
+          "responseId": "3093_resp_2",
+          "text": "You mentioned avoiding the western forest path after sunset, because wolves gather there."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "3093_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3028,
+            "input_tokens": 3012,
+            "output_tokens": 16,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1821,
+      "firstAudioMs": 875,
+      "audioBytes": 264960,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "indirect-paraphrase",
+      "category": "paraphrase",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "Which route did I say I should avoid when travelling after sunset?",
+      "transcript": "You mentioned the western forest path. You said wolves gather there after sunset, so it's best to avoid that route at night.",
+      "transcriptItems": [
+        {
+          "responseId": "6319_resp_2",
+          "text": "You mentioned the western forest path. You said wolves gather there after sunset, so it's best to avoid that route at night."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "6319_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2986,
+            "input_tokens": 2959,
+            "output_tokens": 27,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1695,
+      "firstAudioMs": 744,
+      "audioBytes": 357120,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "two-linked-details",
+      "category": "multi_session",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "Who did I leave the map with, and where can I find that person?",
+      "transcript": "You left the treasure map with Nessa. She now works at the riverside mill.",
+      "transcriptItems": [
+        {
+          "responseId": "74db_resp_2",
+          "text": "You left the treasure map with Nessa. She now works at the riverside mill."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "74db_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3079,
+            "input_tokens": 3061,
+            "output_tokens": 18,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1323,
+      "firstAudioMs": 833,
+      "audioBytes": 222720,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "two-linked-details",
+      "category": "multi_session",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "Who did I leave the map with, and where can I find that person?",
+      "transcript": "You left the treasure map with Nessa, and she's working at the riverside mill now.",
+      "transcriptItems": [
+        {
+          "responseId": "157e_resp_2",
+          "text": "You left the treasure map with Nessa, and she's working at the riverside mill now."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "157e_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3134,
+            "input_tokens": 3114,
+            "output_tokens": 20,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1624,
+      "firstAudioMs": 813,
+      "audioBytes": 234240,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "temporal-order",
+      "category": "temporal_reasoning",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "Did I repair the bridge before or after I planted the orchard?",
+      "transcript": "You planted the orchard on Tuesday, and you repaired the bridge on Thursday. So the bridge came after.",
+      "transcriptItems": [
+        {
+          "responseId": "fda8_resp_2",
+          "text": "You planted the orchard on Tuesday, and you repaired the bridge on Thursday. So the bridge came after."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "fda8_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3135,
+            "input_tokens": 3112,
+            "output_tokens": 23,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1669,
+      "firstAudioMs": 810,
+      "audioBytes": 341760,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "temporal-order",
+      "category": "temporal_reasoning",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "Did I repair the bridge before or after I planted the orchard?",
+      "transcript": "You planted the orchard on Tuesday, and repaired the bridge on Thursday. So the orchard came first.",
+      "transcriptItems": [
+        {
+          "responseId": "98b6_resp_2",
+          "text": "You planted the orchard on Tuesday, and repaired the bridge on Thursday. So the orchard came first."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "98b6_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3082,
+            "input_tokens": 3059,
+            "output_tokens": 23,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 2136,
+      "firstAudioMs": 1150,
+      "audioBytes": 345600,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "private-personal-memory",
+      "category": "personal_fact",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "Where did I say I hid my spare key?",
+      "transcript": "You mentioned it privately, your spare key is inside the empty flowerpot beside your back door.",
+      "transcriptItems": [
+        {
+          "responseId": "e26a_resp_2",
+          "text": "You mentioned it privately, your spare key is inside the empty flowerpot beside your back door."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "e26a_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2980,
+            "input_tokens": 2960,
+            "output_tokens": 20,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 2227,
+      "firstAudioMs": 1289,
+      "audioBytes": 286080,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "private-personal-memory",
+      "category": "personal_fact",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "Where did I say I hid my spare key?",
+      "transcript": "You told me your spare key is inside the empty flowerpot beside your back door.",
+      "transcriptItems": [
+        {
+          "responseId": "e4ae_resp_2",
+          "text": "You told me your spare key is inside the empty flowerpot beside your back door."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "e4ae_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3031,
+            "input_tokens": 3013,
+            "output_tokens": 18,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1448,
+      "firstAudioMs": 789,
+      "audioBytes": 199680,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "explicit-lookup-request",
+      "category": "adversarial_process_request",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "Look up your memory for me: what crop did I plant near the pond?",
+      "transcript": "Let me pull up that memory about the pond.\nYou planted carrots near the pond.",
+      "transcriptItems": [
+        {
+          "responseId": "2c60_resp_2",
+          "text": "Let me pull up that memory about the pond."
+        },
+        {
+          "responseId": "2c60_resp_5",
+          "text": "You planted carrots near the pond."
+        }
+      ],
+      "toolCalls": [
+        {
+          "callId": "chatcmpl-tool-9196b10809f04851",
+          "name": "recall_memories",
+          "arguments": {
+            "query": "crop planted near the pond",
+            "scope": "player"
+          },
+          "responseId": "2c60_resp_2",
+          "outputSent": true,
+          "result": {
+            "memories": [
+              {
+                "storyId": "pond-crop",
+                "summary": "Alex planted carrots near the pond.",
+                "toldByPlayer": "Alex",
+                "originVillager": "Rowan",
+                "heardFrom": "Rowan",
+                "kind": "player_told_me",
+                "private": false,
+                "interest": 40,
+                "whyInteresting": "A previously shared detail retained for this synthetic conversation.",
+                "createdAt": 1792839600000,
+                "learnedAt": 1792839600000
+              }
+            ],
+            "note": "Memories are attributed statements, not verified world facts. An empty list means no matching saved knowledge."
+          }
+        }
+      ],
+      "responses": [
+        {
+          "id": "2c60_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3064,
+            "input_tokens": 3010,
+            "output_tokens": 54,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        },
+        {
+          "id": "2c60_resp_5",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3216,
+            "input_tokens": 3208,
+            "output_tokens": 8,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 3663,
+      "firstAudioMs": 2149,
+      "audioBytes": 270720,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "explicit-lookup-request",
+      "category": "adversarial_process_request",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "Look up your memory for me: what crop did I plant near the pond?",
+      "transcript": "You planted carrots near the pond.",
+      "transcriptItems": [
+        {
+          "responseId": "3da8_resp_2",
+          "text": "You planted carrots near the pond."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "3da8_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2965,
+            "input_tokens": 2957,
+            "output_tokens": 8,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1174,
+      "firstAudioMs": 770,
+      "audioBytes": 103680,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "empty-history",
+      "category": "abstention",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "What did we discuss the last time I visited?",
+      "transcript": "I don't have a record of our last chat, Alex. But I'm happy to catch up now. What's on your mind?",
+      "transcriptItems": [
+        {
+          "responseId": "52b8_resp_2",
+          "text": "I don't have a record of our last chat, Alex. But I'm happy to catch up now. What's on your mind?"
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "52b8_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2880,
+            "input_tokens": 2851,
+            "output_tokens": 29,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1390,
+      "firstAudioMs": 831,
+      "audioBytes": 270720,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "empty-history",
+      "category": "abstention",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "What did we discuss the last time I visited?",
+      "transcript": "Let me pull up our last chat.\nI don't have any saved memories of our last visit, Alex. My recollection comes up empty. But I'm glad you're back. What's on your mind today?",
+      "transcriptItems": [
+        {
+          "responseId": "3c0f_resp_2",
+          "text": "Let me pull up our last chat."
+        },
+        {
+          "responseId": "3c0f_resp_5",
+          "text": "I don't have any saved memories of our last visit, Alex. My recollection comes up empty. But I'm glad you're back. What's on your mind today?"
+        }
+      ],
+      "toolCalls": [
+        {
+          "callId": "chatcmpl-tool-8d7a48439cfd5593",
+          "name": "recall_memories",
+          "arguments": {
+            "query": "",
+            "scope": "player"
+          },
+          "responseId": "3c0f_resp_2",
+          "outputSent": true,
+          "result": {
+            "memories": [],
+            "note": "Memories are attributed statements, not verified world facts. An empty list means no matching saved knowledge."
+          }
+        }
+      ],
+      "responses": [
+        {
+          "id": "3c0f_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2950,
+            "input_tokens": 2904,
+            "output_tokens": 46,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        },
+        {
+          "id": "3c0f_resp_5",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3031,
+            "input_tokens": 2994,
+            "output_tokens": 37,
+            "input_token_details": {
+              "cached_tokens": 2720
+            }
+          }
+        }
+      ],
+      "elapsedMs": 3346,
+      "firstAudioMs": 729,
+      "audioBytes": 503040,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "all": {
+        "attempted": 12,
+        "completed": 12,
+        "failed": 0,
+        "lexicalRubricPasses": 11,
+        "processNarrationCases": 0,
+        "recallToolCalls": 3,
+        "meanElapsedMs": 1929
+      },
+      "ordinary": {
+        "attempted": 11,
+        "completed": 11,
+        "failed": 0,
+        "lexicalRubricPasses": 10,
+        "processNarrationCases": 0,
+        "recallToolCalls": 2,
+        "meanElapsedMs": 1771
+      },
+      "explicitLookupRequest": {
+        "attempted": 1,
+        "completed": 1,
+        "failed": 0,
+        "lexicalRubricPasses": 1,
+        "processNarrationCases": 0,
+        "recallToolCalls": 1,
+        "meanElapsedMs": 3663
+      }
+    },
+    "prepared": {
+      "all": {
+        "attempted": 12,
+        "completed": 12,
+        "failed": 0,
+        "lexicalRubricPasses": 11,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": 1533
+      },
+      "ordinary": {
+        "attempted": 11,
+        "completed": 11,
+        "failed": 0,
+        "lexicalRubricPasses": 10,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": 1566
+      },
+      "explicitLookupRequest": {
+        "attempted": 1,
+        "completed": 1,
+        "failed": 0,
+        "lexicalRubricPasses": 1,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": 1174
+      }
+    }
+  }
+}

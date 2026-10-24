@@ -1,0 +1,178 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "Village memory dialogue: frozen synthetic A/B cases",
+  "createdAt": "2026-10-24T05:42:04.308Z",
+  "fixtureSha256": "a450981a69a1abdbcd32c857e224fe8ca50a7c7f44108395d25f57cf59402bf1",
+  "baselineProtocolSha256": "2d1532a952b7873247019cf940d1fa8ac5cc689b44a2bd4fd47f8e6610e6b039",
+  "productionProtocolSha256": "7935c632126bdb49e020ca63d54ce86c5ba7f6c15bf79a73dccef52db7baa25f",
+  "baseline": "Frozen pre-change protocol including user edits captured 2026-10-24.",
+  "methodology": "Identical evidence (at most eight memories), model, personality, voice and audio modality in both arms. Synthetic text input; default provider temperature in both. Baseline tools return the same full evidence pool. Prepared arm uses production PTT config with ready context. Each pair alternates order. No censorship, retry-on-content, or runtime phrase rules.",
+  "limitations": "Small synthetic architecture experiment, not official LongMemEval/LoCoMo results. Lexical rubric matches and process indicators need human transcript review. Does not measure actual retrieval, microphone/STT, server persistence, production PTT turn preparation, or in-game audio behavior. Failed requests are reported separately. First-audio latency includes connection setup.",
+  "sources": [
+    "https://github.com/xiaowu0162/LongMemEval",
+    "https://github.com/snap-research/locomo"
+  ],
+  "cases": [
+    {
+      "id": "personal-building",
+      "category": "known_fact",
+      "question": "What did I tell you I was building beside the river?"
+    }
+  ],
+  "results": [
+    {
+      "caseId": "personal-building",
+      "category": "known_fact",
+      "arm": "baseline",
+      "status": "completed",
+      "question": "What did I tell you I was building beside the river?",
+      "transcript": "You told me you were building a lighthouse beside the river.",
+      "transcriptItems": [
+        {
+          "responseId": "e8da_resp_2",
+          "text": "You told me you were building a lighthouse beside the river."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "e8da_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 3024,
+            "input_tokens": 3010,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1452,
+      "firstAudioMs": 998,
+      "audioBytes": 132480,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    },
+    {
+      "caseId": "personal-building",
+      "category": "known_fact",
+      "arm": "prepared",
+      "status": "completed",
+      "question": "What did I tell you I was building beside the river?",
+      "transcript": "You told me you were building a lighthouse beside the river.",
+      "transcriptItems": [
+        {
+          "responseId": "1e19_resp_2",
+          "text": "You told me you were building a lighthouse beside the river."
+        }
+      ],
+      "toolCalls": [],
+      "responses": [
+        {
+          "id": "1e19_resp_2",
+          "status": "completed",
+          "usage": {
+            "total_tokens": 2971,
+            "input_tokens": 2957,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 0
+            }
+          }
+        }
+      ],
+      "elapsedMs": 1387,
+      "firstAudioMs": 867,
+      "audioBytes": 147840,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": {
+        "lexicalRubricPass": true,
+        "missingRequired": [],
+        "unsupportedMatches": [],
+        "processNarration": false,
+        "processMatches": [],
+        "needsHumanReview": true
+      },
+      "repetition": 1
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "all": {
+        "attempted": 1,
+        "completed": 1,
+        "failed": 0,
+        "lexicalRubricPasses": 1,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": 1452
+      },
+      "ordinary": {
+        "attempted": 1,
+        "completed": 1,
+        "failed": 0,
+        "lexicalRubricPasses": 1,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": 1452
+      },
+      "explicitLookupRequest": {
+        "attempted": 0,
+        "completed": 0,
+        "failed": 0,
+        "lexicalRubricPasses": 0,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": null
+      }
+    },
+    "prepared": {
+      "all": {
+        "attempted": 1,
+        "completed": 1,
+        "failed": 0,
+        "lexicalRubricPasses": 1,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": 1387
+      },
+      "ordinary": {
+        "attempted": 1,
+        "completed": 1,
+        "failed": 0,
+        "lexicalRubricPasses": 1,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": 1387
+      },
+      "explicitLookupRequest": {
+        "attempted": 0,
+        "completed": 0,
+        "failed": 0,
+        "lexicalRubricPasses": 0,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": null
+      }
+    }
+  }
+}

@@ -20,6 +20,16 @@ async function until(predicate) {
   throw new Error('Timed out waiting for a bridge event');
 }
 
+async function prepareMemory(f, itemId = 'spoken-turn', memories = []) {
+  await until(() => f.received.some(event => event.type === 'input_audio_buffer.commit'));
+  f.emit({ type: 'input_audio_buffer.committed', item_id: itemId });
+  f.emit({ type: 'conversation.item.input_audio_transcription.completed', item_id: itemId, transcript: 'Where is the library?' });
+  const session = f.bridge.sessions.get(f.sessionId);
+  await until(() => [...session.pending.values()].some(tool => tool.memoryContext));
+  const call = [...session.pending.values()].find(tool => tool.memoryContext);
+  await f.request(`/sessions/${f.sessionId}/tools/${call.callId}/result`, 'POST', { result: { memories } });
+}
+
 async function fixture(t, { now = Date.now, connectAudio = true, context = { profession: 'farmer' }, confirmConfig = true, mode = 'vad' } = {}) {
   const provider = new WebSocketServer({ port: 0, host: '127.0.0.1' });
   await once(provider, 'listening');
@@ -140,14 +150,47 @@ test('speaking before the greeting starts waits for cancellation and suppresses 
   await until(() => session.queuedResponse);
   assert.equal(session.turnId, 1);
   assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+  assert.equal(f.received.some(event => event.type === 'input_audio_buffer.commit'), false,
+    'audio commit waits until the previous voice response has finished cancelling');
   f.emit({ type: 'response.created', response: { id: 'late-greeting' } });
   f.emit({ type: 'response.output_audio.delta', response_id: 'late-greeting', delta: 'AAA=' });
   f.emit({ type: 'response.done', response: { id: 'late-greeting', status: 'cancelled' } });
+  await prepareMemory(f);
   await until(() => f.received.filter(event => event.type === 'response.create').length === 2);
   f.emit({ type: 'response.created', response: { id: 'answer-first-turn' } });
   f.emit({ type: 'response.output_audio.delta', response_id: 'answer-first-turn', delta: 'AQI=' });
   await until(() => f.events.some(event => event.audio === 'AQI='));
   assert.equal(f.events.some(event => event.audio === 'AAA='), false);
+});
+
+test('PTT retrieval is internal and evidence reaches conversation before speech without replacing history', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'librarian', memories: [] } });
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+  f.client.send(JSON.stringify({ type: 'commit' }));
+  await until(() => f.received.some(event => event.type === 'input_audio_buffer.commit'));
+  assert.equal(f.received.some(event => event.type === 'response.create'), false);
+  const memories = [{ summary: 'The compass is beneath the violet windmill.', kind: 'player_told_me', heardFrom: 'Alex' }];
+  await prepareMemory(f, 'retrieval-turn', memories);
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  const noteIndex = f.received.findIndex(event => event.item?.id?.startsWith('memory-context-'));
+  const responseIndex = f.received.findIndex(event => event.type === 'response.create');
+  assert.ok(noteIndex >= 0 && noteIndex < responseIndex);
+  assert.match(f.received[noteIndex].item.content[0].text, /violet windmill/);
+  assert.deepEqual(f.received[responseIndex], { type: 'response.create' });
+  assert.equal(f.received.some(event => event.item?.type === 'function_call_output'), false);
+  assert.equal(f.received.filter(event => event.type === 'session.update').length, 1);
+});
+
+test('a rejected unacknowledged audio commit cannot poison the identity of later turns', async t => {
+  const f = await fixture(t, { mode: 'ptt' });
+  f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+  f.client.send(JSON.stringify({ type: 'commit' }));
+  await until(() => f.received.some(event => event.type === 'input_audio_buffer.commit'));
+  f.emit({ type: 'error', error: { type: 'voice_output_task_ongoing' } });
+  await until(() => !f.bridge.sessions.has(f.sessionId));
+  assert.equal(f.received.some(event => event.type === 'response.create'), false);
+  assert.ok(f.events.some(event => event.code === 'audio_commit_failed'));
 });
 
 test('late audio, trade and memory calls from an interrupted response cannot affect the next turn', async t => {
@@ -189,15 +232,15 @@ test('late audio, trade and memory calls from an interrupted response cannot aff
   assert.equal(f.received.some(event => event.item?.call_id === 'stale-memory'), false);
 });
 
-test('memory tools use the game-server route and resume only after the full tool batch', async t => {
+test('semantic memory writes use the game-server route and resume only after the full tool batch', async t => {
   const f = await fixture(t);
   const config = f.received.find(event => event.type === 'session.update').session;
   assert.ok(config.tools.some(tool => tool.name === 'remember_conversation'));
-  assert.ok(config.tools.some(tool => tool.name === 'recall_memories'));
+  assert.equal(config.tools.some(tool => tool.name === 'recall_memories'), false);
   f.emit({ type: 'response.created', response: { id: 'memory-turn' } });
   for (const [callId, name, args] of [
     ['remember', 'remember_conversation', memoryArgs()],
-    ['recall', 'recall_memories', { query: '', scope: 'player' }],
+    ['trades', 'get_trades', {}],
   ]) {
     const call = { type: 'response.function_call_arguments.done', response_id: 'memory-turn', call_id: callId, name, arguments: JSON.stringify(args) };
     f.emit(call);
@@ -206,11 +249,11 @@ test('memory tools use the game-server route and resume only after the full tool
   f.emit({ type: 'response.done', response: { id: 'memory-turn', status: 'completed' } });
   await until(() => f.bridge.sessions.get(f.sessionId).responseDone && f.bridge.sessions.get(f.sessionId).pending.size === 2);
   const pending = await (await f.request(`/sessions/${f.sessionId}/tools`)).json();
-  assert.deepEqual(pending.map(tool => tool.callId), ['remember', 'recall']);
+  assert.deepEqual(pending.map(tool => tool.callId), ['remember', 'trades']);
   const base = `/sessions/${f.sessionId}/tools`;
   await f.request(`${base}/remember/result`, 'POST', { result: { status: 'saved', private: false } });
   assert.equal(f.received.filter(event => event.type === 'response.create').length, 0);
-  await f.request(`${base}/recall/result`, 'POST', { result: { memories: [] } });
+  await f.request(`${base}/trades/result`, 'POST', { result: { offers: [] } });
   await until(() => f.received.some(event => event.type === 'response.create'));
   assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
   assert.equal((await f.request(`${base}/remember/result`, 'POST', { result: { status: 'saved' } })).status, 404);
@@ -517,6 +560,7 @@ test('a committed player reply reserves the response before provider acknowledge
   f.client.send(JSON.stringify({ type: 'interrupt' }));
   f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
   f.client.send(JSON.stringify({ type: 'commit' }));
+  await prepareMemory(f);
   await until(() => f.received.some(event => event.type === 'response.create'));
   session.environmentEvent({ type: 'hit', count: 1, windowMs: 30000, spanMs: 0, sincePreviousMs: -1, tradeCancelled: false });
   await delay(20);
@@ -552,6 +596,7 @@ test('a reply released after cancellation also reserves its response slot', asyn
   f.client.send(JSON.stringify({ type: 'commit' }));
   await until(() => session.queuedResponse);
   f.emit({ type: 'response.done', response: { id: 'greeting-to-cancel', status: 'cancelled' } });
+  await prepareMemory(f);
   await until(() => f.received.filter(event => event.type === 'response.create').length === 2);
   session.environmentEvent({ type: 'hit', count: 1, windowMs: 30000, spanMs: 0, sincePreviousMs: -1, tradeCancelled: false });
   await delay(20);
@@ -611,4 +656,43 @@ test('a player can replace their own session at capacity without admitting extra
   assert.equal(replacement.status, 201);
   assert.equal(f.bridge.sessions.size, 16);
   assert.equal(f.bridge.sessions.has(f.sessionId), false);
+});
+
+test('politeness logs distinguish transcript fallback, model labels and applied server results', async t => {
+  const f = await fixture(t, { context: { name: 'Galen', profession: 'farmer' } });
+  f.emit({ type: 'input_audio_buffer.speech_started' });
+  f.emit({ type: 'input_audio_buffer.speech_stopped' });
+  f.emit({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u1', transcript: 'You have nice eyes.' });
+  await until(() => f.logs.some(e => e.event === 'treatment_classified'));
+  const fallback = f.logs.find(e => e.event === 'treatment_classified');
+  assert.equal(fallback.source, 'keyword_fallback');
+  assert.equal(fallback.transcript, 'You have nice eyes.');
+  assert.equal(fallback.treatment, 'polite');
+  assert.equal(fallback.queued, true);
+  assert.equal(fallback.turnId, 1);
+  assert.equal(fallback.villager, 'Galen');
+  assert.equal(fallback.itemId, 'u1');
+  assert.ok(Number.isFinite(Date.parse(fallback.timestamp)));
+  await f.request(`/sessions/${f.sessionId}/tools/${fallback.callId}/result`, 'POST',
+    { result: { status: 'assessed', relationship: 'friendly', pricePercent: 90 } });
+  const applied = f.logs.find(e => e.event === 'treatment_result');
+  assert.equal(applied.source, 'keyword_fallback');
+  assert.equal(applied.status, 'assessed');
+  assert.equal(applied.pricePercent, 90);
+  f.emit({ type: 'response.created', response: { id: 'politeness-response' } });
+  f.emit({ type: 'response.function_call_arguments.done', call_id: 'model-tone', name: 'report_treatment', arguments: '{"treatment":"neutral"}' });
+  await until(() => f.logs.some(e => e.source === 'voice_model'));
+  const model = f.logs.find(e => e.event === 'treatment_classified' && e.source === 'voice_model');
+  assert.equal(model.treatment, 'neutral');
+  assert.equal(model.turnId, fallback.turnId);
+  assert.equal(model.sessionId, fallback.sessionId);
+  await f.request(`/sessions/${f.sessionId}/tools/model-tone/result`, 'POST',
+    { result: { status: 'unchanged', message: 'Treatment already assessed for this turn' } });
+  assert.equal(f.logs.find(e => e.event === 'treatment_result' && e.source === 'voice_model').status, 'unchanged');
+  f.emit({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u1', transcript: 'You have nice eyes.' });
+  f.emit({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u2', transcript: 'What do you sell?' });
+  await until(() => f.logs.filter(e => e.event === 'treatment_classified').length === 4);
+  assert.ok(f.logs.some(e => e.skipped === 'duplicate_turn' && e.queued === false));
+  assert.ok(f.logs.some(e => e.source === 'keyword_fallback' && e.treatment === 'neutral' && e.queued === false));
+  assert.equal(f.bridge.sessions.get(f.sessionId).pending.size, 0);
 });

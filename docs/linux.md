@@ -177,7 +177,6 @@ arguments to the **Prism instance**, substituting exact mixer names:
 
 ```text
 -Dhiggs.audio.input="EXACT INPUT MIXER NAME"
--Dhiggs.audio.output="EXACT OUTPUT MIXER NAME"
 ```
 
 These are Minecraft client JVM arguments, not backend variables or server
@@ -199,3 +198,5 @@ than only the server log.
 Real CachyOS microphone, playback and in-game behavior still need testing on the
 target machine. Automated tests cover format conversion and session behavior;
 they cannot establish hardware compatibility or live Boson access.
+
+Voice output uses Minecraft’s Sound Device setting and Master/Friendly Creatures volume sliders. The legacy `higgs.audio.output` JVM option no longer controls voice playback.

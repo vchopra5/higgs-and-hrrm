@@ -1,0 +1,482 @@
+{
+  "status": "passed",
+  "checks": {
+    "committedBeforeResponse": true,
+    "transcriptionBeforeResponse": true,
+    "recallBeforeResponse": true,
+    "recallWasInternal": true,
+    "recallNotAdvertised": true,
+    "recollectionItemBeforeResponse": true,
+    "responsePreservedSessionInstructions": true,
+    "groundedAnswer": true,
+    "producedAudio": true,
+    "noErrors": true
+  },
+  "question": "Where did I tell you I hid the star compass?",
+  "autoGreeting": true,
+  "inputTranscript": [
+    "Where did I tell you I hid the star compass?"
+  ],
+  "transcript": "You told me the star compass is inside a blue barrel beneath the violet windmill.",
+  "returnedMemory": {
+    "storyId": "synthetic-ptt-compass",
+    "summary": "Alex said the star compass is inside a blue barrel beneath the violet windmill.",
+    "toldByPlayer": "Alex",
+    "originVillager": "Rowan",
+    "heardFrom": "Rowan",
+    "kind": "player_told_me",
+    "private": true,
+    "interest": 35
+  },
+  "receivedAudioBytes": 539520,
+  "elapsedMs": 9667,
+  "trace": [
+    {
+      "ms": 608,
+      "direction": "to_provider",
+      "type": "session.update",
+      "advertisedTools": [
+        "remember_conversation",
+        "preview_trade",
+        "cancel_trade",
+        "confirm_trade",
+        "get_trades",
+        "report_treatment",
+        "propose_trade"
+      ]
+    },
+    {
+      "ms": 662,
+      "direction": "from_provider",
+      "type": "session.created"
+    },
+    {
+      "ms": 662,
+      "direction": "bridge",
+      "type": "upstream_ready"
+    },
+    {
+      "ms": 662,
+      "direction": "to_provider",
+      "type": "response.create",
+      "usesInstructionOverride": false
+    },
+    {
+      "ms": 666,
+      "direction": "game_result",
+      "type": "_personality_ready"
+    },
+    {
+      "ms": 686,
+      "direction": "from_provider",
+      "type": "response.created",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 686,
+      "direction": "bridge",
+      "type": "response_created"
+    },
+    {
+      "ms": 1122,
+      "direction": "from_provider",
+      "type": "response.output_item.added",
+      "itemId": "9b8e1f07",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 1122,
+      "direction": "from_provider",
+      "type": "conversation.item.added",
+      "itemId": "9b8e1f07"
+    },
+    {
+      "ms": 1122,
+      "direction": "from_provider",
+      "type": "response.content_part.added",
+      "itemId": "9b8e1f07",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 1123,
+      "direction": "bridge",
+      "type": "first_audio"
+    },
+    {
+      "ms": 1604,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.length",
+      "itemId": "9b8e1f07",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 1729,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.length",
+      "itemId": "9b8e1f07",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 1729,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.done",
+      "itemId": "9b8e1f07",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 1729,
+      "direction": "from_provider",
+      "type": "response.output_audio.done",
+      "itemId": "9b8e1f07",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 1729,
+      "direction": "from_provider",
+      "type": "response.content_part.done",
+      "itemId": "9b8e1f07",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 1729,
+      "direction": "from_provider",
+      "type": "response.output_item.done",
+      "itemId": "9b8e1f07",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 1729,
+      "direction": "from_provider",
+      "type": "response.done",
+      "responseId": "53e1_resp_1"
+    },
+    {
+      "ms": 1730,
+      "direction": "bridge",
+      "type": "response_done"
+    },
+    {
+      "ms": 4680,
+      "direction": "client",
+      "type": "commit"
+    },
+    {
+      "ms": 4684,
+      "direction": "to_provider",
+      "type": "input_audio_buffer.commit"
+    },
+    {
+      "ms": 4718,
+      "direction": "from_provider",
+      "type": "input_audio_buffer.committed",
+      "itemId": "bd3e49ab"
+    },
+    {
+      "ms": 4720,
+      "direction": "from_provider",
+      "type": "conversation.item.added",
+      "itemId": "bd3e49ab"
+    },
+    {
+      "ms": 4984,
+      "direction": "from_provider",
+      "type": "conversation.item.input_audio_transcription.completed",
+      "itemId": "bd3e49ab"
+    },
+    {
+      "ms": 4999,
+      "direction": "game_result",
+      "type": "_recall_turn"
+    },
+    {
+      "ms": 5000,
+      "direction": "to_provider",
+      "type": "conversation.item.create",
+      "itemId": "memory-context-4ec277d2-8791-4fad-8532-9dc22383cb89",
+      "containsRetrievedFact": true,
+      "recollectionContext": true
+    },
+    {
+      "ms": 5000,
+      "direction": "to_provider",
+      "type": "response.create",
+      "usesInstructionOverride": false
+    },
+    {
+      "ms": 5028,
+      "direction": "from_provider",
+      "type": "conversation.item.added",
+      "itemId": "memory-context-4ec277d2-8791-4fad-8532-9dc22383cb89"
+    },
+    {
+      "ms": 5028,
+      "direction": "from_provider",
+      "type": "response.created",
+      "responseId": "53e1_resp_4"
+    },
+    {
+      "ms": 5028,
+      "direction": "bridge",
+      "type": "response_created"
+    },
+    {
+      "ms": 5480,
+      "direction": "from_provider",
+      "type": "response.output_item.added",
+      "itemId": "a50e7c60",
+      "responseId": "53e1_resp_4"
+    },
+    {
+      "ms": 5480,
+      "direction": "from_provider",
+      "type": "conversation.item.added",
+      "itemId": "a50e7c60"
+    },
+    {
+      "ms": 5480,
+      "direction": "from_provider",
+      "type": "response.content_part.added",
+      "itemId": "a50e7c60",
+      "responseId": "53e1_resp_4"
+    },
+    {
+      "ms": 5481,
+      "direction": "bridge",
+      "type": "first_audio"
+    },
+    {
+      "ms": 6296,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.length",
+      "itemId": "a50e7c60",
+      "responseId": "53e1_resp_4"
+    },
+    {
+      "ms": 6296,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.done",
+      "itemId": "a50e7c60",
+      "responseId": "53e1_resp_4"
+    },
+    {
+      "ms": 6296,
+      "direction": "from_provider",
+      "type": "response.output_audio.done",
+      "itemId": "a50e7c60",
+      "responseId": "53e1_resp_4"
+    },
+    {
+      "ms": 6296,
+      "direction": "from_provider",
+      "type": "response.content_part.done",
+      "itemId": "a50e7c60",
+      "responseId": "53e1_resp_4"
+    },
+    {
+      "ms": 6297,
+      "direction": "from_provider",
+      "type": "response.output_item.done",
+      "itemId": "a50e7c60",
+      "responseId": "53e1_resp_4"
+    },
+    {
+      "ms": 6297,
+      "direction": "from_provider",
+      "type": "response.done",
+      "responseId": "53e1_resp_4"
+    },
+    {
+      "ms": 6297,
+      "direction": "bridge",
+      "type": "response_done"
+    },
+    {
+      "ms": 8712,
+      "direction": "client",
+      "type": "commit"
+    },
+    {
+      "ms": 8713,
+      "direction": "to_provider",
+      "type": "input_audio_buffer.commit"
+    },
+    {
+      "ms": 8737,
+      "direction": "from_provider",
+      "type": "input_audio_buffer.committed",
+      "itemId": "5c335632"
+    },
+    {
+      "ms": 8738,
+      "direction": "from_provider",
+      "type": "conversation.item.added",
+      "itemId": "5c335632"
+    },
+    {
+      "ms": 8969,
+      "direction": "from_provider",
+      "type": "conversation.item.input_audio_transcription.completed",
+      "itemId": "5c335632"
+    },
+    {
+      "ms": 8999,
+      "direction": "game_result",
+      "type": "_recall_turn"
+    },
+    {
+      "ms": 9001,
+      "direction": "to_provider",
+      "type": "conversation.item.delete",
+      "itemId": "memory-context-4ec277d2-8791-4fad-8532-9dc22383cb89"
+    },
+    {
+      "ms": 9001,
+      "direction": "to_provider",
+      "type": "conversation.item.create",
+      "itemId": "memory-context-0b298fd9-c743-418a-811e-1afd0b209c82",
+      "containsRetrievedFact": false,
+      "recollectionContext": true
+    },
+    {
+      "ms": 9001,
+      "direction": "to_provider",
+      "type": "response.create",
+      "usesInstructionOverride": false
+    },
+    {
+      "ms": 9026,
+      "direction": "from_provider",
+      "type": "conversation.item.deleted",
+      "itemId": "memory-context-4ec277d2-8791-4fad-8532-9dc22383cb89"
+    },
+    {
+      "ms": 9030,
+      "direction": "from_provider",
+      "type": "conversation.item.added",
+      "itemId": "memory-context-0b298fd9-c743-418a-811e-1afd0b209c82"
+    },
+    {
+      "ms": 9030,
+      "direction": "from_provider",
+      "type": "response.created",
+      "responseId": "53e1_resp_6"
+    },
+    {
+      "ms": 9030,
+      "direction": "bridge",
+      "type": "response_created"
+    },
+    {
+      "ms": 9423,
+      "direction": "from_provider",
+      "type": "response.output_item.added",
+      "itemId": "ed3602a2",
+      "responseId": "53e1_resp_6"
+    },
+    {
+      "ms": 9423,
+      "direction": "from_provider",
+      "type": "conversation.item.added",
+      "itemId": "ed3602a2"
+    },
+    {
+      "ms": 9423,
+      "direction": "from_provider",
+      "type": "response.content_part.added",
+      "itemId": "ed3602a2",
+      "responseId": "53e1_resp_6"
+    },
+    {
+      "ms": 9423,
+      "direction": "bridge",
+      "type": "first_audio"
+    },
+    {
+      "ms": 9653,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.length",
+      "itemId": "ed3602a2",
+      "responseId": "53e1_resp_6"
+    },
+    {
+      "ms": 9653,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.done",
+      "itemId": "ed3602a2",
+      "responseId": "53e1_resp_6"
+    },
+    {
+      "ms": 9654,
+      "direction": "from_provider",
+      "type": "response.output_audio.done",
+      "itemId": "ed3602a2",
+      "responseId": "53e1_resp_6"
+    },
+    {
+      "ms": 9654,
+      "direction": "from_provider",
+      "type": "response.content_part.done",
+      "itemId": "ed3602a2",
+      "responseId": "53e1_resp_6"
+    },
+    {
+      "ms": 9654,
+      "direction": "from_provider",
+      "type": "response.output_item.done",
+      "itemId": "ed3602a2",
+      "responseId": "53e1_resp_6"
+    },
+    {
+      "ms": 9654,
+      "direction": "from_provider",
+      "type": "response.done",
+      "responseId": "53e1_resp_6"
+    },
+    {
+      "ms": 9654,
+      "direction": "bridge",
+      "type": "response_done"
+    }
+  ],
+  "toolReads": [
+    {
+      "ms": 666,
+      "name": "_personality_ready",
+      "internal": true,
+      "turnId": 0
+    },
+    {
+      "ms": 4999,
+      "name": "_recall_turn",
+      "query": "Where did I tell you I hid the star compass?",
+      "internal": true,
+      "turnId": 1
+    },
+    {
+      "ms": 8999,
+      "name": "_recall_turn",
+      "query": "What color was that barrel?",
+      "internal": true,
+      "turnId": 2
+    }
+  ],
+  "errors": [],
+  "followup": {
+    "question": "What color was that barrel?",
+    "transcript": "It was blue.",
+    "returnedMemories": [],
+    "checks": {
+      "originalContextDeleted": true,
+      "deletionAcknowledged": true,
+      "newEvidenceBeforeResponse": true,
+      "newEvidenceWasEmpty": true,
+      "recallWasInternal": true,
+      "priorDialogueRetained": true,
+      "producedAudio": true,
+      "noErrors": true
+    },
+    "inputTranscript": [
+      "What color was that barrel?"
+    ]
+  }
+}

@@ -4,6 +4,13 @@ import { interruptTools } from './tools.js';
 export function interruptAudio(session, cancelProvider) {
   session.recording = true;
   session.cancelled = true;
+  session.memoryContext.cancel();
+  session.queuedResponse = false;
+  if (session.queuedAudioCommit !== null) {
+    session.queuedAudioCommit = null;
+    session.inputBytes = 0;
+    session.sendProvider({ type: 'input_audio_buffer.clear' });
+  }
   interruptTools(session);
   if (cancelProvider && !session.responseDone && !session.awaitingCancellation) {
     session.awaitingCancellation = true;
@@ -16,6 +23,11 @@ export function setMuted(session, muted) {
   if (typeof muted !== 'boolean') throw new Error('muted must be boolean');
   session.muted = muted;
   session.recording = false;
+  if (muted) {
+    session.memoryContext.cancel();
+    session.queuedResponse = false;
+    session.queuedAudioCommit = null;
+  }
   session.inputBytes = 0;
   if (session.ready) session.sendProvider({ type: 'input_audio_buffer.clear' });
   session.sendClient({ type: 'speech', active: false });
@@ -46,12 +58,10 @@ function commitTurn(session) {
   session.speechStoppedAt = session.now();
   if (session.inputBytes >= LIMITS.minimumTurnBytes) {
     session.turnId++;
-    session.sendProvider({ type: 'input_audio_buffer.commit' });
-    if (session.awaitingCancellation) session.queuedResponse = true;
-    else {
-      session.responseDone = false; // Reserve before response.created can arrive.
-      session.sendProvider({ type: 'response.create' });
-    }
+    session.queuedResponse = true;
+    // Higgs rejects commits while a cancelled voice task is still winding down.
+    if (session.awaitingCancellation) session.queuedAudioCommit = session.turnId;
+    else session.commitAudioTurn(session.turnId);
   } else {
     session.sendProvider({ type: 'input_audio_buffer.clear' });
   }

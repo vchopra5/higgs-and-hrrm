@@ -47,13 +47,13 @@ Client messages are `{type:"audio",audio:"BASE64"}`, `{type:"commit"}`, `{type:"
 
 The Minecraft client uses push-to-talk and connects with `&mode=ptt`: send `interrupt` on press and `commit` on release. If an interrupted response is still cancelling, the next response request waits for its completion acknowledgement; stale tool calls are discarded. In default hands-free mode, `commit` is ignored to avoid duplicate responses.
 
-Sessions last at most ten minutes. Hands-free streaming has no cumulative audio-byte cap: silence and repeated turns do not exhaust an input counter. Legacy push-to-talk turns are capped at sixty seconds; PTT turns under 100 ms are discarded. The ten-minute session limit is reported explicitly. Sessions never restart automatically. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. The bridge stores no audio recordings or transcripts; the game server separately persists short conversation summaries for villager memory.
+Sessions last at most ten minutes. Hands-free streaming has no cumulative audio-byte cap: silence and repeated turns do not exhaust an input counter. Legacy push-to-talk turns are capped at sixty seconds; PTT turns under 100 ms are discarded. The ten-minute session limit is reported explicitly. Sessions never restart automatically. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. The bridge stores no audio recordings. Politeness diagnostics persist player transcripts locally in `backend/logs/treatment.jsonl`; the game server separately persists short conversation summaries for villager memory.
 
 ## Higgs mapping
 
 The implementation follows Boson's [official session configuration](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/src/realtime/sessionConfig.ts), [event definitions](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/src/realtime/events.ts), and [tool calling guide](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/docs/part-4.md):
 
-- `session.update` configures `higgs-realtime`, audio formats, voice and tools.
+- `session.update` configures `higgs-realtime-1.5-preview`, audio formats, voice and tools. The Minecraft client retains push-to-talk; selecting the preview does not enable full-duplex capture.
 - Hands-free mode sets `audio.input.turn_detection` to `{type:"server_vad",silence_duration_ms:900}`. It sends only `input_audio_buffer.append`; Higgs owns commits, automatic replies and interruption of active generation. See Boson’s [turn-detection guide](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/docs/part-2.md).
 - Optional manual push-to-talk sets `audio.input.turn_detection` to `null` and sends `input_audio_buffer.commit`, then `response.create`.
 - `response.output_audio.delta` is relayed to the Minecraft client.
@@ -71,9 +71,13 @@ required. Refusals, questions, and conditional replies such as “yes if it is
 cheaper” do not accept the current quote. The server enforces turn separation
 and transaction validation.
 
-`remember_conversation` accepts `{summary, private, interest, reason, audiences}`. The voice model judges what normal speech is worth saving, using a 0–100 newsworthiness assessment and relevant professions. The server persists the statement and gates public gossip at 55; routine memories can still be recalled. `recall_memories` accepts `{query, scope}` where scope is `player` or `village`. The server supplies UUIDs, sources, storage, and gossip eligibility. Private entries cannot spread; village scope can include public stories about other players. The bridge validates bounded strings and booleans and preserves the existing batch, duplicate-call, and interruption handling. A memory write returns `saved` only after disk persistence completes. See the [memory and rumours guide](../docs/memory-rumours.md).
+`remember_conversation` accepts `{summary, private, interest, reason, audiences}`. The voice model judges what normal speech is worth saving, using a 0–100 newsworthiness assessment and relevant professions. The server persists the statement and gates public gossip at 55; routine memories can still be recalled. A memory write returns `saved` only after disk persistence completes.
 
-Live API behavior and Minecraft microphone/playback still require testing with a real Boson key and game client. Interruption cancels generation and clears playback; precise conversation truncation to the last heard sample is not implemented in this MVP.
+Recall is prepared outside the speaking model. In PTT mode, `lib/memory-context.js` matches the completed transcript to its committed audio item and queues an internal `_recall_turn` with `{query}` (up to 4000 characters). The server uses scoped BM25 retrieval, allowing the current player's private entries and other players' public entries held by this villager. Before speech, the bridge inserts attributed evidence as labeled context data. It preserves the current persona, conversation and trade history; no phrase filtering is applied. `recall_memories` remains a server compatibility endpoint but is not advertised or accepted as a speaker tool.
+
+Transcription and retrieval have 3.5-second and 2.5-second deadlines. After a successful commit acknowledgement, failures fall back to session-start context; late results cannot affect later turns. Missing or rejected commit acknowledgements end the session safely. Audio commits wait for cancellation completion. VAD still uses session-start knowledge because Higgs automatically generates replies in that mode. Initial context is bounded to 32 records and 48 KiB of serialized memory data. See the [comparison, benchmarks, and remaining limits](../docs/memory-evaluation.md).
+
+Synthetic live Boson audio/STT and memory dialogue probes pass; Minecraft microphone/playback still require in-game validation. Interruption cancels generation and clears playback; precise conversation truncation to the last heard sample is not implemented in this MVP.
 
 Closure logs include a session ID, stable reason and WebSocket code, never tickets, credentials, audio, transcripts or provider-supplied close text. Nonfatal provider errors log only a sanitized code. For hands-free use, headphones prevent speaker audio being recaptured as user speech; this native audio path does not yet implement echo cancellation.
 
@@ -131,3 +135,21 @@ qualify as rudeness. Relationship data stores scores and timestamps, not transcr
 Game sessions can supply `context.personality` with exactly `catalogueVersion`, `archetypeId`, `styleId` and integer `familiarity` (0–20). The bridge resolves these against the shared versioned catalogue; names, jobs and memories remain quoted context data. Approved mappings select `chloe`, `oliver` or `marcus` by default, with backend-only `HIGGS_VOICE_WARM`, `HIGGS_VOICE_THOUGHTFUL` and `HIGGS_VOICE_STEADY` overrides.
 
 Character readiness requires acknowledgement of the exact instructions and selected voice. A structured voice-parameter rejection permits one default-voice retry, retaining character instructions. Diagnostics expose `voice` and `voiceFallback`; unrelated provider errors keep their existing handling. An internal `_personality_ready` queue entry informs the bound game session of a confirmed visit. It never appears in provider tools, does not generate a function output and survives audio interruption. An internal `_conversation_opened` event is queued only when the configured voice requests a greeting with a rumour candidate, so failed setup cannot consume the game's opening-topic cooldown. These internal events do not hold up model tool batches. See [setup, persistence and validation limits](../docs/villager-personalities.md).
+
+### Politeness diagnostics
+
+`backend/logs/treatment.jsonl` records completed player utterances and their
+`polite`, `neutral`, or `rude` keyword classification, including neutral and skipped
+assessments. Separate `voice_model` entries record actual `report_treatment` calls.
+`treatment_result` entries show the server outcome: `assessed`, `unchanged`, or an
+error, plus returned relationship and price rate. Match records by `sessionId`,
+`turnId`, and `callId`; transcripts also carry the provider `itemId`. The turn ID
+is the bridge turn assigned when the event arrives. A missing model entry means
+no accepted model classification call was observed, not that the model chose neutral.
+
+The append-only JSONL file is local and Git-ignored. It includes player speech;
+no audio, credentials, or conversation memory contents are added. Follow it with
+`tail -f backend/logs/treatment.jsonl`. These diagnostics do not change classification
+or the server's once-per-turn reputation rule. Historical chats remain in the
+Minecraft client log; earlier model classifications cannot be reconstructed when
+they were never logged.

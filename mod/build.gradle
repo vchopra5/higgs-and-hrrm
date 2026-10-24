@@ -80,6 +80,21 @@ tasks.register('testMemory', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testMemory' }
 
+tasks.register('compileMemoryBenchmark', JavaCompile) {
+    source = files('src/main/java/dev/higgs/VillagerMemoryStore.java',
+        'src/main/java/dev/higgs/MemoryContextBudget.java',
+        'src/test/dev/higgs/VillagerMemoryBenchmark.java')
+    classpath = sourceSets.main.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('memory-benchmark')
+}
+tasks.register('benchmarkMemory', JavaExec) {
+    dependsOn 'compileMemoryBenchmark'
+    classpath = files(layout.buildDirectory.dir('memory-benchmark')) + sourceSets.main.compileClasspath
+    mainClass = 'dev.higgs.VillagerMemoryBenchmark'
+    args layout.buildDirectory.file('reports/memory-benchmark.json').get().asFile.absolutePath
+}
+tasks.named('check') { dependsOn 'benchmarkMemory' }
+
 tasks.register('compileVoiceConfirmationTest', JavaCompile) {
     source = files('src/main/java/dev/higgs/VoiceConfirmation.java',
         'src/main/java/dev/higgs/QuoteConfirmation.java',
@@ -198,3 +213,15 @@ tasks.register('pcmAudioConverterTest', JavaExec) {
     mainClass = 'dev.higgs.PcmAudioConverterTest'
 }
 tasks.named('check') { dependsOn 'audioDeviceTest', 'pcmAudioConverterTest' }
+
+tasks.register('compileVoicePcmTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/VoicePcmBuffer.java', 'src/client/test/dev/higgs/VoicePcmBufferTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('voice-pcm-test')
+}
+tasks.register('testVoicePcm', JavaExec) {
+    dependsOn 'compileVoicePcmTest'
+    classpath = files(layout.buildDirectory.dir('voice-pcm-test'))
+    mainClass = 'dev.higgs.VoicePcmBufferTest'
+}
+tasks.named('check') { dependsOn 'testVoicePcm' }

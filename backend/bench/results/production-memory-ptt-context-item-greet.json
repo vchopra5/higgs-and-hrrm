@@ -1,0 +1,300 @@
+{
+  "status": "passed",
+  "checks": {
+    "committedBeforeResponse": true,
+    "transcriptionBeforeResponse": true,
+    "recallBeforeResponse": true,
+    "recallWasInternal": true,
+    "recallNotAdvertised": true,
+    "recollectionItemBeforeResponse": true,
+    "responsePreservedSessionInstructions": true,
+    "groundedAnswer": true,
+    "producedAudio": true,
+    "noErrors": true
+  },
+  "question": "Where did I tell you I hid the star compass?",
+  "autoGreeting": true,
+  "inputTranscript": [
+    "Where did I tell you I hid the star compass?"
+  ],
+  "transcript": "You told me the star compass is inside a blue barrel beneath the violet windmill.",
+  "returnedMemory": {
+    "storyId": "synthetic-ptt-compass",
+    "summary": "Alex said the star compass is inside a blue barrel beneath the violet windmill.",
+    "toldByPlayer": "Alex",
+    "originVillager": "Rowan",
+    "heardFrom": "Rowan",
+    "kind": "player_told_me",
+    "private": true,
+    "interest": 35
+  },
+  "receivedAudioBytes": 439680,
+  "elapsedMs": 6337,
+  "trace": [
+    {
+      "ms": 678,
+      "direction": "to_provider",
+      "type": "session.update",
+      "advertisedTools": [
+        "remember_conversation",
+        "preview_trade",
+        "cancel_trade",
+        "confirm_trade",
+        "get_trades",
+        "report_treatment",
+        "propose_trade"
+      ]
+    },
+    {
+      "ms": 732,
+      "direction": "from_provider",
+      "type": "session.created"
+    },
+    {
+      "ms": 733,
+      "direction": "bridge",
+      "type": "upstream_ready"
+    },
+    {
+      "ms": 733,
+      "direction": "to_provider",
+      "type": "response.create",
+      "usesInstructionOverride": false
+    },
+    {
+      "ms": 745,
+      "direction": "game_result",
+      "type": "_personality_ready"
+    },
+    {
+      "ms": 757,
+      "direction": "from_provider",
+      "type": "response.created",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 757,
+      "direction": "bridge",
+      "type": "response_created"
+    },
+    {
+      "ms": 1198,
+      "direction": "from_provider",
+      "type": "response.output_item.added",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 1198,
+      "direction": "from_provider",
+      "type": "conversation.item.added"
+    },
+    {
+      "ms": 1198,
+      "direction": "from_provider",
+      "type": "response.content_part.added",
+      "itemId": "ba143843",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 1199,
+      "direction": "bridge",
+      "type": "first_audio"
+    },
+    {
+      "ms": 1455,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.length",
+      "itemId": "ba143843",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 1691,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.length",
+      "itemId": "ba143843",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 1691,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.done",
+      "itemId": "ba143843",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 1694,
+      "direction": "from_provider",
+      "type": "response.output_audio.done",
+      "itemId": "ba143843",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 1694,
+      "direction": "from_provider",
+      "type": "response.content_part.done",
+      "itemId": "ba143843",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 1694,
+      "direction": "from_provider",
+      "type": "response.output_item.done",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 1694,
+      "direction": "from_provider",
+      "type": "response.done",
+      "responseId": "32ea_resp_1"
+    },
+    {
+      "ms": 1694,
+      "direction": "bridge",
+      "type": "response_done"
+    },
+    {
+      "ms": 4637,
+      "direction": "client",
+      "type": "commit"
+    },
+    {
+      "ms": 4638,
+      "direction": "to_provider",
+      "type": "input_audio_buffer.commit"
+    },
+    {
+      "ms": 4663,
+      "direction": "from_provider",
+      "type": "input_audio_buffer.committed",
+      "itemId": "8aaf60e4"
+    },
+    {
+      "ms": 4664,
+      "direction": "from_provider",
+      "type": "conversation.item.added"
+    },
+    {
+      "ms": 4978,
+      "direction": "from_provider",
+      "type": "conversation.item.input_audio_transcription.completed",
+      "itemId": "8aaf60e4"
+    },
+    {
+      "ms": 4995,
+      "direction": "game_result",
+      "type": "_recall_turn"
+    },
+    {
+      "ms": 4997,
+      "direction": "to_provider",
+      "type": "conversation.item.create",
+      "containsRetrievedFact": true
+    },
+    {
+      "ms": 4997,
+      "direction": "to_provider",
+      "type": "response.create",
+      "usesInstructionOverride": false
+    },
+    {
+      "ms": 5020,
+      "direction": "from_provider",
+      "type": "conversation.item.added"
+    },
+    {
+      "ms": 5025,
+      "direction": "from_provider",
+      "type": "response.created",
+      "responseId": "32ea_resp_4"
+    },
+    {
+      "ms": 5025,
+      "direction": "bridge",
+      "type": "response_created"
+    },
+    {
+      "ms": 5479,
+      "direction": "from_provider",
+      "type": "response.output_item.added",
+      "responseId": "32ea_resp_4"
+    },
+    {
+      "ms": 5479,
+      "direction": "from_provider",
+      "type": "conversation.item.added"
+    },
+    {
+      "ms": 5479,
+      "direction": "from_provider",
+      "type": "response.content_part.added",
+      "itemId": "4b61b25d",
+      "responseId": "32ea_resp_4"
+    },
+    {
+      "ms": 5480,
+      "direction": "bridge",
+      "type": "first_audio"
+    },
+    {
+      "ms": 6319,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.length",
+      "itemId": "4b61b25d",
+      "responseId": "32ea_resp_4"
+    },
+    {
+      "ms": 6319,
+      "direction": "from_provider",
+      "type": "response.output_audio_transcript.done",
+      "itemId": "4b61b25d",
+      "responseId": "32ea_resp_4"
+    },
+    {
+      "ms": 6319,
+      "direction": "from_provider",
+      "type": "response.output_audio.done",
+      "itemId": "4b61b25d",
+      "responseId": "32ea_resp_4"
+    },
+    {
+      "ms": 6319,
+      "direction": "from_provider",
+      "type": "response.content_part.done",
+      "itemId": "4b61b25d",
+      "responseId": "32ea_resp_4"
+    },
+    {
+      "ms": 6319,
+      "direction": "from_provider",
+      "type": "response.output_item.done",
+      "responseId": "32ea_resp_4"
+    },
+    {
+      "ms": 6319,
+      "direction": "from_provider",
+      "type": "response.done",
+      "responseId": "32ea_resp_4"
+    },
+    {
+      "ms": 6319,
+      "direction": "bridge",
+      "type": "response_done"
+    }
+  ],
+  "toolReads": [
+    {
+      "ms": 745,
+      "name": "_personality_ready",
+      "internal": true,
+      "turnId": 0
+    },
+    {
+      "ms": 4995,
+      "name": "_recall_turn",
+      "query": "Where did I tell you I hid the star compass?",
+      "internal": true,
+      "turnId": 1
+    }
+  ],
+  "errors": []
+}

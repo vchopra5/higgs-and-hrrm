@@ -20,4 +20,5 @@ server-cardboard/*
 .gradle/
 **/build/
 **/node_modules/
+backend/logs/
 mod/run/

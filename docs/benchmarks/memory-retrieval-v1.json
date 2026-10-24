@@ -1,0 +1,959 @@
+{
+  "suite": "higgs-memory-retrieval-v1",
+  "methodology": "Hand-authored synthetic queries over a fixed persisted world corpus. Baseline reproduces the previous token-overlap scorer and priority tie-break. Revised calls production recall. Both receive identical eligible durable memories, query scope and eight-result budget. All cases, including known limitations, enter aggregate metrics. No model calls, fixture-derived scoring parameters or answer-string rules.",
+  "limitations": "Retrieval evidence metrics only, not generated-answer or speech quality. English lexical search cannot resolve unseen synonyms, infer event ordering, or decide that a newer conflicting claim supersedes an older one. Small synthetic suite has development bias and is not an official LongMemEval or LoCoMo score.",
+  "baseline": {
+    "questions": 44,
+    "answerable": 35,
+    "unanswerable": 9,
+    "top1": 0.6571428571428571,
+    "meanReciprocalRank": 0.7166666666666667,
+    "recallAt3": 0.7714285714285715,
+    "recallAt8": 0.8285714285714286,
+    "precisionAt3": 0.5904761904761905,
+    "abstentionAccuracy": 0.5555555555555556
+  },
+  "revised": {
+    "questions": 44,
+    "answerable": 35,
+    "unanswerable": 9,
+    "top1": 0.8857142857142857,
+    "meanReciprocalRank": 0.9095238095238095,
+    "recallAt3": 0.9428571428571428,
+    "recallAt8": 0.9428571428571428,
+    "precisionAt3": 0.8142857142857143,
+    "abstentionAccuracy": 1.0
+  },
+  "categories": {
+    "exact": {
+      "revised": {
+        "questions": 8,
+        "answerable": 8,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 0.9375,
+        "abstentionAccuracy": 0.0
+      },
+      "baseline": {
+        "questions": 8,
+        "answerable": 8,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 0.9375,
+        "abstentionAccuracy": 0.0
+      }
+    },
+    "conversational_distractors": {
+      "revised": {
+        "questions": 6,
+        "answerable": 6,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 1.0,
+        "abstentionAccuracy": 0.0
+      },
+      "baseline": {
+        "questions": 6,
+        "answerable": 6,
+        "unanswerable": 0,
+        "top1": 0.5,
+        "meanReciprocalRank": 0.6805555555555557,
+        "recallAt3": 0.8333333333333334,
+        "recallAt8": 1.0,
+        "precisionAt3": 0.4166666666666667,
+        "abstentionAccuracy": 0.0
+      }
+    },
+    "ranking": {
+      "revised": {
+        "questions": 4,
+        "answerable": 4,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 0.6666666666666666,
+        "abstentionAccuracy": 0.0
+      },
+      "baseline": {
+        "questions": 4,
+        "answerable": 4,
+        "unanswerable": 0,
+        "top1": 0.75,
+        "meanReciprocalRank": 0.7916666666666667,
+        "recallAt3": 0.75,
+        "recallAt8": 1.0,
+        "precisionAt3": 0.5833333333333333,
+        "abstentionAccuracy": 0.0
+      }
+    },
+    "normalization": {
+      "revised": {
+        "questions": 4,
+        "answerable": 4,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 1.0,
+        "abstentionAccuracy": 0.0
+      },
+      "baseline": {
+        "questions": 4,
+        "answerable": 4,
+        "unanswerable": 0,
+        "top1": 0.5,
+        "meanReciprocalRank": 0.5,
+        "recallAt3": 0.5,
+        "recallAt8": 0.5,
+        "precisionAt3": 0.5,
+        "abstentionAccuracy": 0.0
+      }
+    },
+    "abstention": {
+      "revised": {
+        "questions": 6,
+        "answerable": 0,
+        "unanswerable": 6,
+        "top1": 0.0,
+        "meanReciprocalRank": 0.0,
+        "recallAt3": 0.0,
+        "recallAt8": 0.0,
+        "precisionAt3": 0.0,
+        "abstentionAccuracy": 1.0
+      },
+      "baseline": {
+        "questions": 6,
+        "answerable": 0,
+        "unanswerable": 6,
+        "top1": 0.0,
+        "meanReciprocalRank": 0.0,
+        "recallAt3": 0.0,
+        "recallAt8": 0.0,
+        "precisionAt3": 0.0,
+        "abstentionAccuracy": 0.3333333333333333
+      }
+    },
+    "updates": {
+      "revised": {
+        "questions": 2,
+        "answerable": 2,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 0.5,
+        "abstentionAccuracy": 0.0
+      },
+      "baseline": {
+        "questions": 2,
+        "answerable": 2,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 0.5,
+        "abstentionAccuracy": 0.0
+      }
+    },
+    "multiple_facts": {
+      "revised": {
+        "questions": 2,
+        "answerable": 2,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 0.8333333333333333,
+        "abstentionAccuracy": 0.0
+      },
+      "baseline": {
+        "questions": 2,
+        "answerable": 2,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 0.8333333333333333,
+        "abstentionAccuracy": 0.0
+      }
+    },
+    "attribution": {
+      "revised": {
+        "questions": 4,
+        "answerable": 4,
+        "unanswerable": 0,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 1.0,
+        "abstentionAccuracy": 0.0
+      },
+      "baseline": {
+        "questions": 4,
+        "answerable": 4,
+        "unanswerable": 0,
+        "top1": 0.5,
+        "meanReciprocalRank": 0.5,
+        "recallAt3": 0.5,
+        "recallAt8": 0.5,
+        "precisionAt3": 0.5,
+        "abstentionAccuracy": 0.0
+      }
+    },
+    "scope": {
+      "revised": {
+        "questions": 4,
+        "answerable": 1,
+        "unanswerable": 3,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 1.0,
+        "abstentionAccuracy": 1.0
+      },
+      "baseline": {
+        "questions": 4,
+        "answerable": 1,
+        "unanswerable": 3,
+        "top1": 1.0,
+        "meanReciprocalRank": 1.0,
+        "recallAt3": 1.0,
+        "recallAt8": 1.0,
+        "precisionAt3": 1.0,
+        "abstentionAccuracy": 1.0
+      }
+    },
+    "known_limitations": {
+      "revised": {
+        "questions": 4,
+        "answerable": 4,
+        "unanswerable": 0,
+        "top1": 0.0,
+        "meanReciprocalRank": 0.20833333333333331,
+        "recallAt3": 0.5,
+        "recallAt8": 0.5,
+        "precisionAt3": 0.16666666666666666,
+        "abstentionAccuracy": 0.0
+      },
+      "baseline": {
+        "questions": 4,
+        "answerable": 4,
+        "unanswerable": 0,
+        "top1": 0.0,
+        "meanReciprocalRank": 0.20833333333333331,
+        "recallAt3": 0.5,
+        "recallAt8": 0.5,
+        "precisionAt3": 0.16666666666666666,
+        "abstentionAccuracy": 0.0
+      }
+    }
+  },
+  "invariants": {
+    "allRankingsSurviveRestart": true,
+    "rumourProvenanceSurvivesRestart": true,
+    "uncommittedMemoryExcluded": true,
+    "privateCorpusCannotChangeRanking": true,
+    "privateMemoryCannotSpread": true,
+    "otherPlayerExcluded": true,
+    "unknownVillagerExcluded": true,
+    "expiryEnforced": true,
+    "worldIsolation": true,
+    "workingContextBoundedAndUnique": true,
+    "workingContextRetainsRecentRoutineAndSalientFacts": true,
+    "workingContextExcludesOtherPrivateAndUncommitted": true,
+    "workingContextUnknownVillagerEmpty": true,
+    "contextFitsEscapedUtf8Budget": true,
+    "contextBudgetPreservesOrderingAndWholeFacts": true,
+    "ordinaryContextRetainsAll32Memories": true
+  },
+  "cases": [
+    {
+      "id": "exact_emeralds",
+      "category": "exact",
+      "query": "emeralds",
+      "expected": [
+        "emeralds"
+      ],
+      "baseline": [
+        "emeralds"
+      ],
+      "revised": [
+        "emeralds"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "exact_basalt",
+      "category": "exact",
+      "query": "basalt",
+      "expected": [
+        "basalt"
+      ],
+      "baseline": [
+        "basalt"
+      ],
+      "revised": [
+        "basalt"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "exact_lapis",
+      "category": "exact",
+      "query": "lapis",
+      "expected": [
+        "lapis"
+      ],
+      "baseline": [
+        "lapis"
+      ],
+      "revised": [
+        "lapis"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "exact_fox",
+      "category": "exact",
+      "query": "fox",
+      "expected": [
+        "fox"
+      ],
+      "baseline": [
+        "fox"
+      ],
+      "revised": [
+        "fox"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "exact_promise",
+      "category": "exact",
+      "query": "borrowed lantern",
+      "expected": [
+        "promise"
+      ],
+      "baseline": [
+        "promise"
+      ],
+      "revised": [
+        "promise"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "exact_mount",
+      "category": "exact",
+      "query": "Juniper",
+      "expected": [
+        "mount"
+      ],
+      "baseline": [
+        "mount"
+      ],
+      "revised": [
+        "mount"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "exact_farm",
+      "category": "exact",
+      "query": "mushrooms",
+      "expected": [
+        "farm"
+      ],
+      "baseline": [
+        "farm"
+      ],
+      "revised": [
+        "farm"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "exact_cocoa",
+      "category": "exact",
+      "query": "western river",
+      "expected": [
+        "cocoa"
+      ],
+      "baseline": [
+        "cocoa",
+        "new_camp"
+      ],
+      "revised": [
+        "cocoa",
+        "new_camp"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "question_lapis",
+      "category": "conversational_distractors",
+      "query": "Where is my lapis?",
+      "expected": [
+        "lapis"
+      ],
+      "baseline": [
+        "watch",
+        "lapis",
+        "quarry_gate",
+        "quarry_path",
+        "weather",
+        "own_private",
+        "mount",
+        "new_camp"
+      ],
+      "revised": [
+        "lapis"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "question_emeralds",
+      "category": "conversational_distractors",
+      "query": "Where were the emeralds?",
+      "expected": [
+        "emeralds"
+      ],
+      "baseline": [
+        "long_recipe",
+        "watch",
+        "meeting",
+        "emeralds"
+      ],
+      "revised": [
+        "emeralds"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "question_fox",
+      "category": "conversational_distractors",
+      "query": "Do you remember where the fox sleeps?",
+      "expected": [
+        "fox"
+      ],
+      "baseline": [
+        "fox",
+        "watch"
+      ],
+      "revised": [
+        "fox"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "question_cocoa",
+      "category": "conversational_distractors",
+      "query": "What do we have about cocoa?",
+      "expected": [
+        "cocoa"
+      ],
+      "baseline": [
+        "instruments",
+        "meeting",
+        "cocoa"
+      ],
+      "revised": [
+        "cocoa"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "question_mount",
+      "category": "conversational_distractors",
+      "query": "Who is Juniper?",
+      "expected": [
+        "mount"
+      ],
+      "baseline": [
+        "mount",
+        "quarry_gate",
+        "quarry_path",
+        "watch",
+        "weather",
+        "own_private",
+        "new_camp",
+        "old_camp"
+      ],
+      "revised": [
+        "mount"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "question_promise",
+      "category": "conversational_distractors",
+      "query": "What was it that I promised?",
+      "expected": [
+        "promise"
+      ],
+      "baseline": [
+        "promise"
+      ],
+      "revised": [
+        "promise"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "rare_basalt",
+      "category": "ranking",
+      "query": "basalt near the village quarry",
+      "expected": [
+        "basalt"
+      ],
+      "baseline": [
+        "quarry_shift",
+        "quarry_gate",
+        "quarry_rain",
+        "quarry_path",
+        "quarry_cart",
+        "basalt",
+        "instruments",
+        "watch"
+      ],
+      "revised": [
+        "basalt",
+        "quarry_gate",
+        "quarry_path",
+        "quarry_shift",
+        "quarry_rain",
+        "quarry_cart",
+        "cocoa",
+        "instruments"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "short_recipe",
+      "category": "ranking",
+      "query": "sugar eggs",
+      "expected": [
+        "recipe",
+        "long_recipe"
+      ],
+      "baseline": [
+        "long_recipe",
+        "recipe"
+      ],
+      "revised": [
+        "recipe",
+        "long_recipe"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "bridge_repair",
+      "category": "ranking",
+      "query": "bridge spruce",
+      "expected": [
+        "repair"
+      ],
+      "baseline": [
+        "repair",
+        "quarry_gate",
+        "storm"
+      ],
+      "revised": [
+        "repair",
+        "quarry_gate",
+        "storm"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "old_well",
+      "category": "ranking",
+      "query": "old well",
+      "expected": [
+        "emeralds"
+      ],
+      "baseline": [
+        "emeralds"
+      ],
+      "revised": [
+        "emeralds"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "unicode_width",
+      "category": "normalization",
+      "query": "ＥＭＥＲＡＬＤＳ",
+      "expected": [
+        "emeralds"
+      ],
+      "baseline": [],
+      "revised": [
+        "emeralds"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "unicode_accent",
+      "category": "normalization",
+      "query": "café map",
+      "expected": [
+        "rené"
+      ],
+      "baseline": [
+        "rené"
+      ],
+      "revised": [
+        "rené"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "unicode_name",
+      "category": "normalization",
+      "query": "René",
+      "expected": [
+        "rené"
+      ],
+      "baseline": [],
+      "revised": [
+        "rené"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "punctuation",
+      "category": "normalization",
+      "query": "LAPIS?!",
+      "expected": [
+        "lapis"
+      ],
+      "baseline": [
+        "lapis"
+      ],
+      "revised": [
+        "lapis"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "no_diamonds",
+      "category": "abstention",
+      "query": "Where is the diamond vault?",
+      "expected": [],
+      "baseline": [
+        "watch",
+        "quarry_gate",
+        "quarry_path",
+        "weather",
+        "own_private",
+        "mount",
+        "new_camp",
+        "old_camp"
+      ],
+      "revised": [],
+      "diagnostic": false
+    },
+    {
+      "id": "no_crown",
+      "category": "abstention",
+      "query": "Who has a ruby crown?",
+      "expected": [],
+      "baseline": [
+        "market"
+      ],
+      "revised": [],
+      "diagnostic": false
+    },
+    {
+      "id": "no_dragon",
+      "category": "abstention",
+      "query": "Were there dragons?",
+      "expected": [],
+      "baseline": [
+        "meeting",
+        "long_recipe"
+      ],
+      "revised": [],
+      "diagnostic": false
+    },
+    {
+      "id": "no_portal",
+      "category": "abstention",
+      "query": "Which portal will we use?",
+      "expected": [],
+      "baseline": [
+        "meeting",
+        "instruments"
+      ],
+      "revised": [],
+      "diagnostic": false
+    },
+    {
+      "id": "no_unicorn",
+      "category": "abstention",
+      "query": "unicorn",
+      "expected": [],
+      "baseline": [],
+      "revised": [],
+      "diagnostic": false
+    },
+    {
+      "id": "no_granite",
+      "category": "abstention",
+      "query": "granite",
+      "expected": [],
+      "baseline": [],
+      "revised": [],
+      "diagnostic": false
+    },
+    {
+      "id": "latest_food",
+      "category": "updates",
+      "query": "favorite food",
+      "expected": [
+        "new_food"
+      ],
+      "baseline": [
+        "new_food",
+        "old_food"
+      ],
+      "revised": [
+        "new_food",
+        "old_food"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "latest_camp",
+      "category": "updates",
+      "query": "camp",
+      "expected": [
+        "new_camp"
+      ],
+      "baseline": [
+        "new_camp",
+        "old_camp"
+      ],
+      "revised": [
+        "new_camp",
+        "old_camp"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "bakery_evidence",
+      "category": "multiple_facts",
+      "query": "bakery",
+      "expected": [
+        "delivery",
+        "payment"
+      ],
+      "baseline": [
+        "payment",
+        "delivery"
+      ],
+      "revised": [
+        "delivery",
+        "payment"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "bridge_evidence",
+      "category": "multiple_facts",
+      "query": "bridge storm repair spruce",
+      "expected": [
+        "repair",
+        "storm"
+      ],
+      "baseline": [
+        "storm",
+        "repair",
+        "quarry_gate"
+      ],
+      "revised": [
+        "storm",
+        "repair",
+        "quarry_gate"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "subject_name",
+      "category": "attribution",
+      "query": "What did Sam tell you?",
+      "expected": [
+        "sam_compass"
+      ],
+      "baseline": [],
+      "revised": [
+        "sam_compass"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "subject_possessive",
+      "category": "attribution",
+      "query": "Sam’s compass",
+      "expected": [
+        "sam_compass"
+      ],
+      "baseline": [
+        "sam_compass"
+      ],
+      "revised": [
+        "sam_compass"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "heard_source",
+      "category": "attribution",
+      "query": "What did Mira tell you?",
+      "expected": [
+        "archive"
+      ],
+      "baseline": [],
+      "revised": [
+        "archive"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "heard_content",
+      "category": "attribution",
+      "query": "archive",
+      "expected": [
+        "archive"
+      ],
+      "baseline": [
+        "archive"
+      ],
+      "revised": [
+        "archive"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "own_secret",
+      "category": "scope",
+      "query": "nightjar",
+      "expected": [
+        "own_private"
+      ],
+      "baseline": [
+        "own_private"
+      ],
+      "revised": [
+        "own_private"
+      ],
+      "diagnostic": false
+    },
+    {
+      "id": "other_secret",
+      "category": "scope",
+      "query": "moonflower",
+      "expected": [],
+      "baseline": [],
+      "revised": [],
+      "diagnostic": false
+    },
+    {
+      "id": "other_player_scope",
+      "category": "scope",
+      "query": "compass",
+      "expected": [],
+      "baseline": [],
+      "revised": [],
+      "diagnostic": false
+    },
+    {
+      "id": "unknown_villager",
+      "category": "scope",
+      "query": "emeralds",
+      "expected": [],
+      "baseline": [],
+      "revised": [],
+      "diagnostic": false
+    },
+    {
+      "id": "unseen_synonym",
+      "category": "known_limitations",
+      "query": "steed",
+      "expected": [
+        "mount"
+      ],
+      "baseline": [],
+      "revised": [],
+      "diagnostic": true
+    },
+    {
+      "id": "unseen_paraphrase",
+      "category": "known_limitations",
+      "query": "subterranean fungus cultivation",
+      "expected": [
+        "farm"
+      ],
+      "baseline": [],
+      "revised": [],
+      "diagnostic": true
+    },
+    {
+      "id": "historical_food",
+      "category": "known_limitations",
+      "query": "favorite food before it changed",
+      "expected": [
+        "old_food"
+      ],
+      "baseline": [
+        "new_food",
+        "old_food",
+        "promise"
+      ],
+      "revised": [
+        "new_food",
+        "old_food",
+        "promise"
+      ],
+      "diagnostic": true
+    },
+    {
+      "id": "historical_camp",
+      "category": "known_limitations",
+      "query": "camp before the move",
+      "expected": [
+        "old_camp"
+      ],
+      "baseline": [
+        "promise",
+        "new_camp",
+        "old_camp"
+      ],
+      "revised": [
+        "promise",
+        "new_camp",
+        "old_camp"
+      ],
+      "diagnostic": true
+    }
+  ]
+}

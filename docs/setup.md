@@ -126,8 +126,9 @@ On macOS, allow microphone access for the Minecraft/Java process when asked; use
 The microphone sends audio only while B is held in the focused game window.
 Releasing B, opening a menu, or switching away ends the turn. Pressing B during a
 reply interrupts it. The top-right HUD shows microphone strength while you speak.
-Speech plays through the default system audio device, not Minecraft's positional
-sound or volume sliders. Turns shorter than 100 ms are discarded; keep each turn
+Speech comes from the villager’s position using Minecraft’s native distance falloff
+(16-block range) and directional audio. Master and Friendly Creatures sliders control
+its volume; choose output using Minecraft’s Sound Device setting. Turns shorter than 100 ms are discarded; keep each turn
 under 60 seconds.
 
 Detailed diagnostics are hidden by default; **F8** toggles them.

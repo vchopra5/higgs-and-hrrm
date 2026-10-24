@@ -5,11 +5,12 @@ const AUDIENCES = new Set(['all', 'farmer', 'librarian', 'cleric', 'armorer', 'w
 
 export function completeToolBatch(session) {
   if (session.recording || session.cancelled || !session.responseDone
+      || session.queuedResponse || session.memoryContext?.waiting
       || [...session.pending.values()].some(tool => !tool.internal) || !session.hasTools) return;
 
   session.hasTools = false;
   session.responseDone = false; // Prevent another response while the provider acknowledges this one.
-  session.sendProvider({ type: 'response.create' });
+  session.createConversationResponse();
 }
 
 function sendToolOutput(session, callId, result) {
@@ -26,6 +27,16 @@ function sendToolOutput(session, callId, result) {
 export function submitToolResult(session, callId, result) {
   const pending = session.pending.get(callId);
   if (!pending || !session.pending.delete(callId)) return false;
+  if (pending.memoryContext) {
+    session.memoryContext.acceptResult(pending, result);
+    return true;
+  }
+  if (pending.name === 'report_treatment') session.logTreatment?.({
+    event: 'treatment_result', source: pending.internal ? 'keyword_fallback' : 'voice_model',
+    callId, turnId: pending.turnId, treatment: pending.arguments?.treatment,
+    status: result.status, message: result.message, error: result.error,
+    relationship: result.relationship, pricePercent: result.pricePercent,
+  });
   if (!pending.internal) sendToolOutput(session, callId, result);
   completeToolBatch(session);
   return true;
@@ -42,10 +53,6 @@ function validArguments(name, args) {
       && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.reason)
       && Array.isArray(args.audiences) && args.audiences.length >= 1 && args.audiences.length <= 4
       && args.audiences.every(audience => AUDIENCES.has(audience));
-  }
-  if (name === 'recall_memories') {
-    return Object.keys(args).length === 2 && typeof args.query === 'string' && args.query.length <= 160
-      && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.query) && ['player', 'village'].includes(args.scope);
   }
   if (name === 'get_trades' || name === 'cancel_trade') return true;
   if (name === 'confirm_trade') return typeof args.proposalId === 'string' && /^[a-f0-9-]{36}$/.test(args.proposalId);
@@ -81,6 +88,9 @@ export function receiveToolCall(session, event) {
   });
   if (!validArguments(event.name, args)) {
     submitToolResult(session, event.call_id, { error: 'Invalid tool request' });
+  } else if (event.name === 'report_treatment') {
+    session.logTreatment?.({ event: 'treatment_classified', source: 'voice_model',
+      callId: event.call_id, treatment: args.treatment, queued: true });
   }
 }
 

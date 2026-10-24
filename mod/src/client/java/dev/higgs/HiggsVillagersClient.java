@@ -205,6 +205,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     long current = ++generation;
                     String villagerName = villagerName(targetId);
                     voice = new VoiceSession(message.get("url").getAsString(), message.get("ticket").getAsString(),
+                        Minecraft.getInstance().level.getEntity(targetId),
                         HiggsVillagersClient::status, line -> postChat(villagerName, line), () -> Minecraft.getInstance().execute(() -> {
                             if (generation == current) stop(true);
                         }));

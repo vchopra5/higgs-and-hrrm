@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "name": "Village memory dialogue: frozen synthetic A/B cases",
+  "frozenAt": "2026-10-24",
+  "description": "Original Minecraft cases inspired by LongMemEval abilities and LoCoMo evidence attribution; not a subset of either benchmark. Rubrics are evaluation-only lexical indicators requiring transcript review, not production dialogue rules.",
+  "asOf": 1792843200000,
+  "cases": [
+    {
+      "id": "personal-building",
+      "category": "known_fact",
+      "question": "What did I tell you I was building beside the river?",
+      "memories": [{"id":"lighthouse","summary":"Alex said they were building a lighthouse beside the river."}],
+      "rubric": {"requiredAny":[["\\blighthouse\\b"]],"forbidden":["\\bcastle\\b","\\bbakery\\b"]}
+    },
+    {
+      "id": "quiet-preference-among-rumours",
+      "category": "distractors",
+      "question": "Which flowers did I want beside my door?",
+      "memories": [
+        {"id":"flowers","summary":"Alex wants blue orchids beside their front door.","interest":30},
+        {"id":"ruin","summary":"Alex reported finding an abandoned fortress beyond the marsh.","interest":80},
+        {"id":"storm","summary":"Alex warned that a storm damaged the northern bridge.","interest":75},
+        {"id":"bees","summary":"Alex said their new beehives are beside the orchard.","interest":55},
+        {"id":"ruby","summary":"Alex claimed there was a ruby hidden beneath the chapel.","interest":80},
+        {"id":"baker","summary":"Alex said Rowan plans to open a bakery near the square.","interest":60},
+        {"id":"mine","summary":"Alex reported an abandoned mine near the eastern woods.","interest":70},
+        {"id":"well","summary":"Alex said the old well needs repairs.","interest":60}
+      ],
+      "rubric": {"requiredAny":[["\\bblue orchids?\\b"]],"forbidden":["\\bred poppies\\b","\\byellow tulips\\b"]}
+    },
+    {
+      "id": "hearsay-source",
+      "category": "attribution",
+      "question": "What have you heard about the old well, and who told you?",
+      "memories": [{"id":"well-library","summary":"Alex claimed there is a hidden library beneath the old well.","kind":"heard_from_villager","heardFrom":"Mara","originVillager":"Mara","interest":75}],
+      "rubric": {"requiredAny":[["\\blibrary\\b"],["\\bMara\\b"]],"forbidden":["\\bI (?:saw|found|visited|discovered)\\b","\\bI was there\\b"]}
+    },
+    {
+      "id": "unknown-personal-detail",
+      "category": "abstention",
+      "question": "What is my sister's name?",
+      "memories": [{"id":"bread","summary":"Alex prefers rye bread to wheat bread."}],
+      "rubric": {"requiredAny":[["\\b(?:don't|do not|can't|cannot) (?:know|recall|remember)\\b","\\b(?:haven't|have not|never) (?:heard|been told)\\b","\\b(?:haven't|have not|never) told me\\b","\\b(?:not sure|no idea|not told|didn't (?:tell|mention))\\b"]],"forbidden":["\\b(?:her|your sister's) name is (?:Lily|Mara|Anna|Rose)\\b"]}
+    },
+    {
+      "id": "corrected-plan",
+      "category": "knowledge_update",
+      "question": "What am I planning to build now?",
+      "memories": [
+        {"id":"old-plan","summary":"On Monday Alex planned to build a bakery.","createdAt":1792400400000},
+        {"id":"new-plan","summary":"On Thursday Alex changed their plan: they cancelled the bakery and will build a windmill instead.","createdAt":1792659600000}
+      ],
+      "rubric": {"requiredAny":[["\\bwindmill\\b"]],"forbidden":["\\b(?:building|build|planning) (?:a |your |the )?bakery(?:[.!?]|$)"]}
+    },
+    {
+      "id": "unrelated-conversation",
+      "category": "irrelevant_memory",
+      "question": "Can you suggest a name for my pet chicken?",
+      "memories": [{"id":"secret-tunnel","summary":"Alex claimed there is a smuggler's tunnel under the chapel.","interest":85}],
+      "rubric": {"requiredAny":[],"forbidden":["\\bsmuggler","\\bchapel\\b","\\btunnel\\b"]}
+    },
+    {
+      "id": "indirect-paraphrase",
+      "category": "paraphrase",
+      "question": "Which route did I say I should avoid when travelling after sunset?",
+      "memories": [{"id":"night-route","summary":"Alex avoids the western forest path at night because wolves gather there."}],
+      "rubric": {"requiredAny":[["\\bwest(?:ern)?\\b"],["\\bforest\\b"]],"forbidden":["\\beastern\\b","\\bnorthern\\b"]}
+    },
+    {
+      "id": "two-linked-details",
+      "category": "multi_session",
+      "question": "Who did I leave the map with, and where can I find that person?",
+      "memories": [
+        {"id":"map-owner","summary":"Alex left the treasure map with Nessa."},
+        {"id":"nessa-location","summary":"Alex said Nessa now works at the riverside mill."}
+      ],
+      "rubric": {"requiredAny":[["\\bNessa\\b"],["\\b(?:riverside|river.?side|by the river)\\b"],["\\bmill\\b"]],"forbidden":["\\bMara\\b","\\bchapel\\b"]}
+    },
+    {
+      "id": "temporal-order",
+      "category": "temporal_reasoning",
+      "question": "Did I repair the bridge before or after I planted the orchard?",
+      "memories": [
+        {"id":"orchard-date","summary":"Alex said they planted the orchard on Tuesday.","createdAt":1792486800000},
+        {"id":"bridge-date","summary":"Alex said they repaired the bridge on Thursday.","createdAt":1792659600000}
+      ],
+      "rubric": {"requiredAny":[["\\bafter\\b","\\borchard.{0,25}first\\b","\\bbridge.{0,25}later\\b"]],"forbidden":["\\bbridge.{0,25}before.{0,25}orchard\\b"]}
+    },
+    {
+      "id": "private-personal-memory",
+      "category": "personal_fact",
+      "question": "Where did I say I hid my spare key?",
+      "memories": [{"id":"key-place","summary":"Alex privately said their spare key is inside the empty flowerpot beside their back door.","private":true,"interest":25}],
+      "rubric": {"requiredAny":[["\\bflowerpot\\b","\\bflower pot\\b"],["\\bback door\\b"]],"forbidden":["\\bunder (?:the |a )?mat\\b"]}
+    },
+    {
+      "id": "explicit-lookup-request",
+      "category": "adversarial_process_request",
+      "question": "Look up your memory for me: what crop did I plant near the pond?",
+      "memories": [{"id":"pond-crop","summary":"Alex planted carrots near the pond."}],
+      "rubric": {"requiredAny":[["\\bcarrots?\\b"]],"forbidden":["\\bwheat\\b","\\bpotatoes\\b"]}
+    },
+    {
+      "id": "empty-history",
+      "category": "abstention",
+      "question": "What did we discuss the last time I visited?",
+      "memories": [],
+      "rubric": {"requiredAny":[["\\b(?:don't|do not|can't|cannot) (?:know|recall|remember)\\b","\\b(?:no|nothing|not sure|haven't|have not|haven’t|can't|can’t|cannot|don't|don’t)\\b"]],"forbidden":["\\bwe (?:talked|spoke|discussed) (?:about )?(?:the |your )?(?:farm|harvest|bridge|trade|weather)\\b"]}
+    }
+  ]
+}

@@ -1,0 +1,130 @@
+{
+  "schemaVersion": 1,
+  "benchmark": "Village memory dialogue: frozen synthetic A/B cases",
+  "createdAt": "2026-10-24T05:41:50.726Z",
+  "fixtureSha256": "a450981a69a1abdbcd32c857e224fe8ca50a7c7f44108395d25f57cf59402bf1",
+  "baselineProtocolSha256": "2d1532a952b7873247019cf940d1fa8ac5cc689b44a2bd4fd47f8e6610e6b039",
+  "productionProtocolSha256": "7935c632126bdb49e020ca63d54ce86c5ba7f6c15bf79a73dccef52db7baa25f",
+  "baseline": "Frozen pre-change protocol including user edits captured 2026-10-24.",
+  "methodology": "Identical evidence (at most eight memories), model, personality, voice and audio modality in both arms. Synthetic text input; default provider temperature in both. Baseline tools return the same full evidence pool. Prepared arm uses production PTT config with ready context. Each pair alternates order. No censorship, retry-on-content, or runtime phrase rules.",
+  "limitations": "Small synthetic architecture experiment, not official LongMemEval/LoCoMo results. Lexical rubric matches and process indicators need human transcript review. Does not measure actual retrieval, microphone/STT, server persistence, production PTT turn preparation, or in-game audio behavior. Failed requests are reported separately. First-audio latency includes connection setup.",
+  "sources": [
+    "https://github.com/xiaowu0162/LongMemEval",
+    "https://github.com/snap-research/locomo"
+  ],
+  "cases": [
+    {
+      "id": "personal-building",
+      "category": "known_fact",
+      "question": "What did I tell you I was building beside the river?"
+    }
+  ],
+  "results": [
+    {
+      "caseId": "personal-building",
+      "category": "known_fact",
+      "arm": "baseline",
+      "status": "error",
+      "error": "Provider websocket connection failed",
+      "question": "What did I tell you I was building beside the river?",
+      "transcript": "",
+      "transcriptItems": [],
+      "toolCalls": [],
+      "responses": [],
+      "elapsedMs": 14,
+      "firstAudioMs": null,
+      "audioBytes": 0,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": null,
+      "repetition": 1
+    },
+    {
+      "caseId": "personal-building",
+      "category": "known_fact",
+      "arm": "prepared",
+      "status": "error",
+      "error": "Provider websocket connection failed",
+      "question": "What did I tell you I was building beside the river?",
+      "transcript": "",
+      "transcriptItems": [],
+      "toolCalls": [],
+      "responses": [],
+      "elapsedMs": 1,
+      "firstAudioMs": null,
+      "audioBytes": 0,
+      "model": "higgs-realtime-1.5-preview",
+      "voice": "oliver",
+      "outputModalities": [
+        "audio"
+      ],
+      "temperature": "provider default; identical arms",
+      "evaluation": null,
+      "repetition": 1
+    }
+  ],
+  "summary": {
+    "baseline": {
+      "all": {
+        "attempted": 1,
+        "completed": 0,
+        "failed": 1,
+        "lexicalRubricPasses": 0,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": null
+      },
+      "ordinary": {
+        "attempted": 1,
+        "completed": 0,
+        "failed": 1,
+        "lexicalRubricPasses": 0,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": null
+      },
+      "explicitLookupRequest": {
+        "attempted": 0,
+        "completed": 0,
+        "failed": 0,
+        "lexicalRubricPasses": 0,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": null
+      }
+    },
+    "prepared": {
+      "all": {
+        "attempted": 1,
+        "completed": 0,
+        "failed": 1,
+        "lexicalRubricPasses": 0,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": null
+      },
+      "ordinary": {
+        "attempted": 1,
+        "completed": 0,
+        "failed": 1,
+        "lexicalRubricPasses": 0,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": null
+      },
+      "explicitLookupRequest": {
+        "attempted": 0,
+        "completed": 0,
+        "failed": 0,
+        "lexicalRubricPasses": 0,
+        "processNarrationCases": 0,
+        "recallToolCalls": 0,
+        "meanElapsedMs": null
+      }
+    }
+  }
+}

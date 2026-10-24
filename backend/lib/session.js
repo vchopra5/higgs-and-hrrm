@@ -9,6 +9,7 @@ import {
   receiveClientAudioEvent, receiveSpeechStarted, receiveSpeechStopped, relayProviderAudio, setMuted,
 } from './audio.js';
 import { completeToolBatch, expireTools, receiveToolCall } from './tools.js';
+import { MemoryContext } from './memory-context.js';
 
 const DURATION_MESSAGE = 'The ten-minute conversation limit was reached. '
   + 'Start a new conversation to continue.';
@@ -48,6 +49,8 @@ export class BridgeSession {
     this.recentReactionLines = [];
     this.awaitingCancellation = false;
     this.queuedResponse = false;
+    this.queuedAudioCommit = null;
+    this.memoryContext = new MemoryContext(this);
     this.diagnostics = {
       inputBytes: 0, outputBytes: 0,
       speechStarts: 0, speechStops: 0, responses: 0,
@@ -116,6 +119,45 @@ export class BridgeSession {
 
   sendClient(event) { return sendJson(this.client, event); }
   sendProvider(event) { return sendJson(this.upstream, event); }
+
+  createConversationResponse() {
+    // Keep the configured persona and dialogue intact. Provider instruction
+    // overrides did not reliably retain the current audio turn in live probes.
+    if (this.preparedMemory && this.deliveredMemory !== this.preparedMemory) {
+      if (this.memoryContextItemId) this.sendProvider({ type: 'conversation.item.delete', item_id: this.memoryContextItemId });
+      const itemId = `memory-context-${randomUUID()}`;
+      const { memories, status, asOf } = this.preparedMemory;
+      if (this.sendProvider({ type: 'conversation.item.create', item: {
+        id: itemId, type: 'message', role: 'user',
+        content: [{ type: 'input_text', text: '[Recollection context; not player speech] '
+          + JSON.stringify({ memories, status, asOf }) }],
+      } })) {
+        this.memoryContextItemId = itemId;
+        this.deliveredMemory = this.preparedMemory;
+      }
+    }
+    return this.sendProvider({ type: 'response.create' });
+  }
+
+  flushPreparedResponse() {
+    if (this.closed || this.recording || this.muted || this.awaitingCancellation
+        || !this.responseDone || !this.queuedResponse || this.queuedAudioCommit !== null || this.memoryContext.waiting) return;
+    this.queuedResponse = false;
+    this.cancelled = false;
+    this.responseDone = false;
+    this.createConversationResponse();
+  }
+
+  commitAudioTurn(turnId) {
+    this.memoryContext.beginTurn(turnId);
+    this.sendProvider({ type: 'input_audio_buffer.commit', event_id: `audio-commit-${this.id}-${turnId}` });
+  }
+
+  failMemoryCommit() {
+    this.queuedResponse = false;
+    this.sendError(true, 'audio_commit_failed', 'Higgs could not confirm this spoken turn. Start a new conversation to reconnect.');
+    this.close('audio_commit_failed');
+  }
 
   sendError(fatal, code, message) {
     this.sendClient({ type: 'error', fatal, code, message });
@@ -226,14 +268,19 @@ export class BridgeSession {
           }
           relayProviderAudio(this, event);
           break;
+        case 'input_audio_buffer.committed':
+          if (this.mode === 'ptt') this.memoryContext.committed(event.item_id);
+          break;
         case 'conversation.item.input_audio_transcription.completed':
           this.sendClient({ type: 'transcript', speaker: 'you', id: event.item_id ?? 'input',
             text: String(event.transcript ?? '').slice(0, 4000), replace: true });
-          this.reportTreatment(String(event.transcript ?? '').slice(0, 4000));
+          this.reportTreatment(String(event.transcript ?? '').slice(0, 4000), event.item_id);
+          if (this.mode === 'ptt') this.memoryContext.transcript(event.item_id, event.transcript);
           break;
         case 'conversation.item.input_audio_transcription.failed':
           this.sendClient({ type: 'transcript', speaker: 'you', id: event.item_id ?? 'input',
             text: '[Transcription unavailable]', replace: true });
+          if (this.mode === 'ptt') this.memoryContext.failed(event.item_id);
           break;
         case 'response.output_audio_transcript.delta':
         case 'response.output_audio_transcript.done': {
@@ -317,10 +364,19 @@ export class BridgeSession {
   }
 
   // Queued for the game server only (internal); the model never sees it.
-  reportTreatment(transcript) {
+  logTreatment(entry) {
+    this.log({ timestamp: new Date(this.now()).toISOString(), sessionId: this.id,
+      villager: String(this.context.name ?? '').slice(0, 120), turnId: this.turnId, ...entry });
+  }
+
+  reportTreatment(transcript, itemId) {
     const treatment = classifyTreatment(transcript);
     const callId = `treatment-${this.id}-${this.turnId}`;
-    if (treatment === 'neutral' || this.turnId <= 0 || this.pending.has(callId) || this.seen.has(callId)) return;
+    const skipped = treatment === 'neutral' ? 'neutral' : this.turnId <= 0 ? 'no_player_turn'
+      : this.pending.has(callId) || this.seen.has(callId) ? 'duplicate_turn' : null;
+    this.logTreatment({ event: 'treatment_classified', source: 'keyword_fallback', callId, itemId,
+      transcript, treatment, queued: skipped === null, skipped });
+    if (skipped) return;
     this.seen.add(callId);
     this.pending.set(callId, { callId, name: 'report_treatment', arguments: { treatment }, internal: true,
       turnId: this.turnId, created: this.now() });
@@ -346,10 +402,13 @@ export class BridgeSession {
     this.stage('response_done', { status });
     if (response?.status === 'cancelled') this.cancelled = true;
     this.awaitingCancellation = false;
+    if (this.queuedAudioCommit !== null && !this.recording && !this.muted) {
+      const turnId = this.queuedAudioCommit;
+      this.queuedAudioCommit = null;
+      this.commitAudioTurn(turnId);
+    }
     if (this.queuedResponse) {
-      this.queuedResponse = false;
-      this.responseDone = false;
-      this.sendProvider({ type: 'response.create' });
+      this.flushPreparedResponse();
     } else completeToolBatch(this);
   }
 
@@ -376,6 +435,12 @@ export class BridgeSession {
   }
 
   receiveProviderError(error) {
+    // Boson does not guarantee a client event ID on errors. An unacknowledged
+    // commit cannot be safely skipped or attributed to a later utterance.
+    if (this.ready && this.mode === 'ptt' && this.memoryContext.awaitingCommit) {
+      this.failMemoryCommit();
+      return;
+    }
     if (!this.ready && this.character && !this.voiceFallback && this.requestedVoice !== 'default'
         && isVoiceSelectionError(error)) {
       this.voiceFallback = true;
@@ -422,6 +487,7 @@ export class BridgeSession {
     });
     clearTimeout(this.timer);
     clearTimeout(this.connectTimer);
+    this.memoryContext.close();
     for (const socket of [this.client, this.upstream]) {
       if (socket?.readyState === WebSocket.OPEN) socket.close(1000, reason);
       else if (socket?.readyState === WebSocket.CONNECTING) socket.terminate();

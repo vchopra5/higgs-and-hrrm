@@ -23,8 +23,8 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private final Runnable ended;
     private record Outbound(String json, int audioBytes) {}
     private final ArrayBlockingQueue<Outbound> outgoing = new ArrayBlockingQueue<>(64);
-    private record AudioChunk(byte[] bytes, long generation) { int byteCount() { return bytes.length; } }
-    private final AudioPlaybackQueue<AudioChunk> playback = new AudioPlaybackQueue<>(24000 * 2 * 30, AudioChunk::byteCount);
+    private final net.minecraft.world.entity.Entity villager;
+    private volatile SpatialVoice playback;
     private volatile long playbackGeneration;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean microphoneStarted = new AtomicBoolean();
@@ -32,7 +32,6 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private volatile WebSocket socket;
     private volatile boolean ready;
     private volatile TargetDataLine microphone;
-    private volatile SourceDataLine speaker;
     private volatile boolean muted = true;
     private volatile boolean speaking;
     private long microphoneGeneration;
@@ -41,20 +40,18 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private volatile double micDbfs = -96;
     private volatile long lastMicFrame;
     private volatile long sentChunks, sentBytes, receivedChunks, receivedBytes;
-    private volatile int playingBytes;
     private volatile String lastEvent = "connecting", lastError = "";
-    private volatile String inputDevice = "opening", outputDevice = "opening";
+    private volatile String inputDevice = "opening", outputDevice = "Minecraft positional audio / Friendly Creatures";
     private volatile JsonObject backendDiagnostics = new JsonObject();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final Thread sender;
-    private final Thread player;
 
-    VoiceSession(String url, String ticket, Consumer<String> status, Consumer<VoiceCaptions.Line> chat, Runnable ended) {
+    VoiceSession(String url, String ticket, net.minecraft.world.entity.Entity villager, Consumer<String> status, Consumer<VoiceCaptions.Line> chat, Runnable ended) {
+        this.villager = villager;
         this.status = status;
         this.chat = chat;
         this.ended = ended;
         sender = Thread.ofVirtual().name("higgs-audio-send").unstarted(this::sendLoop);
-        player = Thread.ofVirtual().name("higgs-audio-play").unstarted(this::playLoop);
         URI provided = URI.create(url);
         boolean hasTicket = provided.getRawQuery() != null && java.util.Arrays.stream(provided.getRawQuery().split("&"))
             .anyMatch(parameter -> parameter.startsWith("ticket="));
@@ -73,7 +70,6 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         socket = ws;
         if (closed.get()) { ws.abort(); return; }
         sender.start();
-        player.start();
         status.accept("Connected; waiting for Higgs…");
         ws.request(1);
     }
@@ -170,49 +166,30 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         }
     }
 
-    private void playLoop() {
-        try {
-            AudioDevices.Opened<SourceDataLine> opened = AudioDevices.output();
-            SourceDataLine line = opened.line();
-            speaker = line;
-            outputDevice = opened.description();
-            AudioFormat format = line.getFormat();
-            PcmAudioConverter converter = new PcmAudioConverter(24000, 1, (int) format.getSampleRate(), format.getChannels());
-            long generation = playbackGeneration;
-            if (closed.get()) { line.close(); return; }
-            line.start();
-            while (!closed.get()) {
-                AudioChunk chunk = playback.take();
-                if (chunk.generation() != playbackGeneration) continue;
-                if (generation != chunk.generation()) { converter.reset(); generation = chunk.generation(); }
-                byte[] frame = converter.convert(chunk.bytes(), chunk.bytes().length);
-                for (int offset = 0; offset < frame.length && !closed.get() && chunk.generation() == playbackGeneration;) {
-                    int count = Math.min((int) format.getSampleRate() / 25 * format.getFrameSize(), frame.length - offset);
-                    // Queue diagnostics are expressed in the 24 kHz mono wire format.
-                    playingBytes = (int) ((long) (frame.length - offset) * 48000 / ((int) format.getSampleRate() * format.getFrameSize()));
-                    int written = line.write(frame, offset, count);
-                    if (written <= 0 && !closed.get() && chunk.generation() == playbackGeneration)
-                        throw new IllegalStateException("Audio output stopped accepting frames");
-                    offset += written;
-                }
-                playingBytes = 0;
-            }
-        } catch (Exception e) {
-            if (!closed.get()) {
-                System.getLogger("higgs-villagers").log(System.Logger.Level.WARNING, "Audio output initialization/playback failed", e);
-                fail("Audio output unavailable. Check audio routing and -Dhiggs.audio.output; details in latest.log.");
-            }
-        } finally {
-            SourceDataLine line = speaker;
-            if (line != null) line.close();
-        }
-    }
-
     private void clearPlayback() {
         playbackGeneration++;
-        playback.clear();
-        SourceDataLine line = speaker;
-        if (line != null && line.isOpen()) line.flush();
+        net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            SpatialVoice previous = playback;
+            playback = null;
+            if (previous != null) previous.cancel();
+        });
+    }
+
+    private void play(byte[] bytes) {
+        long generation = playbackGeneration;
+        net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            if (closed.get() || !muted || generation != playbackGeneration) return;
+            if (playback == null || playback.closed()) {
+                if (playback != null) playback.cancel();
+                playback = new SpatialVoice(villager);
+                playback.offer(bytes);
+                if (net.minecraft.client.Minecraft.getInstance().getSoundManager().play(playback)
+                    == net.minecraft.client.sounds.SoundEngine.PlayResult.NOT_STARTED) playback.cancel();
+            } else if (!playback.offer(bytes) && System.currentTimeMillis() - lastOverflowNotice > 10_000) {
+                lastOverflowNotice = System.currentTimeMillis();
+                status.accept("Audio backlog exceeded 30 seconds; skipping older speech.");
+            }
+        });
     }
 
     @Override public CompletionStage<?> onText(WebSocket ws, CharSequence text, boolean last) {
@@ -233,13 +210,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                         byte[] bytes = Base64.getDecoder().decode(event.get("audio").getAsString());
                         receivedChunks++; receivedBytes += bytes.length;
                         if ((bytes.length & 1) != 0) throw new IllegalArgumentException("Invalid PCM");
-                        if (bytes.length > 0 && !playback.offer(new AudioChunk(bytes, playbackGeneration))) {
-                            // Keep the conversation alive if output arrives faster than the speaker can play.
-                            if (System.currentTimeMillis() - lastOverflowNotice > 10_000) {
-                                lastOverflowNotice = System.currentTimeMillis();
-                                status.accept("Audio backlog exceeded 30 seconds; skipping older speech.");
-                            }
-                        }
+                        if (bytes.length > 0) play(bytes);
                     }
                     case "clear" -> clearPlayback();
                     case "speech" -> speaking = event.get("active").getAsBoolean();
@@ -293,7 +264,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
             "Input " + inputDevice,
             "Output " + outputDevice,
             "Sent " + sentChunks + " chunks / " + sentBytes + " B  pending " + outgoing.size(),
-            "Audio received " + receivedChunks + " / " + receivedBytes + " B  queued " + ((playback.queuedBytes() + playingBytes) / 48) + "ms",
+            "Audio received " + receivedChunks + " / " + receivedBytes + " B  queued " + ((playback == null ? 0 : playback.queuedBytes()) / 48) + "ms",
             "Voice " + field(remote, "voice", "?") + (field(remote, "voiceFallback", "false").equals("true") ? " (fallback)" : ""),
             "Backend in/out " + field(remote, "inputBytes", "0") + "/" + field(remote, "outputBytes", "0") + " B  ready " + field(remote, "upstreamReady", "?"),
             "VAD (off in PTT) " + field(remote, "speechStarts", "0") + "/" + field(remote, "speechStops", "0") + "  replies " + field(remote, "responses", "0") + "  first audio " + latency + "ms",
@@ -312,18 +283,16 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     @Override public void close() {
         if (!closed.compareAndSet(false, true)) return;
         sender.interrupt();
-        player.interrupt();
         Thread captureThread = capture;
         if (captureThread != null) captureThread.interrupt();
         // Device closure can block briefly; never perform it on the game thread.
         Thread.ofVirtual().name("higgs-audio-close").start(() -> {
             if (microphone != null) { microphone.stop(); microphone.close(); }
-            if (speaker != null) { speaker.stop(); speaker.flush(); speaker.close(); }
             if (socket != null) socket.abort();
             http.shutdownNow();
         });
         outgoing.clear();
-        playback.clear();
+        clearPlayback();
         captions.flush().forEach(chat);
         ended.run();
     }

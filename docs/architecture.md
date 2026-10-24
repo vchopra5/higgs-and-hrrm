@@ -6,7 +6,7 @@
 
 **Status: voice/trade prototype plus persistent personalities, memory and local gossip implemented; full live in-game validation pending.**
 The code is in `mod/` and `backend/`. The diagram remains the target architecture.
-The prototype uses default system audio rather than spatial playback; persona
+Live mono PCM streams through Minecraft’s sound engine, following the villager with native distance attenuation and Friendly Creatures volume control. A client-only mixin supplies the live stream; persona
 comes from a saved world/villager profile and a shared versioned catalogue. The
 bridge compiles trusted character directions and selects a mapped voice after
 validating profile identifiers. [Personality implementation](villager-personalities.md). It uses a ten-minute session limit; hands-free sessions use
@@ -130,11 +130,12 @@ service is needed.
 `VillagerMemoryStore` keeps bounded summaries keyed by villager and player UUID in
 `<world>/data/higgs_hrrm_memories.json`. It writes ordered snapshots on a background
 writer and exposes memories for recall and gossip after a successful save. The
-`remember_conversation` and `recall_memories` tools reuse the authenticated game-tool
-route; the server binds identities rather than accepting UUIDs from the model.
+`remember_conversation` tool and internal `_recall_turn` read reuse the authenticated game-tool
+route; the server binds identities rather than accepting UUIDs from the model. Recall
+uses BM25 over authorized records, with gossip interest only a tie-breaker.
 Memory summaries are attributed player claims, not observed world facts.
 
-`VillagerMemoryService` adds the current player's saved memories to session context,
+`VillagerMemoryService` adds a bounded mix of recent personal and salient public memories to session context,
 handles fresh recall, and samples loaded villagers for proximity-based transfers.
 `VillagerGossip` enforces eligibility, dimension, distance, pair cooldowns, and root
 deduplication. A pass uses a snapshot so newly heard stories cannot cascade in the
@@ -142,6 +143,13 @@ same pass. Private entries and exhausted hop counts cannot spread. A successful
 save triggers native green particles above the participants; there is no autonomous
 background voice session between villagers. See the [feature guide](memory-rumours.md) for limits,
 configuration, failure behaviour, and live rehearsal steps.
+
+For PTT, the bridge matches a committed audio item to its transcript, reads relevant
+memories, then inserts attributed context before requesting speech. Recall is not a
+speaker tool, and spoken text is never filtered. Context updates preserve the original
+conversation and are explicitly not player speech or consent. See the
+[Sapience comparison and measured results](memory-evaluation.md) for provider constraints,
+benchmarks, timeout behavior, and the VAD limitation.
 
 ### Automatic story selection and conversation openings
 

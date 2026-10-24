@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
+import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -37,6 +38,19 @@ public final class VillagerMemoryStore implements AutoCloseable {
 
     private static final Gson GSON = new Gson();
     private static final long MAX_FILE_BYTES = 8L * 1024 * 1024;
+    // Query grammar is not evidence. Keep content words (including negation and time words),
+    // and apply the same analysis to queries and documents. This is deliberately lexical:
+    // synonyms and inferred facts need a separate semantic retrieval stage.
+    private static final Set<String> SEARCH_STOP_WORDS = Set.of(
+        "a", "about", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by", "can", "could",
+        "did", "do", "does", "for", "from", "had", "has", "have", "he", "her", "his", "how", "i",
+        "if", "in", "is", "it", "its", "me", "my", "news", "of", "on", "or", "our", "please",
+        "recall", "remember", "said", "say", "says", "she", "should", "so", "some", "tell", "than",
+        "that", "the", "their", "them", "there", "these", "they", "this", "those", "to", "us", "was",
+        "we", "were", "what", "when", "where", "which", "who", "why", "will", "with", "would", "you", "your");
+    private static final double BM25_K1 = 1.2, BM25_B = 0.75;
+    private record SearchDocument(Memory memory, Map<String, Integer> frequencies, int length) {}
+    private record SearchResult(Memory memory, double score) {}
     private final Path file;
     private final Limits limits;
     private final Map<UUID, LinkedHashMap<UUID, Memory>> memories = new LinkedHashMap<>();
@@ -195,14 +209,44 @@ public final class VillagerMemoryStore implements AutoCloseable {
         prune(now);
         var entries = memories.get(owner);
         if (entries == null) return List.of();
-        Set<String> terms = new HashSet<>(Arrays.asList(query.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+")));
-        terms.removeAll(Set.of("", "i", "me", "my", "you", "the", "a", "about", "what", "did", "news", "remember"));
-        return entries.values().stream()
+        // Scope before computing corpus statistics: another player's private knowledge must
+        // influence neither the returned facts nor their ordering.
+        List<Memory> candidates = entries.values().stream()
             .filter(m -> m.revision <= persistedRevision && (m.playerId.equals(player) || (village && !m.privateMemory)))
-            .filter(m -> terms.isEmpty() || relevance(m, terms) > 0)
-            .sorted(Comparator.<Memory>comparingLong(m -> relevance(m, terms)).reversed()
-                .thenComparing(priorityOrder("all", player, now)))
-            .limit(8).toList();
+            .toList();
+        Set<String> terms = new LinkedHashSet<>(searchWords(query));
+        if (terms.isEmpty()) return candidates.stream().sorted(priorityOrder("all", player, now)).limit(8).toList();
+        if (candidates.isEmpty()) return List.of();
+        List<SearchDocument> documents = candidates.stream().map(VillagerMemoryStore::searchDocument).toList();
+        Map<String, Integer> documentFrequency = new HashMap<>();
+        for (SearchDocument document : documents) {
+            for (String term : document.frequencies.keySet()) documentFrequency.merge(term, 1, Integer::sum);
+        }
+        double averageLength = Math.max(1, documents.stream().mapToInt(SearchDocument::length).average().orElse(1));
+        return documents.stream()
+            .map(document -> new SearchResult(document.memory,
+                retrievalScore(document, terms, documentFrequency, documents.size(), averageLength)))
+            .filter(result -> result.score > 0)
+            .sorted(Comparator.comparingDouble(SearchResult::score).reversed()
+                .thenComparing(SearchResult::memory, priorityOrder("all", player, now)))
+            .limit(8).map(SearchResult::memory).toList();
+    }
+
+    /** Bounded session context: recent personal details and salient local knowledge both get space. */
+    public synchronized List<Memory> workingContext(UUID owner, UUID player, long now) {
+        prune(now);
+        var entries = memories.get(owner);
+        if (entries == null) return List.of();
+        List<Memory> visible = entries.values().stream()
+            .filter(m -> m.revision <= persistedRevision && (m.playerId.equals(player) || !m.privateMemory)).toList();
+        Map<UUID, Memory> selected = new LinkedHashMap<>();
+        visible.stream().filter(m -> m.playerId.equals(player))
+            .sorted(Comparator.comparingLong(Memory::createdAt).reversed())
+            .limit(16).forEach(m -> selected.put(m.rootId, m));
+        visible.stream().sorted(priorityOrder("all", player, now))
+            .filter(m -> !selected.containsKey(m.rootId))
+            .limit(32 - selected.size()).forEach(m -> selected.put(m.rootId, m));
+        return List.copyOf(selected.values());
     }
 
     /** Only stories this villager actually heard can become an unsolicited rumour opening. */
@@ -227,9 +271,38 @@ public final class VillagerMemoryStore implements AutoCloseable {
         return memory.interest.score + audience + personal + Math.max(0, 12 - ageHours / 6) - memory.hops * 4L;
     }
 
-    private static long relevance(Memory memory, Set<String> terms) {
-        Set<String> words = new HashSet<>(Arrays.asList(memory.summary.toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+")));
-        return terms.stream().filter(words::contains).count();
+    private static List<String> searchWords(String text) {
+        if (text == null || text.isBlank()) return List.of();
+        String normalized = Normalizer.normalize(text, Normalizer.Form.NFKC).toLowerCase(Locale.ROOT)
+            .replaceAll("(?<=\\p{L})['’]s\\b", "");
+        return Arrays.stream(normalized.split("[^\\p{L}\\p{M}\\p{N}]+"))
+            .filter(word -> !word.isEmpty() && !SEARCH_STOP_WORDS.contains(word)).toList();
+    }
+
+    private static SearchDocument searchDocument(Memory memory) {
+        List<String> words = new ArrayList<>(searchWords(memory.summary));
+        // These names are existing attributed metadata, not model-generated enrichment.
+        // Deduplicate identical source/origin names before indexing them.
+        for (String name : new LinkedHashSet<>(List.of(memory.playerName, memory.originName, memory.sourceName))) {
+            words.addAll(searchWords(name));
+        }
+        Map<String, Integer> frequencies = new HashMap<>();
+        for (String word : words) frequencies.merge(word, 1, Integer::sum);
+        return new SearchDocument(memory, frequencies, words.size());
+    }
+
+    private static double retrievalScore(SearchDocument document, Set<String> terms,
+                                         Map<String, Integer> documentFrequency, int count, double averageLength) {
+        double score = 0;
+        for (String term : terms) {
+            int frequency = document.frequencies.getOrDefault(term, 0);
+            if (frequency == 0) continue;
+            int containing = documentFrequency.getOrDefault(term, 0);
+            double idf = Math.log1p((count - containing + 0.5) / (containing + 0.5));
+            double norm = BM25_K1 * (1 - BM25_B + BM25_B * document.length / averageLength);
+            score += idf * frequency * (BM25_K1 + 1) / (frequency + norm);
+        }
+        return score;
     }
 
     public synchronized CompletableFuture<Void> flush() {

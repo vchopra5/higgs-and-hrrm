@@ -26,6 +26,12 @@ test('authenticated session, one-use ticket, audio relay, tool batching and clea
   const audio = Buffer.alloc(4800).toString('base64');
   client.send(JSON.stringify({ type: 'audio', audio })); client.send(JSON.stringify({ type: 'commit' }));
   await until(() => received.some(e => e.type === 'input_audio_buffer.commit'));
+  upstream.send(JSON.stringify({ type: 'input_audio_buffer.committed', item_id: 'turn-one' }));
+  upstream.send(JSON.stringify({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'turn-one', transcript: 'Hello' }));
+  await until(() => [...bridge.sessions.get(sessionId).pending.values()].some(tool => tool.memoryContext));
+  const memoryCall = [...bridge.sessions.get(sessionId).pending.values()].find(tool => tool.memoryContext);
+  await call(`/sessions/${sessionId}/tools/${memoryCall.callId}/result`, 'POST', { result: { memories: [] } });
+  await until(() => received.some(e => e.type === 'response.create'));
   upstream.send(JSON.stringify({ type: 'response.output_audio.delta', delta: audio }));
   await until(() => events.some(e => e.type === 'audio' && e.audio === audio));
   upstream.send(JSON.stringify({ type: 'response.created' }));
@@ -38,7 +44,7 @@ test('authenticated session, one-use ticket, audio relay, tool batching and clea
   assert.equal(received.filter(e => e.type === 'response.create').length, before);
   await call(`/sessions/${sessionId}/tools/b/result`, 'POST', { result: { offers: [2] } });
   await until(() => received.filter(e => e.type === 'response.create').length === before + 1);
-  assert.equal(received.filter(e => e.type === 'conversation.item.create').length, 2);
+  assert.equal(received.filter(e => e.type === 'conversation.item.create' && e.item?.type === 'function_call_output').length, 2);
   assert.equal((await call(`/sessions/${sessionId}/tools/b/result`, 'POST', { result: {} })).status, 404);
   upstream.send(JSON.stringify({ type: 'response.created' }));
   upstream.send(JSON.stringify({ type: 'response.function_call_arguments.done', call_id: 'cancel-me', name: 'propose_trade', arguments: '{"offerIndex":0}' }));
@@ -178,11 +184,26 @@ test('voice confirmations carry trusted input-turn IDs, never model-supplied IDs
   emit({type:'response.output_audio_transcript.delta',response_id:'stale',item_id:'a0',delta:'obsolete'});
   await until(()=>captions.length===3);
   assert.deepEqual(captions.map(e=>[e.speaker,e.text,e.replace]),[['you','Bread please',true],['villager','Here ',false],['villager','Here you go.',true]]);
+  emit({type:'response.done',response:{id:'captions',status:'completed'}});
+  const prepare = async turn => {
+    emit({type:'input_audio_buffer.committed',item_id:'committed-'+turn});
+    emit({type:'conversation.item.input_audio_transcription.completed',item_id:'committed-'+turn,transcript:'Yes'});
+    await until(()=>[...bridge.sessions.get(sessionId).pending.values()].some(tool=>tool.memoryContext));
+    const tool=[...bridge.sessions.get(sessionId).pending.values()].find(tool=>tool.memoryContext);
+    await fetch(base+`/sessions/${sessionId}/tools/${tool.callId}/result`, {method:'POST',
+      headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({result:{memories:[]}})});
+  };
   const proposeId='a'.repeat(8)+'-aaaa-aaaa-aaaa-'+ 'a'.repeat(12);
   for(let turn=1;turn<=2;turn++){
+    if(turn>1){
+      client.send(JSON.stringify({type:'interrupt'}));
+      await until(()=>bridge.sessions.get(sessionId).awaitingCancellation);
+      emit({type:'response.done',response:{id:'r'+(turn-1),status:'cancelled'}});
+    }
     client.send(JSON.stringify({type:'audio',audio:Buffer.alloc(4800).toString('base64')}));
     client.send(JSON.stringify({type:'commit'}));
     await until(()=>bridge.sessions.get(sessionId).turnId===turn);
+    await prepare(turn);
     emit({type:'response.created',response:{id:'r'+turn}});
     for(const suffix of ['a','b'])emit({type:'response.function_call_arguments.done',call_id:turn+suffix,name:'confirm_trade',arguments:JSON.stringify({proposalId:proposeId,turnId:999})});
     await until(()=>bridge.sessions.get(sessionId).pending.has(turn+'b'));
@@ -198,6 +219,8 @@ test('voice confirmations carry trusted input-turn IDs, never model-supplied IDs
   await delay(30);
   assert.equal(received.filter(e=>e.type==='response.create').length,responses);
   emit({type:'response.done',response:{id:'r2',status:'cancelled'}});
+  await until(()=>received.filter(e=>e.type==='input_audio_buffer.commit').length===3);
+  await prepare(3);
   await until(()=>received.filter(e=>e.type==='response.create').length===responses+1);
   emit({type:'response.created',response:{id:'confirmed'}});
   emit({type:'response.function_call_arguments.done',response_id:'r2',call_id:'late-old',name:'confirm_trade',arguments:JSON.stringify({proposalId:proposeId})});

@@ -1,5 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { createBridge } from './lib/bridge.js';
+import { treatmentLogger } from './lib/treatment-log.js';
 
 export { createBridge };
 export { sessionConfig } from './lib/protocol.js';
@@ -13,6 +14,7 @@ function start() {
   }
 
   const bridge = createBridge({
+    log: treatmentLogger(fileURLToPath(new URL('./logs/treatment.jsonl', import.meta.url))),
     apiKey: process.env.BOSON_API_KEY,
     token: process.env.HIGGS_BRIDGE_TOKEN,
     upstreamUrl: process.env.HIGGS_REALTIME_URL,

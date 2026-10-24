@@ -54,7 +54,9 @@ Optional root `.env` settings, read by the server mod at startup:
 | `HIGGS_GOSSIP_COOLDOWN_SECONDS` | `60` | 1–3600 real-time seconds per pair |
 | `HIGGS_GOSSIP_MAX_HOPS` | `3` | 0–8; 0 disables spreading |
 
-The store also caps total entries at 4096, summary length at 320 characters, recall queries at 160 characters, and each returned recall at eight entries. Invalid settings fall back to their defaults. Restart the server after changing settings. Existing expiry timestamps remain unchanged when the lifetime setting changes.
+The store also caps total entries at 4096, summary length at 320 characters, and each returned recall at eight entries. Compatibility recall queries allow 160 characters; internal PTT retrieval accepts a transcript up to 4000 characters. Initial working context balances recent personal details with salient local knowledge, capped at 32 entries and 48 KiB of serialized memory data. Invalid settings fall back to their defaults. Restart the server after changing settings. Existing expiry timestamps remain unchanged when the lifetime setting changes.
+
+PTT recall runs before the villager speaks, outside the voice model's tool choices. It preserves sources and recorded/learned timestamps, and does not filter dialogue. The [architecture comparison and evaluation](memory-evaluation.md) documents the retrieval improvements, live synthetic speech tests, and remaining limitations.
 
 ## Developer checks
 

@@ -64,7 +64,11 @@ public final class VillagerMemoryService {
     }
 
     public JsonArray context(Villager villager, ServerPlayer player) {
-        return store == null ? new JsonArray() : entries(store.recall(villager.getUUID(), player.getUUID(), "", false, System.currentTimeMillis()));
+        if (store == null) return new JsonArray();
+        var memories = entries(store.workingContext(villager.getUUID(), player.getUUID(), System.currentTimeMillis()));
+        // Leave room in the 128 KiB session request for rumours, character and trade data.
+        // A count bound alone does not cover Gson's six-byte escapes for valid text.
+        return MemoryContextBudget.limit(memories, MemoryContextBudget.SESSION_BYTES);
     }
 
     public JsonObject conversationContext(Villager villager, ServerPlayer player) {
@@ -92,16 +96,19 @@ public final class VillagerMemoryService {
         return villager.getVillagerData().profession().unwrapKey().map(key -> key.identifier().getPath()).orElse("none");
     }
 
-    public boolean handles(String name) { return name.equals("remember_conversation") || name.equals("recall_memories"); }
+    public boolean handles(String name) {
+        return name.equals("remember_conversation") || name.equals("recall_memories") || name.equals("_recall_turn");
+    }
 
     public CompletableFuture<JsonObject> handle(ServerPlayer player, Villager villager, String name, JsonObject args) {
         if (store == null || stopping) return CompletableFuture.completedFuture(error("Memory storage is unavailable."));
         long now = System.currentTimeMillis();
         try {
-            if (name.equals("recall_memories")) {
-                if (!args.keySet().stream().allMatch(Set.of("query", "scope")::contains)) throw new IllegalArgumentException();
-                String query = string(args, "query", VillagerMemoryStore.MAX_QUERY, true);
-                String scope = string(args, "scope", 10, false);
+            if (name.equals("recall_memories") || name.equals("_recall_turn")) {
+                boolean prepared = name.equals("_recall_turn");
+                if (!args.keySet().equals(prepared ? Set.of("query") : Set.of("query", "scope"))) throw new IllegalArgumentException();
+                String query = string(args, "query", prepared ? 4000 : VillagerMemoryStore.MAX_QUERY, true);
+                String scope = prepared ? "village" : string(args, "scope", 10, false);
                 if (!scope.equals("player") && !scope.equals("village")) throw new IllegalArgumentException();
                 JsonObject result = new JsonObject();
                 result.add("memories", entries(store.recall(villager.getUUID(), player.getUUID(), query, scope.equals("village"), now)));
@@ -163,6 +170,8 @@ public final class VillagerMemoryService {
             entry.addProperty("heardFrom", memory.sourceName());
             entry.addProperty("kind", memory.hops() == 0 ? "player_told_me" : "heard_from_villager");
             entry.addProperty("private", memory.privateMemory());
+            entry.addProperty("createdAt", memory.createdAt());
+            entry.addProperty("learnedAt", memory.learnedAt());
             entry.addProperty("interest", memory.interest().score());
             entry.addProperty("whyInteresting", memory.interest().reason());
             result.add(entry);
