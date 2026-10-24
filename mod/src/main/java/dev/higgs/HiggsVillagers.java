@@ -773,13 +773,30 @@ public final class HiggsVillagers implements ModInitializer {
         Map.entry("mason", net.minecraft.world.entity.ai.village.poi.PoiTypes.MASON));
 
     /** "Take me to the librarian": find who or what is meant within the guide's village, then lead the way. */
+    /** Grown villagers living in this villager's village (or nearby, outside one), nearest first. */
+    private List<Villager> neighbours(Villager self) {
+        VillageTracker.Village village = villages.villageOf(self);
+        var centre = village == null ? self.position() : new net.minecraft.world.phys.Vec3(village.x(), village.y(), village.z());
+        double range = village == null ? 48 : villages.radius();
+        return self.level().getEntitiesOfClass(Villager.class, new net.minecraft.world.phys.AABB(centre, centre).inflate(range, 32, range),
+                v -> v != self && v.isAlive() && !v.isBaby() && v.position().distanceToSqr(centre) <= range * range)
+            .stream().sorted(java.util.Comparator.comparingDouble(v -> v.distanceToSqr(self))).toList();
+    }
+    /** Who actually lives here, so the villager never invents a neighbour or a trade the village lacks. */
+    private static JsonArray residents(List<Villager> neighbours) {
+        JsonArray list = new JsonArray();
+        for (Villager v : neighbours.subList(0, Math.min(16, neighbours.size()))) {
+            String job = VillagerMemoryService.profession(v);
+            list.add(v.getName().getString() + (job.equals("none") ? " (no trade yet)" : job.equals("nitwit") ? " (no trade)" : " the " + job));
+        }
+        return list;
+    }
     private JsonObject guide(Session s, String destination) {
         Villager guide = s.villager;
         VillageTracker.Village village = villages.villageOf(guide);
         var centre = village == null ? guide.position() : new net.minecraft.world.phys.Vec3(village.x(), village.y(), village.z());
         double range = village == null ? 48 : villages.radius();
-        List<Villager> neighbours = guide.level().getEntitiesOfClass(Villager.class, new net.minecraft.world.phys.AABB(centre, centre).inflate(range, 32, range),
-            v -> v != guide && v.isAlive() && !v.isBaby() && v.position().distanceToSqr(centre) <= range * range);
+        List<Villager> neighbours = neighbours(guide);
         List<String> names = neighbours.stream().filter(Villager::hasCustomName).map(v -> v.getName().getString()).toList();
         Villager targetVillager = null;
         net.minecraft.core.BlockPos targetPos = null;
@@ -806,8 +823,13 @@ public final class HiggsVillagers implements ModInitializer {
                 }
             }
         }
-        if (label == null) return outcome("not_found", "You do not know of any " + destination
-            + (village == null ? " around here" : " in " + village.name()) + ". Say so kindly, and suggest someone or somewhere you do know.");
+        if (label == null) {
+            JsonObject missing = outcome("not_found", "You do not know of any " + destination
+                + (village == null ? " around here" : " in " + village.name()) + ". Say so kindly. If you suggest someone instead, "
+                + "choose only from residents: never mention a neighbour or trade not listed there.");
+            missing.add("residents", residents(neighbours));
+            return missing;
+        }
         String refusal = outings.guide(s.player, guide, targetVillager, targetPos, label);
         if (refusal != null) return outcome("refused", refusal);
         var where = targetVillager != null ? targetVillager.position() : net.minecraft.world.phys.Vec3.atCenterOf(targetPos);
@@ -875,7 +897,9 @@ public final class HiggsVillagers implements ModInitializer {
             context.addProperty("playerName", player.getName().getString());
             context.addProperty("relationship", band(s).name());
             JsonObject village = villages.context(player, villager);
-            if (village != null) context.add("village", village);
+            if (village == null) village = new JsonObject();
+            village.add("residents", residents(neighbours(villager)));
+            context.add("village", village);
             context.add("gifts", giftContext(player, villager));
             context.add("relationship", memory.relationshipContext(villager, player));
             context.add("mind", memory.mind(villager));
