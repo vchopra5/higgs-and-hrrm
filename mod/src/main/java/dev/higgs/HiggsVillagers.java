@@ -33,6 +33,7 @@ public final class HiggsVillagers implements ModInitializer {
     private final Map<UUID, Session> sessions = new HashMap<>();
     private final Map<UUID, Long> lastStart = new HashMap<>();
     private String backend, token, publicBackend;
+    private VillagerMemoryService memory;
     private int ticks;
     private final Map<String, RecentHits> hits = new HashMap<>();
     private void hit(MinecraftServer server, ServerPlayer player, Villager villager) {
@@ -51,7 +52,7 @@ public final class HiggsVillagers implements ModInitializer {
             JsonObject starting = new JsonObject(); starting.addProperty("type", "reaction_start");
             starting.addProperty("entityId", villager.getId()); send(player, starting);
             JsonObject request = new JsonObject(); request.addProperty("type", "start");
-            request.addProperty("entityId", villager.getId()); receive(server, player, GSON.toJson(request));
+            request.addProperty("entityId", villager.getId()); receive(server, player, GSON.toJson(request), false);
             s = sessions.get(player.getUUID());
         }
         if (s == null || s.villager != villager) return;
@@ -119,6 +120,7 @@ public final class HiggsVillagers implements ModInitializer {
         JsonObject lastReceipt;
         final Map<String, JsonObject> purchases = new HashMap<>();
         final Map<String, JsonObject> toolResults = new HashMap<>();
+        final Set<String> pendingTools = new HashSet<>();
         Session(ServerPlayer player, Villager villager) { this.player = player; this.villager = villager; }
     }
     private record Proposal(String id, int index, long expires, ItemStack costA,
@@ -128,6 +130,8 @@ public final class HiggsVillagers implements ModInitializer {
         backend = config.getOrDefault("HIGGS_BACKEND_URL", "http://127.0.0.1:8787").replaceAll("/+$", "");
         publicBackend = config.getOrDefault("HIGGS_PUBLIC_BACKEND_URL", backend).replaceAll("/+$", "");
         token = config.getOrDefault("HIGGS_BRIDGE_TOKEN", "");
+        memory = new VillagerMemoryService(config);
+        ServerLifecycleEvents.SERVER_STARTED.register(memory::start);
         PayloadTypeRegistry.serverboundPlay().register(ControlPayload.TYPE, ControlPayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ControlPayload.TYPE, ControlPayload.STREAM_CODEC);
         ServerPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, ctx) ->
@@ -141,7 +145,8 @@ public final class HiggsVillagers implements ModInitializer {
             return net.minecraft.world.InteractionResult.PASS;
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
-            if (++ticks % 10 != 0) return;
+            memory.tick(server, ++ticks);
+            if (ticks % 10 != 0) return;
             for (Session s : List.copyOf(sessions.values())) {
                 if (!valid(s, 144)) end(s.player, true, "Conversation ended: stay within 12 blocks of an awake villager.");
                 else {
@@ -175,10 +180,14 @@ public final class HiggsVillagers implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             for (Session s : List.copyOf(sessions.values())) end(s.player, false);
             lastStart.clear();
+            memory.stop();
             hits.clear();
         });
     }
     private void receive(MinecraftServer server, ServerPlayer player, String json) {
+        receive(server, player, json, true);
+    }
+    private void receive(MinecraftServer server, ServerPlayer player, String json, boolean autoGreeting) {
         try {
             JsonObject request = JsonParser.parseString(json).getAsJsonObject();
             String type = request.get("type").getAsString();
@@ -202,8 +211,11 @@ public final class HiggsVillagers implements ModInitializer {
             body.addProperty("villagerId", villager.getUUID().toString());
             JsonObject context = new JsonObject();
             context.addProperty("name", villager.getName().getString());
-            context.addProperty("profession", villager.getVillagerData().profession().unwrapKey().map(Object::toString).orElse("villager"));
+            context.addProperty("profession", VillagerMemoryService.profession(villager));
             context.addProperty("level", villager.getVillagerData().level());
+            context.addProperty("playerName", player.getName().getString());
+            memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
+            context.addProperty("autoGreeting", autoGreeting);
             context.add("offers", offers(villager)); body.add("context", context);
             request("POST", "/sessions", body).whenComplete((reply, failure) -> server.execute(() -> {
                 if (failure != null) {
@@ -213,6 +225,7 @@ public final class HiggsVillagers implements ModInitializer {
                 try {
                     JsonObject r = reply.getAsJsonObject(); s.id = r.get("sessionId").getAsString();
                     if (sessions.get(player.getUUID()) != s || !valid(s)) { delete(s.id); return; }
+                    if (autoGreeting) memory.conversationOpened(villager, player, context);
                     JsonObject response = new JsonObject();
                     response.addProperty("type", "session"); response.addProperty("sessionId", s.id);
                     String ticket = r.get("ticket").getAsString(); response.addProperty("ticket", ticket);
@@ -247,9 +260,32 @@ public final class HiggsVillagers implements ModInitializer {
                     String callId = call.get("callId").getAsString();
                     JsonObject result = s.toolResults.get(callId);
                     if (result == null) {
-                        if (s.toolResults.size() >= 256) { end(s.player, true); return; }
+                        if (s.pendingTools.contains(callId)) continue;
+                        if (s.toolResults.size() + s.pendingTools.size() >= 256) { end(s.player, true); return; }
                         result = new JsonObject();
                         String name = call.get("name").getAsString();
+                        if (memory.handles(name)) {
+                            s.pendingTools.add(callId);
+                            JsonObject arguments;
+                            try {
+                                JsonElement args = call.get("arguments");
+                                arguments = args.isJsonPrimitive() ? JsonParser.parseString(args.getAsString()).getAsJsonObject() : args.getAsJsonObject();
+                            } catch (RuntimeException invalid) {
+                                arguments = new JsonObject();
+                            }
+                            memory.handle(s.player, s.villager, name, arguments).whenComplete((saved, saveFailure) -> {
+                                if (server.isStopped()) return;
+                                server.execute(() -> {
+                                    s.pendingTools.remove(callId);
+                                    if (sessions.get(s.player.getUUID()) != s) return;
+                                    JsonObject response = saveFailure == null ? saved
+                                        : VillagerMemoryService.error("Could not save memory. Please try again; it may be lost on restart.");
+                                    s.toolResults.put(callId, response);
+                                    submitToolResult(s, callId, response);
+                                });
+                            });
+                            continue;
+                        }
                         if (name.equals("get_trades")) result.add("offers", offers(s.villager));
                         else if (name.equals("report_treatment")) {
                             result = treatment(s, call.getAsJsonObject("arguments").get("treatment").getAsString(), call.get("turnId").getAsInt());
@@ -270,12 +306,15 @@ public final class HiggsVillagers implements ModInitializer {
                         // Store before sending: retries must never execute a game action twice.
                         s.toolResults.put(callId, result);
                     }
-                    JsonObject body = new JsonObject(); body.add("result", result);
-                    request("POST", "/sessions/" + s.id + "/tools/" + URLEncoder.encode(callId, StandardCharsets.UTF_8) + "/result", body)
-                        .exceptionally(ex -> null);
+                    submitToolResult(s, callId, result);
                 }
             } catch (RuntimeException ex) { end(s.player, true); error(s.player, "Invalid voice bridge tool request."); }
         }));
+    }
+    private void submitToolResult(Session session, String callId, JsonObject result) {
+        JsonObject body = new JsonObject(); body.add("result", result);
+        request("POST", "/sessions/" + session.id + "/tools/" + URLEncoder.encode(callId, StandardCharsets.UTF_8) + "/result", body)
+            .exceptionally(ex -> null);
     }
     private void tradeStatus(Session s, JsonObject result) {
         JsonObject message = new JsonObject();

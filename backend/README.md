@@ -47,7 +47,7 @@ Client messages are `{type:"audio",audio:"BASE64"}`, `{type:"commit"}`, `{type:"
 
 The Minecraft client uses push-to-talk and connects with `&mode=ptt`: send `interrupt` on press and `commit` on release. If an interrupted response is still cancelling, the next response request waits for its completion acknowledgement; stale tool calls are discarded. In default hands-free mode, `commit` is ignored to avoid duplicate responses.
 
-Sessions last at most ten minutes. Hands-free streaming has no cumulative audio-byte cap: silence and repeated turns do not exhaust an input counter. Legacy push-to-talk turns are capped at sixty seconds; PTT turns under 100 ms are discarded. The ten-minute session limit is reported explicitly. Sessions never restart automatically. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. There is no persistent audio recording or conversation storage.
+Sessions last at most ten minutes. Hands-free streaming has no cumulative audio-byte cap: silence and repeated turns do not exhaust an input counter. Legacy push-to-talk turns are capped at sixty seconds; PTT turns under 100 ms are discarded. The ten-minute session limit is reported explicitly. Sessions never restart automatically. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. The bridge stores no audio recordings or transcripts; the game server separately persists short conversation summaries for villager memory.
 
 ## Higgs mapping
 
@@ -68,11 +68,15 @@ the player refuses. The final native trade happens entirely server-side, then
 its result is spoken by Higgs. The model interprets affirmative speech; the
 server enforces turn separation and transaction validation.
 
+`remember_conversation` accepts `{summary, private, interest, reason, audiences}`. The voice model judges what normal speech is worth saving, using a 0–100 newsworthiness assessment and relevant professions. The server persists the statement and gates public gossip at 55; routine memories can still be recalled. `recall_memories` accepts `{query, scope}` where scope is `player` or `village`. The server supplies UUIDs, sources, storage, and gossip eligibility. Private entries cannot spread; village scope can include public stories about other players. The bridge validates bounded strings and booleans and preserves the existing batch, duplicate-call, and interruption handling. A memory write returns `saved` only after disk persistence completes. See the [memory and rumours guide](../docs/memory-rumours.md).
+
 Live API behavior and Minecraft microphone/playback still require testing with a real Boson key and game client. Interruption cancels generation and clears playback; precise conversation truncation to the last heard sample is not implemented in this MVP.
 
 Closure logs include a session ID, stable reason and WebSocket code, never tickets, credentials, audio, transcripts or provider-supplied close text. Nonfatal provider errors log only a sanitized code. For hands-free use, headphones prevent speaker audio being recaptured as user speech; this native audio path does not yet implement echo cancellation.
 
 The client can send `{type:"mute",muted:true/false}` even before Ready. Muting pauses capture, clears the upstream input buffer and discards any unfinished utterance. Unmuting clears stale input before the next speech turn. Neither action cancels an existing assistant reply. The bridge sends `{type:"end",code,message}` on closure; session setup rejection is fatal, while ordinary provider errors after Ready are recoverable.
+
+Normal game sessions set `context.autoGreeting=true`; sessions started by a hit skip the normal greeting. After confirmation of the configured voice session, the bridge sends one `response.create` without waiting for player audio. A provided `openingRumour` lets the villager naturally lead with relevant news. Initial default-session events and duplicate Ready events cannot trigger extra greetings. The player can interrupt the opening through the normal push-to-talk path. A queued hit reaction takes priority, and early player speech waits for cancellation before starting its reply.
 
 ## Live voice diagnostics
 

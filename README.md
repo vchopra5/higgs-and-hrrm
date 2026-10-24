@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Your favorite village has something to say.</strong><br />
-  Voice conversations with Minecraft villagers, connected to their real trades.
+  Villagers that talk, remember, and pass stories around.
 </p>
 
 <p align="center">
@@ -33,7 +33,7 @@ Villagers have professions, stock, and a place in your world. Now you can ask th
   <tr>
     <td width="33%" valign="top">
       <h3>01 &nbsp; Meet</h3>
-      <p>Look at a nearby villager and press <kbd>V</kbd>. Wait for <strong>Ready</strong>.</p>
+      <p>Look at a nearby villager to connect automatically. Let it greet you.</p>
     </td>
     <td width="33%" valign="top">
       <h3>02 &nbsp; Speak</h3>
@@ -63,10 +63,21 @@ The villager reads the exact quote. Say yes in a new push-to-talk turn to comple
 | | What happens |
 | :--- | :--- |
 | **In-character conversation** | Villager name, profession, and level give the conversation context. |
+| **A village that remembers** | Saved summaries let each villager recall past conversations across visits and server restarts. |
+| **Stories worth repeating** | The voice model judges surprising or consequential stories; neighbours prioritise news relevant to their professions. |
+| **A neighbour with something to say** | Start a conversation and the villager can lead with a fresh rumour, without a special question. |
 | **Live offer lookup** | `get_trades` reads current offers from the Minecraft server. |
-| **An action you can see** | `propose_trade` checks availability and proximity, then opens native trading. |
+| **An action you can see** | `propose_trade` quotes an exact bundle; `confirm_trade` performs one validated purchase after a fresh spoken yes. |
 | **Room to interrupt** | Hold **B** during a reply to interrupt and begin your next turn. |
-| **Player-controlled purchases** | Minecraft handles the exchange and final prices; voice does not spend your items. |
+| **Player-controlled purchases** | You approve the exact quote by voice; Minecraft validates stock, payment, and inventory before the exchange. |
+
+## The village remembers
+
+Casually tell a villager, **“I found a hidden library under the old well.”** It decides whether that is useful personal information or a story the village would find surprising. You do not need to ask it to remember. Saved summaries survive visits and server restarts.
+
+Keep another awake villager nearby. A brief burst of green particles signals that news has passed between them. Look at the neighbour and tap **B** to switch, then let it speak first: it can open with a fresh rumour and credit its source. A librarian gives extra attention to the library discovery; routine preferences can stay personal memories. Freshness, relevance, and recent-topic tracking guide what comes up.
+
+Stories stay attributed as player claims. Explicitly private entries do not spread; ordinary stories can reach other players through village news. **[Try the memory and rumours demo →](docs/memory-rumours.md)**
 
 ## Under the hood
 
@@ -116,7 +127,7 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and w
 
 This is a hackathon prototype. The voice bridge, Fabric integration, and trade tools are implemented. Full microphone, playback, and in-game trade validation still need confirmation on the target setup; local mock tests and synthetic voice probes cover only part of that path.
 
-Current scope: push-to-talk in the game client, system audio for the speaking player, and conversation history within a session. Negotiated prices and bounded per-villager relationship scores are implemented. Persistent conversation memory and spatial or shared audio are future directions.
+Current scope includes push-to-talk, system audio for the speaking player, persistent conversation summaries, automatic story selection, and local gossip with a particle indicator. Voice-confirmed trading, bounded negotiation, relationship scores, captions, automatic targeting, and hit reactions are also implemented. Memory and gossip have local regression coverage; live story judgments, recall, and particle visibility still need in-game validation. Distinct saved personalities and spatial or shared audio are future directions.
 
 <details>
 <summary><strong>Development checks</strong></summary>
@@ -138,6 +149,7 @@ Backend tests use a local fake Higgs endpoint. The build compiles the mod; neith
 | [`backend/`](backend/) | Local Higgs voice bridge and tool routing |
 | [`docs/architecture.md`](docs/architecture.md) | System boundaries and the end-to-end interaction |
 | [`docs/setup.md`](docs/setup.md) | Full installation, controls, local server, and troubleshooting |
+| [`docs/memory-rumours.md`](docs/memory-rumours.md) | Persistent memory, nearby gossip, demo prompts, and settings |
 | [`demo.md`](demo.md) | Presentation script, demo flow, and rehearsal checklist |
 | [`docs/brand.md`](docs/brand.md) | Logo, colors, and artwork notes |
 

@@ -31,9 +31,11 @@ live trade lookup, and audio-only purchases with one spoken confirmation.
    directory. Cardboard and iCommon are server-side dependencies, not client
    requirements for this mod.
 5. Start the server and join. Look at an adult villager to connect automatically.
-   Wait for **Ready**, then **hold B to speak and release B to send**.
+   Wait for **Ready** and let the villager greet you, then **hold B to speak and release B to send**.
    Look at another villager and press B to switch. Walking away ends the session.
    Key bindings can be changed in Minecraft controls.
+
+A neighbour with a fresh relevant rumour may bring it up in the greeting.
 
 Allow microphone access for the Minecraft/Java process when macOS asks. On macOS,
 use Prism Launcher: the official launcher may block microphone permission requests.
@@ -64,6 +66,10 @@ Captions are transient and never saved or logged.
 Validation: `npm --prefix backend test` tests against a local fake Higgs endpoint;
 `./scripts/build-mod.sh` compiles both mod entrypoints. These checks do not prove
 real API access, microphone compatibility, or a successful in-game conversation.
+
+## Memory and nearby gossip
+
+The mod also saves conversation summaries per villager and spreads public stories between nearby, awake adult villagers. Green particles mark a newly saved transfer. To try recall across visits or configure gossip distance and timing, follow the [memory and rumours guide](memory-rumours.md). Update both mod installations and restart the backend for the new voice tools.
 
 ## Run locally
 

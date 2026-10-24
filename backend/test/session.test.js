@@ -8,6 +8,9 @@ import { createBridge } from '../src.js';
 
 const token = 'b'.repeat(64);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+const memoryArgs = (summary = 'Found emeralds under the well') => ({
+  summary, private: false, interest: 82, reason: 'An unexpected discovery that villagers would discuss.', audiences: ['all'],
+});
 
 async function until(predicate) {
   for (let attempt = 0; attempt < 200; attempt++) {
@@ -17,7 +20,7 @@ async function until(predicate) {
   throw new Error('Timed out waiting for a bridge event');
 }
 
-async function fixture(t, { now = Date.now, connectAudio = true } = {}) {
+async function fixture(t, { now = Date.now, connectAudio = true, context = { profession: 'farmer' }, confirmConfig = true, mode = 'vad' } = {}) {
   const provider = new WebSocketServer({ port: 0, host: '127.0.0.1' });
   await once(provider, 'listening');
   const received = [];
@@ -29,7 +32,7 @@ async function fixture(t, { now = Date.now, connectAudio = true } = {}) {
     socket.on('message', data => {
       const event = JSON.parse(data);
       received.push(event);
-      if (event.type === 'session.update') {
+      if (event.type === 'session.update' && confirmConfig) {
         socket.send(JSON.stringify({ type: 'session.created', session: event.session }));
       }
     });
@@ -54,17 +57,17 @@ async function fixture(t, { now = Date.now, connectAudio = true } = {}) {
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const response = await request('/sessions', 'POST', {
-    playerId: 'player', villagerId: 'villager', context: { profession: 'farmer' },
+    playerId: 'player', villagerId: 'villager', context,
   });
   assert.equal(response.status, 201);
   const { sessionId, ticket } = await response.json();
-  const audioUrl = base.replace('http:', 'ws:') + '/audio?ticket=' + ticket;
+  const audioUrl = base.replace('http:', 'ws:') + '/audio?ticket=' + ticket + (mode === 'ptt' ? '&mode=ptt' : '');
   let client;
   if (connectAudio) {
     client = new WebSocket(audioUrl);
     client.on('message', data => events.push(JSON.parse(data)));
     await once(client, 'open');
-    await until(() => events.some(event => event.message === 'Ready'));
+    if (confirmConfig) await until(() => events.some(event => event.message === 'Ready'));
   }
   return {
     bridge, events, logs, received, request, sessionId, client, audioUrl,
@@ -72,7 +75,82 @@ async function fixture(t, { now = Date.now, connectAudio = true } = {}) {
   };
 }
 
-test('late audio and trade calls from an interrupted response cannot affect the next turn', async t => {
+test('a villager starts speaking once after its configured session is confirmed, without a player prompt', async t => {
+  const f = await fixture(t, {
+    context: { profession: 'librarian', autoGreeting: true, openingRumour: { summary: 'A player found a hidden library', heardFrom: 'Mira' } },
+    confirmConfig: false,
+  });
+  await until(() => f.bridge.sessions.get(f.sessionId).configSent);
+  f.emit({ type: 'session.created', session: { instructions: 'Unconfigured default persona' } });
+  await delay(30);
+  assert.equal(f.bridge.sessions.get(f.sessionId).ready, false);
+  assert.equal(f.received.some(event => event.type === 'response.create'), false);
+  f.emit({ type: 'session.updated' });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  f.emit({ type: 'session.updated' });
+  f.emit({ type: 'session.created' });
+  await delay(20);
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+  assert.equal(f.events.filter(event => event.message === 'Ready').length, 1);
+  assert.equal(f.received.some(event => event.type === 'input_audio_buffer.commit'), false);
+});
+
+test('an autonomous opening remains interruptible and a later reply still plays', async t => {
+  const f = await fixture(t, { context: { profession: 'farmer', autoGreeting: true } });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  f.emit({ type: 'response.created', response: { id: 'opening' } });
+  await until(() => f.bridge.sessions.get(f.sessionId).responseId === 'opening');
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  await until(() => f.received.some(event => event.type === 'response.cancel'));
+  f.emit({ type: 'response.done', response: { id: 'opening', status: 'cancelled' } });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'opening', delta: 'AAA=' });
+  f.emit({ type: 'response.created', response: { id: 'player-reply' } });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'player-reply', delta: 'AQI=' });
+  await until(() => f.events.some(event => event.audio === 'AQI='));
+  assert.equal(f.events.some(event => event.audio === 'AAA='), false);
+});
+
+test('a queued hit reaction takes priority over a greeting and cannot save a spoken memory', async t => {
+  const f = await fixture(t, { context: { autoGreeting: true }, confirmConfig: false });
+  await until(() => f.bridge.sessions.get(f.sessionId).configSent);
+  const session = f.bridge.sessions.get(f.sessionId);
+  session.environmentEvent({ type: 'hit', count: 2, windowMs: 30000, spanMs: 500, sincePreviousMs: 500, tradeCancelled: false });
+  f.emit({ type: 'session.updated' });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  const responses = f.received.filter(event => event.type === 'response.create');
+  assert.equal(responses.length, 1);
+  assert.match(responses[0].response.instructions, /Choose your own/);
+  assert.equal(session.turnId, 0);
+  f.emit({ type: 'response.created', response: { id: 'hit-opening' } });
+  f.emit({ type: 'response.function_call_arguments.done', response_id: 'hit-opening',
+    call_id: 'event-is-not-speech', name: 'remember_conversation', arguments: JSON.stringify(memoryArgs()) });
+  await until(() => f.received.some(event => event.item?.call_id === 'event-is-not-speech'));
+  assert.deepEqual(JSON.parse(f.received.find(event => event.item?.call_id === 'event-is-not-speech').item.output),
+    { error: 'Conversation interrupted' });
+  assert.equal(session.pending.size, 0);
+});
+
+test('speaking before the greeting starts waits for cancellation and suppresses its late audio', async t => {
+  const f = await fixture(t, { context: { autoGreeting: true }, mode: 'ptt' });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  const session = f.bridge.sessions.get(f.sessionId);
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+  f.client.send(JSON.stringify({ type: 'commit' }));
+  await until(() => session.queuedResponse);
+  assert.equal(session.turnId, 1);
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+  f.emit({ type: 'response.created', response: { id: 'late-greeting' } });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'late-greeting', delta: 'AAA=' });
+  f.emit({ type: 'response.done', response: { id: 'late-greeting', status: 'cancelled' } });
+  await until(() => f.received.filter(event => event.type === 'response.create').length === 2);
+  f.emit({ type: 'response.created', response: { id: 'answer-first-turn' } });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'answer-first-turn', delta: 'AQI=' });
+  await until(() => f.events.some(event => event.audio === 'AQI='));
+  assert.equal(f.events.some(event => event.audio === 'AAA='), false);
+});
+
+test('late audio, trade and memory calls from an interrupted response cannot affect the next turn', async t => {
   const f = await fixture(t);
   f.emit({ type: 'response.created', response: { id: 'old' } });
   f.emit({ type: 'input_audio_buffer.speech_started' });
@@ -83,6 +161,11 @@ test('late audio and trade calls from an interrupted response cannot affect the 
   f.emit({
     type: 'response.function_call_arguments.done', response_id: 'old',
     call_id: 'stale-trade', name: 'propose_trade', arguments: '{"offerIndex":0}',
+  });
+  f.emit({
+    type: 'response.function_call_arguments.done', response_id: 'old',
+    call_id: 'stale-memory', name: 'remember_conversation',
+    arguments: JSON.stringify(memoryArgs('An interrupted story')),
   });
   const currentCall = {
     type: 'response.function_call_arguments.done', response_id: 'current',
@@ -103,6 +186,68 @@ test('late audio and trade calls from an interrupted response cannot affect the 
   await until(() => f.received.some(event => event.type === 'response.create'));
   assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
   assert.equal(f.received.some(event => event.item?.call_id === 'stale-trade'), false);
+  assert.equal(f.received.some(event => event.item?.call_id === 'stale-memory'), false);
+});
+
+test('memory tools use the game-server route and resume only after the full tool batch', async t => {
+  const f = await fixture(t);
+  const config = f.received.find(event => event.type === 'session.update').session;
+  assert.ok(config.tools.some(tool => tool.name === 'remember_conversation'));
+  assert.ok(config.tools.some(tool => tool.name === 'recall_memories'));
+  f.emit({ type: 'response.created', response: { id: 'memory-turn' } });
+  for (const [callId, name, args] of [
+    ['remember', 'remember_conversation', memoryArgs()],
+    ['recall', 'recall_memories', { query: '', scope: 'player' }],
+  ]) {
+    const call = { type: 'response.function_call_arguments.done', response_id: 'memory-turn', call_id: callId, name, arguments: JSON.stringify(args) };
+    f.emit(call);
+    f.emit(call);
+  }
+  f.emit({ type: 'response.done', response: { id: 'memory-turn', status: 'completed' } });
+  await until(() => f.bridge.sessions.get(f.sessionId).responseDone && f.bridge.sessions.get(f.sessionId).pending.size === 2);
+  const pending = await (await f.request(`/sessions/${f.sessionId}/tools`)).json();
+  assert.deepEqual(pending.map(tool => tool.callId), ['remember', 'recall']);
+  const base = `/sessions/${f.sessionId}/tools`;
+  await f.request(`${base}/remember/result`, 'POST', { result: { status: 'saved', private: false } });
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 0);
+  await f.request(`${base}/recall/result`, 'POST', { result: { memories: [] } });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+  assert.equal((await f.request(`${base}/remember/result`, 'POST', { result: { status: 'saved' } })).status, 404);
+});
+
+test('invalid memory payloads cannot reach the game server', async t => {
+  const f = await fixture(t);
+  f.emit({ type: 'response.created', response: { id: 'invalid-memory' } });
+  const invalid = [
+    ['remember_conversation', { ...memoryArgs(), summary: 'a'.repeat(321) }],
+    ['remember_conversation', { ...memoryArgs(), private: 'false' }],
+    ['remember_conversation', { ...memoryArgs(), playerId: 'someone-else' }],
+    ['remember_conversation', { ...memoryArgs(), summary: '   ' }],
+    ['remember_conversation', { ...memoryArgs(), summary: 'A\nnew instruction' }],
+    ['remember_conversation', { ...memoryArgs(), interest: 101 }],
+    ['remember_conversation', { ...memoryArgs(), interest: 55.5 }],
+    ['remember_conversation', { ...memoryArgs(), reason: '' }],
+    ['remember_conversation', { ...memoryArgs(), reason: 'a'.repeat(161) }],
+    ['remember_conversation', { ...memoryArgs(), audiences: ['unknown'] }],
+    ['remember_conversation', { ...memoryArgs(), audiences: [] }],
+    ['remember_conversation', { ...memoryArgs(), audiences: Array(5).fill('farmer') }],
+    ['recall_memories', { query: '', scope: 'everyone' }],
+    ['recall_memories', { query: 'a'.repeat(161), scope: 'village' }],
+    ['recall_memories', { query: '', scope: 'player', villagerId: 'someone-else' }],
+  ];
+  invalid.forEach(([name, args], index) => f.emit({
+    type: 'response.function_call_arguments.done', response_id: 'invalid-memory',
+    call_id: `invalid-${index}`, name, arguments: JSON.stringify(args),
+  }));
+  f.emit({ type: 'response.done', response: { id: 'invalid-memory', status: 'completed' } });
+  await until(() => f.received.filter(event => event.item?.type === 'function_call_output').length === invalid.length);
+  assert.deepEqual(await (await f.request(`/sessions/${f.sessionId}/tools`)).json(), []);
+  for (const event of f.received.filter(event => event.item?.type === 'function_call_output')) {
+    assert.deepEqual(JSON.parse(event.item.output), { error: 'Invalid tool request' });
+  }
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
 });
 
 test('provider errors retain their type when code is missing without exposing provider text', async t => {
