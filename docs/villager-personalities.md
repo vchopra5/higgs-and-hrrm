@@ -2,18 +2,18 @@
 
 # HIGGS HRRM · One village, different minds
 
-[← HIGGS HRRM](../README.md) · [Memory and rumours](memory-rumours.md) · [Design](villager-personalities-plan.md)
+[← HIGGS HRRM](../README.md) · [Memory and rumours](memory-rumours.md)
 
 Villagers now keep a name, character and delivery style across conversations and world restarts. Their profession remains their job: two farmers can have different personalities. A name tag changes the displayed name without replacing their saved character.
 
-| Meet | What drives them | How they sound | What they share |
+| Meet | What drives them | Delivery / default preset | What they share |
 | --- | --- | --- | --- |
 | **Mira** | Generous and attentive; cannot bear being the last to know. | Warm and brisk · `chloe` | Public news from 55 interest, after 5 seconds; normal pair cooldown. |
 | **Rowan** | Demands evidence, but longs for a great mystery. | Measured and dryly amused · `oliver` | News from 70 interest, after 30 seconds; 1.5× pair cooldown. |
 | **Bram** | Wants his craft respected; hides a fondness for poetry. | Brief and understated · `marcus` | News from 65 interest, after 60 seconds; 2× pair cooldown. |
 | **Rook** | Protective, impatient and quick to bristle; grudgingly respects resolve. | Firm and clipped · `marcus` | News from 65 interest, after 10 seconds; 1.25× pair cooldown, with an interest in danger and defence. |
 
-These are authored directions, not fixed dialogue. Preset suitability and actual delivery still need a live audition. Voice configuration follows Boson's [Realtime audio guide](https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices); the names come from its [preset catalogue](https://docs.boson.ai/models/higgs-tts/voices).
+These are authored directions, not fixed dialogue. The presets shown are defaults before voice overrides; the shared voice installer configures one account-owned villager voice for all personalities, while their delivery instructions remain distinct. Audition any voice changes on the target account. Voice configuration follows Boson's [Realtime audio guide](https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices); the names come from its [preset catalogue](https://docs.boson.ai/models/higgs-tts/voices).
 
 ## Prepare the cast
 

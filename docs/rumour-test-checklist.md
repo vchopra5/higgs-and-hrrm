@@ -31,7 +31,7 @@ Keep the player nearby enough to load all three. Use daylight. Keep other villag
 | Deduplication | Wait another 70 seconds. | At most one entry per owner/root. No repeated particles for retransmitting the same already-known story. |
 | Private control | Tell A a different story: “Keep this secret; do not tell anyone. I hid a copper compass beneath my bed.” | Saved as private; no copy at B or C after 70 seconds. If Higgs marked it public, record a classification failure, not a propagation-rule failure. |
 | Routine control | Tell A: “I usually buy bread on Tuesdays.” | May be a personal memory, but should not become noteworthy village news. Record the model's interest rating. |
-| Persistence | Stop/restart the server cleanly, reconnect, ask A about the violet lantern. | Same saved rootId and source provenance survive. New memory default lifetime is seven real-time days. |
+| Persistence | Stop/restart the server cleanly, reconnect, ask A about the violet lantern. | Same saved rootId and source provenance survive. New memory default lifetime is 30 real-time days. |
 | Greeting repeat control | Reconnect to B twice within ten minutes. | The same story should not be repeatedly selected as its opening topic; explicit recall should still work. Restart resets this greeting-only cooldown. |
 | Hit/trade interaction | Ask for a quote, then hit the villager. | Quote cancelled, reputation worsens, verbal pushback; hit event never saved as a spoken player claim or treated as trade consent. |
 

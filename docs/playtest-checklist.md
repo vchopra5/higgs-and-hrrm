@@ -4,7 +4,7 @@
 
 [← HIGGS HRRM](../README.md) · [Setup](setup.md) · [Memory evaluation](memory-evaluation.md)
 
-One pass through every feature in a running game. Everything here has unit or integration tests, and some parts have live Boson probes, but **none of it has been verified end to end in-game** until this list is run. Tick each item, and note anything that differs from **Expect** in the results table at the end.
+Use this checklist to record end-to-end verification on a particular build and setup. Automated checks, live Boson probes, and the recorded demo provide partial evidence; they do not mark the whole checklist as passed. Tick each item you verify, and note anything that differs from **Expect** in the results table at the end.
 
 ## Before you start
 

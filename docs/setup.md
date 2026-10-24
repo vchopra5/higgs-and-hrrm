@@ -6,8 +6,8 @@
 
 Local Minecraft Java Edition **26.1.2** server with **Fabric 0.20.1** and
 **Cardboard 26.1-15** for the villager conversation project.
-Fabric API and iCommon are installed. The Higgs integration prototype lives in
-`mod/` and `backend/`; live Boson and microphone testing is still required.
+Fabric API and iCommon are required server dependencies. The Higgs integration lives in
+`mod/` and `backend/`; validate live Boson access and microphone behavior on each target setup.
 Every server jar is pinned with its SHA-512 and download source in the lockfile
 [`scripts/server.lock`](../scripts/server.lock).
 
@@ -97,9 +97,10 @@ it to `scripts/client.lock`, or the launch is refused.
 
 ## Villager voice prototype
 
-See the [build architecture and diagram](architecture.md). The first pass
-implements Fabric client/server code, hands-free realtime audio, a Higgs backend,
-live trade lookup, and audio-only purchases with one spoken confirmation.
+See the [architecture and diagram](architecture.md). The implementation includes
+Fabric client/server code, push-to-talk realtime audio, a Higgs backend,
+live trade lookup, and voice purchases with one spoken confirmation. The same backend
+serves the [village dashboard](../README.md#village-dashboard).
 
 1. Put your Boson key in the root `.env` as `BOSON_API_KEY=...`. Keep the generated
    `HIGGS_BRIDGE_TOKEN`; the server mod and backend must share it. For a fresh
