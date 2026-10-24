@@ -40,6 +40,7 @@ public final class HiggsVillagers implements ModInitializer {
     private VillagerPersonalityService personalities;
     private VillagerChatter chatter;
     private VillagerAlarm alarm;
+    private VillageMoments moments;
     private final Map<String, Long> bedtimeUntil = new HashMap<>();
     private static final long BEDTIME_MS = 90_000;
     /** Villagers wind down for the night: their rest schedule, or the clock for villagers without AI. */
@@ -450,6 +451,14 @@ public final class HiggsVillagers implements ModInitializer {
             public void send(ServerPlayer player, JsonObject message) { HiggsVillagers.this.send(player, message); }
             public boolean canSend(ServerPlayer player) { return ServerPlayNetworking.canSend(player, ControlPayload.TYPE); }
         }, personalities, publicBackend);
+        moments = new VillageMoments(alarm, villager -> sessions.values().stream().anyMatch(s -> s.villager == villager || s.companion == villager));
+        // Ringing a bell: vanilla still rings it; a few villagers come over to see what is the matter.
+        net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
+            if (!world.isClientSide() && player instanceof ServerPlayer sp && !token.isBlank()
+                && world.getBlockState(hitResult.getBlockPos()).getBlock() instanceof net.minecraft.world.level.block.BellBlock)
+                moments.bellRung(sp, hitResult.getBlockPos().immutable());
+            return net.minecraft.world.InteractionResult.PASS;
+        });
         ServerLifecycleEvents.SERVER_STARTED.register(personalities::start);
         ServerLifecycleEvents.SERVER_STARTED.register(memory::start);
         PayloadTypeRegistry.serverboundPlay().register(ControlPayload.TYPE, ControlPayload.STREAM_CODEC);
@@ -480,6 +489,7 @@ public final class HiggsVillagers implements ModInitializer {
             memory.tick(server, ++ticks);
             if (!token.isBlank()) chatter.tick(server, ticks);
             if (!token.isBlank()) alarm.tick(server, ticks);
+            if (!token.isBlank()) moments.tick(server, ticks);
             villages.tick(server, ticks);
             // Rotate explicitly: the demo villagers have NoAI, so look controls alone do nothing.
             Map<UUID, Session> facing = new HashMap<>();
@@ -572,6 +582,7 @@ public final class HiggsVillagers implements ModInitializer {
             personalities.stop();
             chatter.clear();
             alarm.clear();
+            moments.clear();
             hits.clear();
         });
     }

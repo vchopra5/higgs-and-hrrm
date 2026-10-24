@@ -98,7 +98,8 @@ export function createBridge({
     const generating = [...scenes.values()].filter(scene => scene instanceof ShoutScene && scene.generating).length;
     const shout = new ShoutScene(body, { apiKey, upstreamUrl, connect, now, log, voiceOverrides, cache: shoutCache,
       cachedOnly: generating >= SHOUT_LIMITS.generating, onClose: id => scenes.delete(id) });
-    if (shout.cachedOnly && !shoutCache.pick(shout.voice, shout.kind, true)) return replyJson(response, 429, { error: 'Shout limit reached' });
+    if (shout.cachedOnly && (shout.kind === 'rap' || !shoutCache.pick(shout.voice, shout.kind, true)))
+      return replyJson(response, 429, { error: 'Shout limit reached' });
     scenes.set(shout.id, shout);
     shout.start();
     replyJson(response, 201, { sceneId: shout.id, token: shout.token });

@@ -16,6 +16,7 @@ import net.minecraft.world.entity.monster.zombie.Zombie;
 import net.minecraft.world.entity.npc.villager.Villager;
 
 /**
+ * Voiced moments heard from a villager: screams when a zombie is chasing it, and (via {@link #shout}) bell calls and raps.
  * Villagers scream when a zombie is chasing them. The backend voices a short cry in the villager's own voice (cached per
  * voice) and nearby players hear it from the villager through the chatter listen channel.
  */
@@ -55,14 +56,18 @@ final class VillagerAlarm {
             for (Villager villager : player.level().getEntitiesOfClass(Villager.class, player.getBoundingBox().inflate(WATCH),
                     v -> v.isAlive() && !v.isBaby() && !v.isSleeping() && !cooldown.containsKey(v.getUUID()))) {
                 if (pending >= MAX_PENDING) return;
-                if (chased(villager)) scream(server, villager, now);
+                if (chased(villager)) {
+                    // A fresh cry every 8–14 seconds while the chase lasts.
+                    cooldown.put(villager.getUUID(), now + 8000 + ThreadLocalRandom.current().nextLong(6000));
+                    shout(server, villager, "zombie");
+                }
             }
         }
     }
 
-    private void scream(MinecraftServer server, Villager villager, long now) {
-        // A fresh cry every 8–14 seconds while the chase lasts.
-        cooldown.put(villager.getUUID(), now + 8000 + ThreadLocalRandom.current().nextLong(6000));
+    /** A voiced line (a scream, a bell call, a rap) heard from the villager by players within earshot. */
+    boolean shout(MinecraftServer server, Villager villager, String kind) {
+        if (pending >= MAX_PENDING) return false;
         pending++;
         personalities.prepare(villager).whenComplete((prepared, failure) -> server.execute(() -> {
             if (failure != null || !villager.isAlive()) { pending--; return; }
@@ -80,7 +85,7 @@ final class VillagerAlarm {
                 speaker.add("personality", personality);
             }
             JsonObject body = new JsonObject();
-            body.addProperty("kind", "zombie");
+            body.addProperty("kind", kind);
             body.add("speaker", speaker);
             host.request("POST", "/shouts", body).whenComplete((reply, error) -> server.execute(() -> {
                 pending--;
@@ -98,6 +103,7 @@ final class VillagerAlarm {
                 }
             }));
         }));
+        return true;
     }
 
     void clear() { cooldown.clear(); pending = 0; }

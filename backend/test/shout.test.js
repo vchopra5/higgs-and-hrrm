@@ -69,3 +69,34 @@ test('screams are cached per voice and replayed without the provider', async () 
   assert.equal(cache.clips.get('chloe:zombie').length, 3, 'three variants per voice');
   assert.throws(() => parseShout({ kind: 'zombie', speaker: { entityId: 'x', name: 'Iris', profession: 'librarian' } }));
 });
+
+test('a rap is written fresh each time and never cached; bell calls are cached like screams', async t => {
+  const provider = new WebSocketServer({ port: 0, host: '127.0.0.1' });
+  await once(provider, 'listening');
+  t.after(() => new Promise(resolve => { for (const c of provider.clients) c.terminate(); provider.close(resolve); }));
+  const prompts = [];
+  provider.on('connection', socket => socket.on('message', data => {
+    const event = JSON.parse(data);
+    if (event.type === 'session.update') socket.send(JSON.stringify({ type: 'session.updated', session: event.session }));
+    if (event.type === 'conversation.item.create') prompts.push(event.item.content[0].text);
+    if (event.type === 'response.create') {
+      socket.send(JSON.stringify({ type: 'response.output_audio.delta', delta: 'QUFBSA==' }));
+      socket.send(JSON.stringify({ type: 'response.output_audio_transcript.done', transcript: 'I farm the wheat, I keep the beat.' }));
+      socket.send(JSON.stringify({ type: 'response.done', response: { status: 'completed' } }));
+    }
+  }));
+  const cache = new ShoutCache(() => 0);
+  const run = kind => new Promise(resolve => {
+    const shout = new ShoutScene({ kind, speaker: { entityId: 5, name: 'Bram', profession: 'farmer' } }, {
+      apiKey: 'k', upstreamUrl: `ws://127.0.0.1:${provider.address().port}`, connect: (url, options) => new WebSocket(url, options),
+      cache, now: Date.now, log: () => resolve(shout), onClose: () => {} });
+    shout.start();
+  });
+  const rap = await run('rap');
+  assert.match(prompts[0], /^\[A jukebox is playing a lively tune and everyone is dancing\] Break into a short, playful rap: two to four rhyming lines about your life as the village farmer/);
+  assert.equal(rap.replay.find(e => e.type === 'line_end').text, 'I farm the wheat, I keep the beat.');
+  assert.equal(cache.clips.size, 0, 'raps are not cached');
+  await run('bell');
+  assert.match(prompts[1], /^\[Someone just rang the village bell and you hurried over to it\]/);
+  assert.equal(cache.clips.get('oliver:bell').length, 1, 'bell calls are cached');
+});

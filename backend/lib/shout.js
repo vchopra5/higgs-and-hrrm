@@ -7,11 +7,18 @@ import { LIMITS, sendJson } from './protocol.js';
 // nearby players through the chatter listen channel. Screams are cached per voice, so after the first few they cost
 // nothing and play at once.
 export const SHOUT_LIMITS = Object.freeze({ generating: 2, variants: 3, clipBytes: 400_000, retainMs: 15_000, shoutMs: 20_000 });
-export const SHOUT_KINDS = new Set(['zombie']);
+export const SHOUT_KINDS = new Set(['zombie', 'bell', 'rap']);
+/** Short stock cries are cached per voice; a rap is always fresh. */
+const CACHED_KINDS = new Set(['zombie', 'bell']);
 
 const PROMPTS = {
-  zombie: '[A zombie is chasing you right now] Scream for help in terror: a cry and at most a few panicked words, such as '
+  zombie: () => '[A zombie is chasing you right now] Scream for help in terror: a cry and at most a few panicked words, such as '
     + 'calling out that a zombie is after you. No narration, no description of sounds.',
+  bell: () => '[Someone just rang the village bell and you hurried over to it] Call out in one short sentence, asking who rang the '
+    + 'bell and what the matter is. No narration.',
+  rap: speaker => `[A jukebox is playing a lively tune and everyone is dancing] Break into a short, playful rap: two to four rhyming `
+    + `lines about your life as the village ${speaker.profession}. Rhythmic, cheerful, family-friendly. Only the lyrics: no narration, `
+    + 'no description of sounds or music.',
 };
 
 const text = (value, max) => typeof value === 'string' && value.trim().length > 0 && value.length <= max
@@ -77,7 +84,7 @@ export class ShoutScene {
 
   start() {
     this.broadcast({ type: 'line', index: 0, speaker: this.speaker.entityId, name: this.speaker.name });
-    const cached = this.cache.pick(this.voice, this.kind, this.cachedOnly);
+    const cached = CACHED_KINDS.has(this.kind) ? this.cache.pick(this.voice, this.kind, this.cachedOnly) : null;
     if (cached) {
       for (const audio of cached.audio) this.broadcast({ type: 'audio', index: 0, audio });
       this.broadcast({ type: 'line_end', index: 0, text: cached.text });
@@ -85,7 +92,7 @@ export class ShoutScene {
       return;
     }
     this.generating = true;
-    this.timer = setTimeout(() => this.finish('time_limit'), SHOUT_LIMITS.shoutMs);
+    this.timer = setTimeout(() => this.finish('time_limit'), this.kind === 'rap' ? SHOUT_LIMITS.shoutMs * 2 : SHOUT_LIMITS.shoutMs);
     this.timer.unref?.();
     try {
       this.upstream = this.connect(this.upstreamUrl, {
@@ -123,7 +130,7 @@ export class ShoutScene {
         if (!this.asked && (event.type === 'session.updated' || event.session?.instructions === this.requested)) {
           this.asked = true;
           sendJson(this.upstream, { type: 'conversation.item.create', item: { type: 'message', role: 'user',
-            content: [{ type: 'input_text', text: PROMPTS[this.kind] }] } });
+            content: [{ type: 'input_text', text: PROMPTS[this.kind](this.speaker) }] } });
           sendJson(this.upstream, { type: 'response.create' });
         }
         break;
@@ -135,12 +142,14 @@ export class ShoutScene {
         }
         break;
       case 'response.output_audio_transcript.done':
-        if (typeof event.transcript === 'string') this.lineText = event.transcript.slice(0, 200);
+        // Captions read better without the quotation marks the model sometimes wraps a cry in.
+        if (typeof event.transcript === 'string')
+          this.lineText = event.transcript.trim().replace(/^["“]|["”]$/g, '').slice(0, this.kind === 'rap' ? 400 : 200);
         break;
       case 'response.done': {
         const text = this.lineText.trim();
         this.broadcast({ type: 'line_end', index: 0, text });
-        if (event.response?.status === 'completed' && this.audio.length && this.audioBytes <= SHOUT_LIMITS.clipBytes)
+        if (CACHED_KINDS.has(this.kind) && event.response?.status === 'completed' && this.audio.length && this.audioBytes <= SHOUT_LIMITS.clipBytes)
           this.cache.store(this.voice, this.kind, { audio: this.audio, text });
         this.finish('completed');
         break;

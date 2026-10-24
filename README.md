@@ -250,6 +250,15 @@ seconds while the chase lasts; players within earshot hear it from the villager,
 caption. Screams are cached per voice (three variants), so after the first few they cost
 no extra Boson usage and play at once.
 
+## Music and the bell
+
+Play a record in a jukebox and villagers within 12 blocks dance: they spin, nod, hop and
+give off music notes. Soon after the music starts, one of them breaks into a short rap
+about its trade in its own voice (a fresh verse each time; at most one per jukebox every
+90 seconds). Ring a village bell and, instead of everyone hiding, up to three villagers
+nearby walk over and ask who rang it and what the matter is. Villagers with AI disabled
+only answer if they are already within six blocks.
+
 ## Errands
 
 Ask a villager for work (“anything I can help with?”) and it may send you to a neighbour
