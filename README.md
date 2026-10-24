@@ -27,23 +27,25 @@ live trade lookup, and the native merchant-screen handoff.
    directory. Cardboard and iCommon are server-side dependencies, not client
    requirements for this mod.
 5. Start the server and join. Look at an adult villager and press **V**.
-   Wait for **Ready**, then speak naturally; Higgs detects speech and pauses.
-   Press **B** to mute/unmute or **V** again to leave. Key bindings can be changed in Minecraft controls.
+   Wait for **Ready**, then **hold B to speak and release B to send**.
+   Press **V** again to leave. Key bindings can be changed in Minecraft controls.
 
-Allow microphone access for the Minecraft/Java process when macOS asks. The microphone streams while a conversation is active and unmuted; the HUD shows
-Listening, Speaking, or Muted. Press B to stop sending audio and V to close the
-microphone and conversation. Hands-free streaming starts after Ready, so only
-start a conversation when you want your microphone sent to Higgs. Speech currently plays through the default
-system audio device, not Minecraft's positional audio or volume sliders.
-Use headphones to avoid speaker audio triggering voice detection; acoustic echo
-cancellation is not implemented.
+Allow microphone access for the Minecraft/Java process when macOS asks. On macOS,
+use Prism Launcher: the official launcher may block microphone permission requests.
+The microphone sends audio only while B is held in the focused game window.
+Releasing B, opening a menu, or switching away ends the turn. Pressing B during a
+reply interrupts it. The top-right HUD shows microphone strength while you speak.
+Speech plays through the default system audio device, not Minecraft's positional
+sound or volume sliders. Turns shorter than 100 ms are discarded; keep each turn
+under 60 seconds.
 
 Live diagnostics appear at the top left during conversations; **F8** toggles them.
-The microphone meter should move when you speak, sent bytes should increase,
-and VAD start/stop counts should advance around each sentence. Reply counts and
-first-audio latency show provider progress; received bytes and queued milliseconds
-show playback progress. Errors and ended-session diagnostics remain for 15 seconds.
-The mod also dismisses Minecraft's first-time movement tutorial on entering a world.
+The microphone meter should move and sent bytes should increase while B is held.
+Release B to request a reply; VAD counters remain zero in push-to-talk mode.
+First-audio latency measures release to audio forwarded by the bridge. Received
+bytes and queued milliseconds show playback progress. Errors and ended-session
+diagnostics remain for 15 seconds. The mod dismisses Minecraft's first-time
+movement tutorial on entering a world.
 
 Ask “What can I buy?” or “Show me the bread trade.” The model can open the native
 trading screen; you choose and complete the trade there. It cannot change prices

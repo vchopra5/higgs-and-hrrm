@@ -1,6 +1,6 @@
 {
   "key.category.higgs_villagers.voice": "Higgs Villager Voice",
   "key.higgs_villagers.conversation": "Start / end villager conversation",
-  "key.higgs_villagers.mute": "Mute / unmute villager microphone",
+  "key.higgs_villagers.talk": "Hold to talk to villager",
   "key.higgs_villagers.diagnostics": "Show / hide voice diagnostics"
 }

@@ -32,7 +32,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private volatile boolean ready;
     private volatile TargetDataLine microphone;
     private volatile SourceDataLine speaker;
-    private volatile boolean muted;
+    private volatile boolean muted = true;
     private volatile boolean speaking;
     private long microphoneGeneration;
     private volatile Thread capture;
@@ -56,7 +56,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         boolean hasTicket = provided.getRawQuery() != null && java.util.Arrays.stream(provided.getRawQuery().split("&"))
             .anyMatch(parameter -> parameter.startsWith("ticket="));
         String target = hasTicket ? url : url + (url.contains("?") ? "&" : "?") + "ticket=" + URLEncoder.encode(ticket, StandardCharsets.UTF_8);
-        URI endpoint = URI.create(target);
+        URI endpoint = URI.create(target + (target.contains("?") ? "&" : "?") + "mode=ptt");
         if (!"ws".equals(endpoint.getScheme()) && !"wss".equals(endpoint.getScheme()))
             throw new IllegalArgumentException("Invalid voice endpoint");
         http.newWebSocketBuilder().connectTimeout(Duration.ofSeconds(10)).buildAsync(endpoint, this)
@@ -85,13 +85,15 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     boolean isMuted() { return muted; }
     boolean isSpeaking() { return speaking && !muted; }
 
-    synchronized void toggleMute() {
-        muted = !muted;
+    synchronized void setTalking(boolean held) {
+        if (!isReady() || held == !muted) return;
+        muted = !held;
         microphoneGeneration++;
-        if (muted) speaking = false;
-        if (isReady()) enqueue("{\"type\":\"mute\",\"muted\":" + muted + "}");
+        speaking = held;
+        // Serialized with captured frames: release commits only the preceding turn.
+        enqueue(held ? "{\"type\":\"interrupt\"}" : "{\"type\":\"commit\"}");
         notifyAll();
-        status.accept(muted ? "Microphone muted. Press B to unmute." : "Listening. Press B to mute; V to leave.");
+        status.accept(held ? "Speaking… release B to send." : "Sent. Hold B to speak again; V to leave.");
     }
 
     private void startMicrophone() {
@@ -216,9 +218,8 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                         String message = event.get("message").getAsString();
                         if ("Ready".equalsIgnoreCase(message)) {
                             ready = true;
-                            if (muted) enqueue("{\"type\":\"mute\",\"muted\":true}");
                             startMicrophone();
-                            status.accept(muted ? "Microphone muted. Press B to unmute." : "Listening. Press B to mute; V to leave.");
+                            status.accept("Ready. Hold B to speak; release to send. V to leave.");
                         } else status.accept(message);
                     }
                     case "error" -> {
@@ -263,7 +264,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
             "Sent " + sentChunks + " chunks / " + sentBytes + " B  pending " + outgoing.size(),
             "Audio received " + receivedChunks + " / " + receivedBytes + " B  queued " + ((playback.queuedBytes() + playingBytes) / 48) + "ms",
             "Backend in/out " + field(remote, "inputBytes", "0") + "/" + field(remote, "outputBytes", "0") + " B  ready " + field(remote, "upstreamReady", "?"),
-            "VAD start/stop " + field(remote, "speechStarts", "0") + "/" + field(remote, "speechStops", "0") + "  replies " + field(remote, "responses", "0") + "  first audio " + latency + "ms",
+            "VAD (off in PTT) " + field(remote, "speechStarts", "0") + "/" + field(remote, "speechStops", "0") + "  replies " + field(remote, "responses", "0") + "  first audio " + latency + "ms",
             "Suppressed " + field(remote, "suppressedAudio", "none"),
             "Tools " + field(remote, "pendingTools", "0") + "  event " + field(remote, "lastEvent", lastEvent),
             "Error " + (remoteError.isBlank() ? lastError.isBlank() ? "none" : lastError : remoteError)

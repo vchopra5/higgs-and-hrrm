@@ -33,7 +33,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     @Override public void onInitializeClient() {
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("higgs_villagers", "voice"));
         KeyMapping toggle = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.conversation", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, category));
-        KeyMapping mute = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.mute", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category));
+        KeyMapping talk = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.talk", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category));
         KeyMapping diagnostics = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.diagnostics", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, category));
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "voice_indicator"),
             (graphics, delta) -> {
@@ -43,12 +43,15 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 boolean muted = voice != null && voice.isMuted();
                 boolean speaking = voice != null && voice.isSpeaking();
                 boolean ready = voice != null && voice.isReady();
-                String label = muted ? "Muted" : speaking ? "Speaking" : transmitting ? "Listening" : ready ? "Starting mic..." : "Connecting...";
+                String label = !ready ? "Connecting..." : muted ? "Hold B to talk" : speaking ? "Speaking" : "Starting mic...";
                 int color = muted ? 0xFFFFCF70 : speaking ? 0xFF70EF9B : ready ? 0xFFD3DBE5 : 0xFFFFCF70;
-                int width = 32 + client.font.width(label);
+                double dbfs = voice == null ? -96 : voice.microphoneDbfs();
+                String strength = muted ? "Mic off" : !transmitting ? "Mic inactive"
+                    : dbfs <= -96 ? "Mic: no signal" : "Mic: " + Math.round(dbfs) + " dBFS";
+                int width = Math.max(128, Math.max(32 + client.font.width(label), 16 + client.font.width(strength)));
                 int x = graphics.guiWidth() - width - 10, y = 10;
-                graphics.fill(x, y, x + width, y + 26, 0xDF141B24);
-                graphics.fill(x, y, x + 2, y + 26, color);
+                graphics.fill(x, y, x + width, y + 49, 0xDF141B24);
+                graphics.fill(x, y, x + 2, y + 49, color);
                 // Pixel microphone: capsule, cradle and stand; no font glyph dependency.
                 int mx = x + 12, my = y + 5;
                 graphics.fill(mx - 2, my, mx + 2, my + 9, color);
@@ -58,6 +61,16 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 graphics.fill(mx - 1, my + 12, mx + 1, my + 15, color);
                 graphics.fill(mx - 3, my + 15, mx + 3, my + 16, color);
                 graphics.text(client.font, label, x + 24, y + 9, color, false);
+                graphics.text(client.font, strength, x + 8, y + 25, 0xFFD3DBE5, false);
+                // Measure local PCM directly, even before the provider detects speech.
+                double level = transmitting ? Math.max(0, Math.min(1, (dbfs + 60) / 60)) : 0;
+                int lit = (int) Math.ceil(level * 12);
+                for (int bar = 0; bar < 12; bar++) {
+                    int left = x + 8 + bar * (width - 16) / 12;
+                    int right = x + 8 + (bar + 1) * (width - 16) / 12 - 2;
+                    int barColor = bar >= 11 ? 0xFFFF7070 : bar >= 9 ? 0xFFFFCF70 : 0xFF70EF9B;
+                    graphics.fill(left, y + 39, right, y + 44, bar < lit ? barColor : 0xFF384451);
+                }
             });
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "diagnostics"),
             (graphics, delta) -> {
@@ -107,9 +120,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 stop(true);
                 status("Villager connection timed out. Check the backend.");
             }
-            while (mute.consumeClick()) {
-                if (client.screen == null && voice != null) voice.toggleMute();
-            }
+            while (talk.consumeClick()) { /* Held state below owns push-to-talk. */ }
+            if (voice != null) voice.setTalking(client.screen == null && client.isWindowActive() && talk.isDown());
         });
     }
 

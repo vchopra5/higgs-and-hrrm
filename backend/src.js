@@ -173,6 +173,7 @@ export function createBridge({ apiKey, token, upstreamUrl = 'wss://api.boson.ai/
         } else if (event.type === 'commit') {
           if (s.mode !== 'ptt') return; // VAD owns commits and responses.
           s.recording = false;
+          s.speechStoppedAt = now();
           if (s.inputBytes >= 4800) { send(upstream, { type: 'input_audio_buffer.commit' }); send(upstream, { type: 'response.create' }); }
           else send(upstream, { type: 'input_audio_buffer.clear' });
           s.inputBytes = 0;
