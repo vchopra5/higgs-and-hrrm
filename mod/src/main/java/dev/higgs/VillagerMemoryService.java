@@ -17,13 +17,15 @@ public final class VillagerMemoryService {
     private static final Logger LOG = LoggerFactory.getLogger("HiggsVillagerMemory");
     private final VillagerMemoryStore.Limits limits;
     private final VillagerGossip gossip;
+    private final VillagerPersonalityService personalities;
     private final RumourConversation conversation = new RumourConversation(10 * 60_000L);
     private final int intervalTicks, radius;
     private VillagerMemoryStore store;
     private int cursor;
     private volatile boolean stopping;
 
-    public VillagerMemoryService(Map<String, String> config) {
+    public VillagerMemoryService(Map<String, String> config, VillagerPersonalityService personalities) {
+        this.personalities = personalities;
         radius = setting(config, "HIGGS_GOSSIP_RADIUS", 16, 1, 64);
         intervalTicks = 20 * setting(config, "HIGGS_GOSSIP_INTERVAL_SECONDS", 10, 1, 3600);
         gossip = new VillagerGossip(radius, 1000L * setting(config, "HIGGS_GOSSIP_COOLDOWN_SECONDS", 60, 1, 3600));
@@ -71,6 +73,9 @@ public final class VillagerMemoryService {
         if (store == null) return context;
         long now = System.currentTimeMillis();
         var ranked = store.heardRumours(villager.getUUID(), player.getUUID(), profession(villager), now);
+        var policy = personalities.policy(villager);
+        if (policy != null) ranked = ranked.stream().filter(m -> m.interest().score() >= policy.threshold())
+            .sorted(VillagerGossip.order(profession(villager), player.getUUID(), now, policy.interests())).toList();
         context.add("heardRumours", entries(ranked.stream().limit(3).toList()));
         conversation.choose(ranked, villager.getUUID(), player.getUUID(), now).ifPresent(memory ->
             context.add("openingRumour", entries(List.of(memory)).get(0)));
@@ -186,18 +191,21 @@ public final class VillagerMemoryService {
             UUID id = owners.get(Math.floorMod(cursor + i, owners.size()));
             for (ServerLevel level : server.getAllLevels()) {
                 if (!(level.getEntity(id) instanceof Villager source) || !eligible(source)) continue;
+                var sourcePolicy = personalities.policy(source);
+                if (sourcePolicy == null) break;
                 var neighbours = level.getEntitiesOfClass(Villager.class, source.getBoundingBox().inflate(radius),
                     target -> !target.getUUID().equals(id) && eligible(target));
                 int checked = 0;
                 for (Villager target : neighbours) {
                     if (++checked > 16 || delivered.size() >= 64) break;
-                    if (gossip.spread(contact(source), contact(target), snapshot.get(id), store, now))
+                    if (gossip.spread(contact(source), contact(target), snapshot.get(id), store, now, sourcePolicy, personalities.policy(target)))
                         delivered.add(new Villager[]{source, target});
                 }
                 break;
             }
         }
         cursor = owners.isEmpty() ? 0 : Math.floorMod(cursor + count, owners.size());
+        personalities.flush();
         store.flush().whenComplete((ignored, failure) -> {
             if (failure != null) { LOG.error("Could not save villager memories; gossip indicators suppressed."); return; }
             if (stopping || server.isStopped()) return;

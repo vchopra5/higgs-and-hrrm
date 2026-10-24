@@ -292,6 +292,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
             "Output " + outputDevice,
             "Sent " + sentChunks + " chunks / " + sentBytes + " B  pending " + outgoing.size(),
             "Audio received " + receivedChunks + " / " + receivedBytes + " B  queued " + ((playback.queuedBytes() + playingBytes) / 48) + "ms",
+            "Voice " + field(remote, "voice", "?") + (field(remote, "voiceFallback", "false").equals("true") ? " (fallback)" : ""),
             "Backend in/out " + field(remote, "inputBytes", "0") + "/" + field(remote, "outputBytes", "0") + " B  ready " + field(remote, "upstreamReady", "?"),
             "VAD (off in PTT) " + field(remote, "speechStarts", "0") + "/" + field(remote, "speechStops", "0") + "  replies " + field(remote, "responses", "0") + "  first audio " + latency + "ms",
             "Suppressed " + field(remote, "suppressedAudio", "none"),

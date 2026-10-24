@@ -121,3 +121,10 @@ the latest utterance. Its trusted input-turn ID prevents duplicate assessments;
 the game server bounds mood, persistent relationship changes, and pricing. Polite
 requests or thanks qualify; bargaining, refusals, accents and speaking style do not
 qualify as rudeness. Relationship data stores scores and timestamps, not transcripts.
+
+
+## Persistent characters
+
+Game sessions can supply `context.personality` with exactly `catalogueVersion`, `archetypeId`, `styleId` and integer `familiarity` (0–20). The bridge resolves these against the shared versioned catalogue; names, jobs and memories remain quoted context data. Approved mappings select `chloe`, `oliver` or `marcus` by default, with backend-only `HIGGS_VOICE_WARM`, `HIGGS_VOICE_THOUGHTFUL` and `HIGGS_VOICE_STEADY` overrides.
+
+Character readiness requires acknowledgement of the exact instructions and selected voice. A structured voice-parameter rejection permits one default-voice retry, retaining character instructions. Diagnostics expose `voice` and `voiceFallback`; unrelated provider errors keep their existing handling. An internal `_personality_ready` queue entry informs the bound game session of a confirmed visit. It never appears in provider tools, does not generate a function output and survives audio interruption. See [setup, persistence and validation limits](../docs/villager-personalities.md).

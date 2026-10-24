@@ -9,6 +9,14 @@ public final class VillagerGossip {
             this(id, name, dimension, x, y, z, eligible, "none");
         }
     }
+    public record Policy(int threshold, long delayMs, int cooldownPercent, List<String> interests) {
+        public Policy {
+            if (threshold < 55 || threshold > 100 || delayMs < 0 || cooldownPercent < 100 || cooldownPercent > 400)
+                throw new IllegalArgumentException("Invalid personality gossip policy");
+            interests = List.copyOf(interests);
+        }
+        public static Policy neutral() { return new Policy(55, 0, 100, List.of()); }
+    }
     private record Pair(UUID first, UUID second) {
         static Pair of(UUID a, UUID b) { return a.compareTo(b) < 0 ? new Pair(a, b) : new Pair(b, a); }
     }
@@ -24,6 +32,11 @@ public final class VillagerGossip {
 
     public boolean spread(Contact source, Contact target, List<VillagerMemoryStore.Memory> snapshot,
                           VillagerMemoryStore store, long now) {
+        return spread(source, target, snapshot, store, now, Policy.neutral(), Policy.neutral());
+    }
+    public boolean spread(Contact source, Contact target, List<VillagerMemoryStore.Memory> snapshot,
+                          VillagerMemoryStore store, long now, Policy sourcePolicy, Policy targetPolicy) {
+        if (sourcePolicy == null || targetPolicy == null) return false;
         if (!source.eligible || !target.eligible || source.id.equals(target.id)
             || !source.dimension.equals(target.dimension)) return false;
         double dx = source.x - target.x, dy = source.y - target.y, dz = source.z - target.z;
@@ -31,12 +44,23 @@ public final class VillagerGossip {
         cooldowns.entrySet().removeIf(entry -> entry.getValue() <= now);
         Pair pair = Pair.of(source.id, target.id);
         if (cooldowns.containsKey(pair) || cooldowns.size() >= 4096) return false;
-        for (var memory : snapshot.stream().sorted(VillagerMemoryStore.priorityOrder(target.profession, null, now)).toList()) {
+        for (var memory : snapshot.stream()
+            .filter(memory -> memory.interest().score() >= sourcePolicy.threshold && now - memory.learnedAt() >= sourcePolicy.delayMs)
+            .sorted(order(target.profession, null, now, targetPolicy.interests)).toList()) {
             if (store.receive(memory, source.id, source.name, target.id, now)) {
-                cooldowns.put(pair, now + cooldownMs);
+                cooldowns.put(pair, now + cooldownMs * sourcePolicy.cooldownPercent / 100);
                 return true;
             }
         }
         return false;
+    }
+    public static Comparator<VillagerMemoryStore.Memory> order(String profession, UUID player, long now, List<String> interests) {
+        return Comparator.<VillagerMemoryStore.Memory>comparingLong(memory ->
+            VillagerMemoryStore.priority(memory, profession, player, now) + interestBonus(memory, interests)).reversed()
+            .thenComparing(VillagerMemoryStore.priorityOrder(profession, player, now));
+    }
+    private static int interestBonus(VillagerMemoryStore.Memory memory, List<String> interests) {
+        Set<String> words = new HashSet<>(Arrays.asList(memory.summary().toLowerCase(Locale.ROOT).split("[^\\p{L}\\p{N}]+")));
+        return interests.stream().anyMatch(words::contains) ? 6 : 0;
     }
 }

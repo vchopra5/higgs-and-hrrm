@@ -357,6 +357,113 @@ test('hit statistics guide reactions, coalesce and cannot execute trade tools or
   assert.equal(session.pendingReaction, null);
 });
 
+const characterContext = (archetypeId = 'mira', styleId = 'brisk') => ({ autoGreeting: true,
+  personality: { catalogueVersion: 1, archetypeId, styleId, familiarity: 0 } });
+
+test('a character waits for both its prompt and selected voice; readiness is acknowledged only once', async t => {
+  const f = await fixture(t, { context: characterContext(), confirmConfig: false, mode: 'ptt' });
+  await until(() => f.received.some(event => event.type === 'session.update'));
+  const config = f.received.find(event => event.type === 'session.update').session;
+  const session = f.bridge.sessions.get(f.sessionId);
+  f.emit({ type: 'session.created', session: { instructions: 'default', audio: { output: { voice: 'default' } } } });
+  f.emit({ type: 'session.updated', session: { instructions: config.instructions } });
+  await delay(30);
+  assert.equal(session.ready, false);
+  assert.equal(session.pending.size, 0);
+  assert.equal(f.received.some(event => event.type === 'response.create'), false);
+  f.emit({ type: 'session.updated', session: config });
+  await until(() => session.ready && session.pending.size === 1);
+  f.emit({ type: 'session.updated', session: config });
+  const pending = await (await f.request(`/sessions/${f.sessionId}/tools`)).json();
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].name, '_personality_ready');
+  assert.equal(pending[0].internal, true);
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  await until(() => session.recording);
+  assert.equal(session.pending.size, 1, 'audio interruption preserves lifecycle acknowledgement');
+  const response = await f.request(`/sessions/${f.sessionId}/tools/${pending[0].callId}/result`, 'POST', { result: { status: 'saved' } });
+  assert.equal(response.status, 200);
+  await delay(20);
+  assert.equal(f.received.some(event => event.item?.call_id === pending[0].callId), false, 'internal acknowledgement is never a provider tool output');
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+});
+
+test('voice-selection rejection retries exactly once with default while retaining the character', async t => {
+  const f = await fixture(t, { context: characterContext('bram', 'understated'), confirmConfig: false });
+  await until(() => f.received.some(event => event.type === 'session.update'));
+  f.emit({ type: 'error', error: { type: 'invalid_request_error', param: 'audio.output.voice', code: 'invalid_voice', message: 'private provider detail' } });
+  await until(() => f.received.filter(event => event.type === 'session.update').length === 2);
+  const [first, retry] = f.received.filter(event => event.type === 'session.update');
+  assert.equal(first.session.audio.output.voice, 'marcus');
+  assert.equal(retry.session.audio.output.voice, 'default');
+  assert.equal(retry.session.instructions, first.session.instructions);
+  assert.match(retry.session.instructions, /poetry/);
+  f.emit({ type: 'session.updated', session: retry.session });
+  await until(() => f.events.some(event => event.message === 'Ready'));
+  assert.equal(f.bridge.sessions.get(f.sessionId).voiceFallback, true);
+  assert.equal(JSON.stringify(f.events).includes('private provider detail'), false);
+});
+
+test('quota, auth, unrelated errors and a second voice failure retain their failure meanings', async t => {
+  for (const error of [
+    { type: 'insufficient_quota', param: 'audio.output.voice' },
+    { type: 'authentication_error', param: 'audio.output.voice' },
+    { type: 'invalid_request_error', param: 'tools', message: 'invalid voice' },
+    { type: 'invalid_request_error', code: 'invalid_voice', param: null },
+  ]) {
+    const f = await fixture(t, { context: characterContext(), confirmConfig: false });
+    await until(() => f.received.some(event => event.type === 'session.update'));
+    f.emit({ type: 'error', error });
+    await until(() => f.events.some(event => event.type === 'error' && event.fatal));
+    assert.equal(f.received.filter(event => event.type === 'session.update').length, 1);
+  }
+  const f = await fixture(t, { context: characterContext(), confirmConfig: false });
+  await until(() => f.received.some(event => event.type === 'session.update'));
+  const error = { type: 'invalid_request_error', param: 'session.audio.output.voice' };
+  f.emit({ type: 'error', error });
+  await until(() => f.received.filter(event => event.type === 'session.update').length === 2);
+  f.emit({ type: 'error', error });
+  await until(() => f.events.some(event => event.type === 'error' && event.fatal));
+  assert.equal(f.received.filter(event => event.type === 'session.update').length, 2);
+});
+
+test('a mismatched acknowledged voice fails rather than silently changing the character', async t => {
+  const f = await fixture(t, { context: characterContext(), confirmConfig: false });
+  await until(() => f.received.some(event => event.type === 'session.update'));
+  const session = structuredClone(f.received.find(event => event.type === 'session.update').session);
+  session.audio.output.voice = 'oliver';
+  f.emit({ type: 'session.updated', session });
+  await until(() => f.events.some(event => event.code === 'voice_ack_mismatch'));
+  assert.equal(f.received.some(event => event.type === 'response.create'), false);
+});
+
+test('hit reactions retain the trusted personality and a model cannot forge familiarity events', async t => {
+  const f = await fixture(t, { context: { ...characterContext('rowan', 'measured'), autoGreeting: false } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  session.environmentEvent({ type: 'hit', count: 1, windowMs: 30000, spanMs: 0, sincePreviousMs: -1, tradeCancelled: false });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  const reaction = f.received.find(event => event.type === 'response.create');
+  assert.match(reaction.response.instructions, /claim from evidence/);
+  assert.match(reaction.response.instructions, /No narration, trading, or tool calls/);
+  f.emit({ type: 'response.created', response: { id: 'reaction' } });
+  f.emit({ type: 'response.done', response: { id: 'reaction', status: 'completed' } });
+  await until(() => !session.reactionActive);
+  f.emit({ type: 'response.function_call_arguments.done', call_id: 'forged-ready', name: '_personality_ready', internal: true, arguments: '{}' });
+  await until(() => f.received.some(event => event.item?.call_id === 'forged-ready'));
+  assert.equal(JSON.parse(f.received.find(event => event.item?.call_id === 'forged-ready').item.output).error, 'Invalid tool request');
+  assert.equal([...session.pending.values()].filter(tool => tool.internal).length, 1, 'only the bridge-generated readiness event can reach the game');
+});
+
+
+test('an invalid replacement profile cannot disconnect an existing conversation', async t => {
+  const f = await fixture(t);
+  const response = await f.request('/sessions', 'POST', { playerId: 'player', villagerId: 'villager',
+    context: { personality: { ...characterContext().personality, voice: 'injected' } } });
+  assert.equal(response.status, 400);
+  assert.equal(f.bridge.sessions.size, 1);
+  assert.equal(f.bridge.sessions.get(f.sessionId).ready, true);
+});
+
 test('duplicate reaction audio is withheld, retried once, and interruption discards buffered audio', async t => {
   const f = await fixture(t);
   const session = f.bridge.sessions.get(f.sessionId);

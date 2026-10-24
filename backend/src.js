@@ -16,6 +16,7 @@ function start() {
     apiKey: process.env.BOSON_API_KEY,
     token: process.env.HIGGS_BRIDGE_TOKEN,
     upstreamUrl: process.env.HIGGS_REALTIME_URL,
+    voiceOverrides: { warm: process.env.HIGGS_VOICE_WARM, thoughtful: process.env.HIGGS_VOICE_THOUGHTFUL, steady: process.env.HIGGS_VOICE_STEADY },
   });
   const host = process.env.HIGGS_HOST || '127.0.0.1';
   const port = Number(process.env.HIGGS_PORT || 8787);

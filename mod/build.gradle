@@ -35,6 +35,7 @@ tasks.withType(JavaCompile).configureEach {
 }
 
 processResources {
+    from('../shared/personality-catalogue.json') { into 'assets/higgs_villagers'; rename { 'personalities.json' } }
     inputs.property 'version', project.version
     filesMatching('fabric.mod.json') { expand(version: project.version) }
 }
@@ -138,6 +139,20 @@ tasks.register('testRecentHits', JavaExec) {
     mainClass = 'dev.higgs.RecentHitsTest'
 }
 tasks.named('check') { dependsOn 'testRecentHits' }
+
+tasks.register('compilePersonalityTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/PersonalityCatalogue.java',
+        'src/main/java/dev/higgs/VillagerPersonalityStore.java',
+        'src/test/dev/higgs/VillagerPersonalityTest.java')
+    classpath = sourceSets.main.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('personality-test')
+}
+tasks.register('testPersonalities', JavaExec) {
+    dependsOn 'compilePersonalityTest', 'processResources'
+    classpath = files(layout.buildDirectory.dir('personality-test'), layout.buildDirectory.dir('resources/main')) + sourceSets.main.compileClasspath
+    mainClass = 'dev.higgs.VillagerPersonalityTest'
+}
+tasks.named('check') { dependsOn 'testPersonalities' }
 
 tasks.register('compileSwitchTalkGateTest', JavaCompile) {
     source = files('src/client/java/dev/higgs/SwitchTalkGate.java', 'src/client/test/dev/higgs/SwitchTalkGateTest.java')

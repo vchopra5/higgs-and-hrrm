@@ -26,6 +26,14 @@ Our first audience is Minecraft players and creators who want more expressive ro
 >
 > Let’s meet the villager.”
 
+## One story, three perspectives · character extension
+
+[Prepare Mira, Rowan and Bram](docs/villager-personalities.md). Ask each “What matters most to you around here?” and let the audience hear the contrast: warm curiosity, sceptical fascination, guarded practicality. Their replies are generated, not scripted. Add **Rook** for a mildly aggressive contrast: ask “You seem wound up—what is bothering you?” and let his protective, impatient nature come through. Assign him with `higgs_rook`; see the cast guide.
+
+Tell Mira the hidden-library story, watch the small gossip indicator, then let Rowan open the next conversation. Return after a restart to show that the character and memory persist. Allow time for each character's gossip delay; rehearse the actual voices before presenting.
+
+**Say:** “These villagers have different motives, voices and habits. Mira shares quickly. Rowan wants stronger evidence. Bram keeps more to himself. They remember who they are when we come back.”
+
 ## Memory and gossip demo · two-minute extension
 
 Rehearse this flow using the [memory and rumours setup](docs/memory-rumours.md). The feature is implemented and tested locally; confirm live recall and visible particles before presenting it as a successful in-game demo.
@@ -37,7 +45,7 @@ Rehearse this flow using the [memory and rumours setup](docs/memory-rumours.md).
 
 **Say:** “I didn’t ask it to remember or ask its neighbour for gossip. The villager picked out a story worth repeating, the village passed it along, and the neighbour had something to say. Each villager knows only the stories it learned.”
 
-The default check interval is 10 seconds; each pair has a 60-second cooldown. Prepare a fresh public story for each run and leave enough time for a transfer. Explicitly private entries are excluded from gossip. Treat the discovery story as a player claim, not a verified discovery. Restart the server and ask again if you want to demonstrate persistence on disk.
+The default check interval is 10 seconds; the base pair cooldown is 60 seconds, scaled by character discretion; characters also wait 5–60 seconds after hearing a story before sharing it. Prepare a fresh public story for each run and leave enough time for a transfer. Explicitly private entries are excluded from gossip. Treat the discovery story as a player claim, not a verified discovery. Restart the server and ask again if you want to demonstrate persistence on disk.
 
 ## Four-minute presentation and live demo
 
@@ -129,7 +137,7 @@ Villager speech streams back through the bridge to the client.
 
 > “We started with a small interaction: ask a shopkeeper what it sells, then ask to see a trade.
 >
-> That is the direction we want to explore: game characters whose conversations connect to the world around them. Next, we would explore persistent personalities and more game actions, such as helping a player with a quest. Those are future features.
+> That is the direction we want to explore: game characters whose conversations connect to the world around them. We now have saved personalities, memories and gossip. Next, we would explore more game actions, such as helping a player with a quest. Quests are a future direction.
 >
 > This is HIGGS HRRM. Give the hrrm a voice.”
 
@@ -142,7 +150,7 @@ Keep slides visual and use the spoken script for detail.
 | 1 | **Give the “hrrm” a voice.** | One villager screenshot, project name, Boson Higgs Realtime credit. |
 | 2 | **Ask. Hear. Trade.** | Live Minecraft demo; keep this slide as a transition or backup. |
 | 3 | **Voice connected to game state.** | The architecture above, with `get_trades` and `propose_trade` labeled. |
-| 4 | **Characters you can talk to—and do things with.** | Inventory screenshot after a voice-confirmed trade; a small “Next” note for personalities and quests. |
+| 4 | **Characters you can talk to—and do things with.** | Inventory screenshot after a voice-confirmed trade; a small cast portrait or name row, with quests marked as a future direction. |
 
 ## Rehearsal and stage setup
 

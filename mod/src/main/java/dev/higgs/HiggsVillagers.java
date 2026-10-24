@@ -34,6 +34,7 @@ public final class HiggsVillagers implements ModInitializer {
     private final Map<UUID, Long> lastStart = new HashMap<>();
     private String backend, token, publicBackend;
     private VillagerMemoryService memory;
+    private VillagerPersonalityService personalities;
     private int ticks;
     private final Map<String, RecentHits> hits = new HashMap<>();
     private void hit(MinecraftServer server, ServerPlayer player, Villager villager) {
@@ -131,6 +132,7 @@ public final class HiggsVillagers implements ModInitializer {
         final ServerPlayer player;
         final Villager villager;
         String id;
+        VillagerPersonalityStore.Profile profile;
         boolean polling;
         Proposal proposal;
         int pollFailures;
@@ -151,7 +153,9 @@ public final class HiggsVillagers implements ModInitializer {
         backend = config.getOrDefault("HIGGS_BACKEND_URL", "http://127.0.0.1:8787").replaceAll("/+$", "");
         publicBackend = config.getOrDefault("HIGGS_PUBLIC_BACKEND_URL", backend).replaceAll("/+$", "");
         token = config.getOrDefault("HIGGS_BRIDGE_TOKEN", "");
-        memory = new VillagerMemoryService(config);
+        personalities = new VillagerPersonalityService();
+        memory = new VillagerMemoryService(config, personalities);
+        ServerLifecycleEvents.SERVER_STARTED.register(personalities::start);
         ServerLifecycleEvents.SERVER_STARTED.register(memory::start);
         PayloadTypeRegistry.serverboundPlay().register(ControlPayload.TYPE, ControlPayload.STREAM_CODEC);
         PayloadTypeRegistry.clientboundPlay().register(ControlPayload.TYPE, ControlPayload.STREAM_CODEC);
@@ -236,6 +240,7 @@ public final class HiggsVillagers implements ModInitializer {
             for (Session s : List.copyOf(sessions.values())) end(s.player, false);
             lastStart.clear();
             memory.stop();
+            personalities.stop();
             hits.clear();
         });
     }
@@ -261,6 +266,23 @@ public final class HiggsVillagers implements ModInitializer {
             if (token.isBlank()) { error(player, "Set HIGGS_BRIDGE_TOKEN in the server environment or project .env."); return; }
             end(player, false);
             sessions.put(player.getUUID(), s);
+            personalities.prepare(villager).whenComplete((prepared, failure) -> {
+                if (server.isStopped()) return;
+                server.execute(() -> {
+                    if (sessions.get(player.getUUID()) != s) return;
+                    if (!valid(s)) { end(player, true); return; }
+                    if (failure != null) { end(player, true); error(player, "Could not save villager identity. Check world save permissions or cast tags."); return; }
+                    personalities.applyName(villager, prepared);
+                    s.profile = prepared.profile();
+                    startVoice(server, s, autoGreeting);
+                });
+            });
+        } catch (RuntimeException ex) { error(player, "Invalid villager request."); }
+    }
+    private void startVoice(MinecraftServer server, Session s, boolean autoGreeting) {
+        try {
+            ServerPlayer player = s.player;
+            Villager villager = s.villager;
             JsonObject body = new JsonObject();
             body.addProperty("playerId", player.getUUID().toString());
             body.addProperty("villagerId", villager.getUUID().toString());
@@ -270,6 +292,7 @@ public final class HiggsVillagers implements ModInitializer {
             context.addProperty("level", villager.getVillagerData().level());
             context.addProperty("playerName", player.getName().getString());
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
+            if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
             context.add("offers", offers(villager)); body.add("context", context);
             request("POST", "/sessions", body).whenComplete((reply, failure) -> server.execute(() -> {
@@ -288,7 +311,10 @@ public final class HiggsVillagers implements ModInitializer {
                     send(player, response);
                 } catch (RuntimeException ex) { end(player, true); error(player, "Invalid voice bridge response."); }
             }));
-        } catch (RuntimeException ex) { error(player, "Invalid villager request."); }
+        } catch (RuntimeException failure) {
+            end(s.player, true);
+            error(s.player, "Could not prepare the villager conversation. Check server logs and configuration.");
+        }
     }
     private boolean valid(Session s) {
         return valid(s, 64);
@@ -319,6 +345,20 @@ public final class HiggsVillagers implements ModInitializer {
                         if (s.toolResults.size() + s.pendingTools.size() >= 256) { end(s.player, true); return; }
                         result = new JsonObject();
                         String name = call.get("name").getAsString();
+                        if (name.equals("_personality_ready") && call.has("internal") && call.get("internal").getAsBoolean()) {
+                            s.pendingTools.add(callId);
+                            personalities.confirmVisit(s.profile, s.player).whenComplete((saved, saveFailure) -> {
+                                if (server.isStopped()) return;
+                                server.execute(() -> {
+                                    s.pendingTools.remove(callId);
+                                    if (sessions.get(s.player.getUUID()) != s) return;
+                                    JsonObject response = saveFailure == null ? saved : VillagerMemoryService.error("Could not save familiarity.");
+                                    s.toolResults.put(callId, response);
+                                    submitToolResult(s, callId, response);
+                                });
+                            });
+                            continue;
+                        }
                         if (memory.handles(name)) {
                             s.pendingTools.add(callId);
                             JsonObject arguments;

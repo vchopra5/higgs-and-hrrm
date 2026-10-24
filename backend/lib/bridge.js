@@ -2,6 +2,7 @@ import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
 import { LIMITS, readJsonBody, replyJson } from './protocol.js';
+import { validateVoiceOverrides } from './personalities.js';
 import { BridgeSession } from './session.js';
 import { submitToolResult } from './tools.js';
 
@@ -10,16 +11,18 @@ export function createBridge({
   token,
   upstreamUrl = 'wss://api.boson.ai/v1/realtime/',
   connect = (url, options) => new WebSocket(url, options),
+  voiceOverrides = {},
   now = Date.now,
   log = entry => console.info(JSON.stringify(entry)),
 } = {}) {
   if (typeof token !== 'string' || token.length < 32) {
     throw new Error('Set HIGGS_BRIDGE_TOKEN to a random secret of at least 32 characters.');
   }
+  voiceOverrides = validateVoiceOverrides(voiceOverrides);
   const sessions = new Map();
   const expectedAuth = Buffer.from(`Bearer ${token}`);
   const sessionOptions = {
-    apiKey, upstreamUrl, connect, now, log,
+    apiKey, upstreamUrl, connect, now, log, voiceOverrides,
     onClose: id => sessions.delete(id),
   };
 
@@ -38,10 +41,10 @@ export function createBridge({
     if (sessions.size >= LIMITS.sessions) {
       return replyJson(response, 429, { error: 'Session limit reached' });
     }
+    const session = new BridgeSession(body, sessionOptions);
     for (const session of sessions.values()) {
       if (session.playerId === body.playerId) session.close('replaced_by_new_session');
     }
-    const session = new BridgeSession(body, sessionOptions);
     sessions.set(session.id, session);
     replyJson(response, 201, { sessionId: session.id, ticket: session.ticket });
   }

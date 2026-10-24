@@ -5,7 +5,7 @@ const AUDIENCES = new Set(['all', 'farmer', 'librarian', 'cleric', 'armorer', 'w
 
 export function completeToolBatch(session) {
   if (session.recording || session.cancelled || !session.responseDone
-      || session.pending.size > 0 || !session.hasTools) return;
+      || [...session.pending.values()].some(tool => !tool.internal) || !session.hasTools) return;
 
   session.hasTools = false;
   session.sendProvider({ type: 'response.create' });
@@ -23,8 +23,9 @@ function sendToolOutput(session, callId, result) {
 }
 
 export function submitToolResult(session, callId, result) {
-  if (!session.pending.delete(callId)) return false;
-  sendToolOutput(session, callId, result);
+  const pending = session.pending.get(callId);
+  if (!pending || !session.pending.delete(callId)) return false;
+  if (!pending.internal) sendToolOutput(session, callId, result);
   completeToolBatch(session);
   return true;
 }
@@ -56,7 +57,7 @@ function validArguments(name, args) {
 
 export function receiveToolCall(session, event) {
   // Late calls from an interrupted response must never reach the game server.
-  if (session.isStaleResponse(event.response_id) || session.seen.has(event.call_id)) return;
+  if (session.isStaleResponse(event.response_id) || session.seen.has(event.call_id) || session.pending.has(event.call_id)) return;
   session.seen.add(event.call_id);
   if (session.recording || session.cancelled || session.reactionActive) {
     sendToolOutput(session, event.call_id, { error: 'Conversation interrupted' });
@@ -84,7 +85,8 @@ export function receiveToolCall(session, event) {
 
 export function interruptTools(session) {
   session.hasTools = false;
-  for (const callId of session.pending.keys()) {
+  for (const [callId, tool] of session.pending) {
+    if (tool.internal) continue;
     submitToolResult(session, callId, { error: 'Conversation interrupted' });
   }
 }
