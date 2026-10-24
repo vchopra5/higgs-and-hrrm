@@ -10,7 +10,7 @@ launch commands after installing equivalent tools.
 Install the desktop prerequisites using your package manager:
 
 ```sh
-sudo pacman -Syu --needed git curl openssl jdk25-openjdk nodejs-lts-jod npm alsa-lib prismlauncher
+sudo pacman -Syu --needed git curl unzip python openssl jdk25-openjdk nodejs-lts-jod npm alsa-lib prismlauncher
 ```
 
 This selects Node.js 22 LTS; an existing Node.js 22 or newer installation is also
@@ -70,9 +70,12 @@ and pass its `mods/` directory to the setup script:
 
 The script:
 
-1. Downloads the Fabric server launcher, Cardboard, Fabric API and iCommon into
-   `server-cardboard/`, rejecting any file whose SHA-512 does not match the pin in
-   the script. Already verified files are not downloaded again.
+1. Puts every jar in the server lockfile, `scripts/server.lock`, into
+   `server-cardboard/`: the Fabric launcher, loader and libraries, the vanilla
+   server and its libraries, Cardboard's runtime libraries, Cardboard, Fabric API
+   and iCommon. It rejects any file whose SHA-512 does not match the lock, and
+   already verified files are not downloaded again. The first server start then
+   needs no further downloads.
 2. Builds the bridge with `npm ci`, which verifies `package-lock.json` integrity hashes.
 3. Checks the Gradle wrapper JAR's SHA-256 and builds the mod. Gradle verifies its
    distribution and every dependency against `mod/gradle/verification-metadata.xml`.
@@ -121,7 +124,14 @@ it, because both use the same port.
 4. Open the instance's Minecraft folder through Prism and note its `mods/` path.
    `./scripts/setup-linux.sh` copies `higgs-villagers-0.1.0.jar` and the verified
    Fabric API there. Cardboard and iCommon belong on the server only.
-5. Launch the instance. Select **Multiplayer → Direct Connection** and enter
+5. In the instance's **Settings → Custom commands**, enable them and set the
+   pre-launch command to
+   `python3 -I /absolute/path/to/higgs-and-hrrm/scripts/verify-client.py`. It
+   stops the launch if a client mod differs from `scripts/client.lock` or your
+   build. For Flatpak Prism, first grant it read-only access to the repository:
+   `flatpak override --user --filesystem="$PWD:ro" org.prismlauncher.PrismLauncher`
+   (from the repository root). See [client check](setup.md#check-the-client-before-each-launch).
+6. Launch the instance. Select **Multiplayer → Direct Connection** and enter
    `localhost:25565`.
 
 Prism creates and manages the instance; the setup script only writes to the

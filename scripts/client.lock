@@ -1,0 +1,13 @@
+# Client lockfile: every third-party file the Higgs client instance loads, with its
+# SHA-512 and source, relative to the instance's Minecraft directory.
+# scripts/install-villager-visuals.py installs the EMF, ETF and Fresh Animations
+# entries; scripts/setup-linux.sh copies Fabric API from the server install.
+# scripts/verify-client.py checks the instance before each launch: listed files
+# that are present must match, and no unlisted jar may be in mods/.
+# mods/higgs-villagers-*.jar is compared with the local build, and the generated
+# Higgs reputation overlay with a fresh regeneration from Fresh Animations.
+# path	sha512	source
+mods/fabric-api-0.155.3+26.1.2.jar	fa0308b42e9cd0dc3ff946f246d199d74547e0c946d7e3c9780a2537155307baf25129f69bd1349273babf879ffb4608b7e4af0740938f9c0f7b371b1c67d6ca	https://cdn.modrinth.com/data/P7dR8mSH/versions/3dM0X6ou/fabric-api-0.155.3%2B26.1.2.jar
+mods/entity_model_features-3.3.12-26.1-fabric.jar	e65d4bda4f655b64e70f8c0cb9491e90181c0e3c511317ba53431db5e36dd405307fa69eb79e53c4b17d9a2d378a99c247fe8730acb90b39ecbfaa0681dd27ea	https://cdn.modrinth.com/data/4I1XuqiY/versions/zh2AVI88/entity_model_features-3.3.12-26.1-fabric.jar
+mods/entity_texture_features-7.2.6-26.1-fabric.jar	a09be994660228b12752ff6429a58e825b2d82f918434fec858699fdaa8cddacd300691d8b944c8741c84532fd70578c6851e453b895bce0420ab106368ada65	https://cdn.modrinth.com/data/BVzZfTc1/versions/2bcqPrsv/entity_texture_features-7.2.6-26.1-fabric.jar
+resourcepacks/FreshAnimations_v1.11.1_26.1+.zip	5357a3dbce74f5bdb688f3c4e6f7cadb6e0d81d3dde41d46017993d5bc5456a325a39a3faad0d471be51fcc73e3a47218ec64ed8e0024b092cd117b422f23356	https://cdn.modrinth.com/data/50dA9Sha/versions/tvGVYMD4/FreshAnimations_v1.11.1_26.1%2B.zip

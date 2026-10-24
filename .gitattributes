@@ -4,3 +4,4 @@
 gradlew text eol=lf
 *.bat text eol=crlf
 *.jar binary
+scripts/fabric-launch/** text eol=lf

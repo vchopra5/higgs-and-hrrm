@@ -10,52 +10,48 @@ MOD_JAR="$ROOT/mod/build/libs/higgs-villagers-0.1.0.jar"
 
 FABRIC_API=fabric-api-0.155.3+26.1.2.jar
 
-# filename  sha512  url
-SERVER_FILES=(
-  "fabric-server-launch.jar
-fcf5e27755afe8e6c0d61833d57c08971e906dfdcad0d9f27bd3cf7dee944ef359413c819a0dec86d245425ed66192d9bbdf90924d9f9e3ffc66ea2e9c947d58
-https://meta.fabricmc.net/v2/versions/loader/26.1.2/0.20.1/1.1.2/server/jar"
-  "mods/Cardboard-26.1.2.jar
-3976d55be72044417703143665972392d0c342d8992a218d4319d97491f35d665df13ef6907aed4a7ffbbe41ddd1d0e911962dc35efff55590f4e26237f9c35d
-https://cdn.modrinth.com/data/MLYQ9VGP/versions/bdR8CLgE/Cardboard-26.1.2.jar"
-  "mods/$FABRIC_API
-fa0308b42e9cd0dc3ff946f246d199d74547e0c946d7e3c9780a2537155307baf25129f69bd1349273babf879ffb4608b7e4af0740938f9c0f7b371b1c67d6ca
-https://cdn.modrinth.com/data/P7dR8mSH/versions/3dM0X6ou/fabric-api-0.155.3%2B26.1.2.jar"
-  "mods/iCommon-Fabric-bundle.jar
-56db73de5a9ebc74135f32b33f8a65d6a34014f708c7f28184abea7e916b93edca7e1bc2fab333ade8b3325c4bcd5657b6a47b62ea37e9b6ceb8b593898001f6
-https://cdn.modrinth.com/data/SVKv1SZo/versions/jhgdmI2N/iCommon-Fabric-bundle.jar"
-)
+# Every server jar with its SHA-512 and source; see the header of that file.
+LOCK="$ROOT/scripts/server.lock"
+# The lock's "bundled:" entries are extracted from this verified vanilla server jar.
+VANILLA="$SERVER/.fabric/server/26.1.2-server.jar"
+LAUNCH_JAR=.fabric/server/fabric-loader-server-0.20.1-minecraft-26.1.2.jar
 GRADLE_WRAPPER_SHA256=3b8a25775a69158b5ad2b1d17a80a88dc7b40a352a73eb27d06c612a7ce68e98
 
 die() { echo "$*" >&2; exit 1; }
 need() { command -v "$1" >/dev/null || die "Missing $1: install it with your package manager."; }
 
-# Download into place only if the SHA-512 matches; reuse a verified existing file.
+# Put a locked file into place only if its SHA-512 matches; reuse a verified existing file.
 fetch() {
-  local dest="$1" sha="$2" url="$3" tmp
-  if [[ -f "$dest" ]] && sha512sum --check --status <<<"$sha  $dest"; then
-    echo "ok       ${dest#"$ROOT/"}"; return
-  fi
+  local dest="$1" sha="$2" src="$3" tmp
+  if [[ -f "$dest" ]] && sha512sum --check --status <<<"$sha  $dest"; then return; fi
   mkdir -p "$(dirname "$dest")"
   tmp="$(mktemp "$dest.XXXXXX")"
-  curl --fail --silent --show-error --location --output "$tmp" "$url"
+  if [[ "$src" == bundled:* ]]; then
+    unzip -p "$VANILLA" "${src#bundled:}" >"$tmp"
+  else
+    curl --fail --silent --show-error --location --output "$tmp" "$src"
+  fi
   if ! sha512sum --check --status <<<"$sha  $tmp"; then
-    rm -f "$tmp"; die "Checksum mismatch for $url"
+    rm -f "$tmp"; die "Checksum mismatch for $src"
   fi
   mv "$tmp" "$dest"
   echo "fetched  ${dest#"$ROOT/"}"
 }
 
-for tool in curl sha512sum sha256sum npm node; do need "$tool"; done
+for tool in curl unzip sha512sum sha256sum npm node; do need "$tool"; done
 source "$ROOT/scripts/java-runtime.sh"
 higgs_select_java "$ROOT" true
 (( $(node -p 'process.versions.node.split(".")[0]') >= 22 )) || die 'Node.js 22+ is required.'
 
-echo '== Server mods'
-for entry in "${SERVER_FILES[@]}"; do
-  { read -r name; read -r sha; read -r url; } <<<"$entry"
-  fetch "$SERVER/$name" "$sha" "$url"
-done
+echo '== Server files'
+while IFS=$'\t' read -r path sha src; do
+  [[ -z "$path" || "$path" == \#* ]] && continue
+  fetch "$SERVER/$path" "$sha" "$src"
+done <"$LOCK"
+echo "verified $(grep -vc '^#' "$LOCK") files from scripts/server.lock"
+# Without this jar the Fabric launcher fetches its profile from meta.fabricmc.net on
+# first start; it only holds the classpath manifest kept in scripts/fabric-launch/.
+"$JAVA_HOME/bin/jar" --create --no-manifest --file "$SERVER/$LAUNCH_JAR" -C "$ROOT/scripts/fabric-launch" .
 [[ -f "$SERVER/server.properties" ]] || cp "$SERVER/server.properties.example" "$SERVER/server.properties"
 
 echo '== Bridge'
