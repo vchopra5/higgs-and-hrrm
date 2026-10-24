@@ -1143,3 +1143,25 @@ test('emotion and news tools validate arguments and refusals cannot schedule dep
   await f.request(`/sessions/${f.sessionId}/tools/share-refused/result`, 'POST', { result: { status: 'unavailable' } });
   assert.equal(session.newsDeparture, undefined);
 });
+
+
+test('Higgs receives next-reply vocal direction for model-selected emotions without replacing conversation instructions', async t => {
+  const f = await fixture(t);
+  const session = f.bridge.sessions.get(f.sessionId);
+  const config = f.received.find(e => e.type === 'session.update').session;
+  assert.match(config.instructions, /Act the emotion in your voice/);
+  assert.doesNotMatch(config.instructions, /relaxed pacing, subtle expression/);
+  for (const [index, emotion] of ['excited', 'worried', 'angry', 'thoughtful', 'grateful'].entries()) {
+    const id = `emotion-${index}`;
+    f.emit({ type: 'response.created', response: { id } });
+    f.emit({ type: 'response.function_call_arguments.done', response_id: id, call_id: id, name: 'express_emotion', arguments: JSON.stringify({ emotion }) });
+    f.emit({ type: 'response.done', response: { id, status: 'completed' } });
+    await until(() => session.pending.has(id));
+    await f.request(`/sessions/${f.sessionId}/tools/${id}/result`, 'POST', { result: { status: index === 1 ? 'cooldown' : 'expressed' } });
+    await until(() => f.received.some(e => e.item?.call_id === id));
+    const output = JSON.parse(f.received.find(e => e.item?.call_id === id).item.output);
+    assert.match(output.vocalDelivery, /For the next reply/);
+    assert.equal(f.received.filter(e => e.type === 'session.update').length, 1, 'do not reset the session to change emotion');
+  }
+  assert.ok(f.received.filter(e => e.type === 'response.create').every(e => !e.response?.instructions), 'preserve dialogue and tool rules');
+});

@@ -1,3 +1,4 @@
+import { vocalDelivery } from './vocal-delivery.js';
 import { LIMITS } from './protocol.js';
 
 const AUDIENCES = new Set(['all', 'farmer', 'librarian', 'cleric', 'armorer', 'weaponsmith', 'toolsmith',
@@ -27,6 +28,10 @@ function sendToolOutput(session, callId, result) {
 export function submitToolResult(session, callId, result) {
   const pending = session.pending.get(callId);
   if (!pending || !session.pending.delete(callId)) return false;
+  if (pending.name === 'express_emotion' && ['expressed', 'cooldown'].includes(result?.status)) {
+    const delivery = vocalDelivery(pending.arguments?.emotion);
+    if (delivery) result = { ...result, vocalDelivery: delivery };
+  }
   session.traceTool?.(pending, result);
   session.noteToolResult?.(pending, result);
   if (pending.memoryContext) {

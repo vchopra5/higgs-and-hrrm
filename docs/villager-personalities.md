@@ -84,3 +84,18 @@ npm --prefix backend test
 Automated checks cover stable identity, name collisions, explicit assignment, retained catalogue editions, bounded familiarity, reconnect cooldowns, failed writes, corrupt saves, gossip delays and interest policies, memory migration, trusted prompt compilation, voice acknowledgements, narrow fallback, hit-reaction character continuity and the existing trading and audio regressions.
 
 Live microphone playback, artistic voice separation, name-tag/job changes in a running world and the full three-character demo still need rehearsal with a Boson key. No live personality audition was performed for this implementation.
+
+## Expressive vocal delivery
+
+Realtime delivery is directed through `instructions`, as documented in [Boson's audio and voices guide](https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices).
+The main conversation, companion, ambient chatter, and hit reactions now explicitly ask
+for audible variation in pace, pitch, emphasis, pauses, and energy based on actual context.
+Personality is the baseline; it no longer imposes uniformly subtle delivery.
+
+A successful `express_emotion` result adds a bounded `vocalDelivery` instruction for the
+next reply. The model chooses the emotion and dialogue. A physical gesture cooldown
+still permits expressive speech. This does not change voices, reset the session, or
+replace response instructions (which previously harmed dialogue continuity in probes).
+Existing whisper styling remains in place. No TTS-only emotion parameters were added.
+Regression tests verify the instructions and tool-result path; audible quality still
+requires a live listening comparison.

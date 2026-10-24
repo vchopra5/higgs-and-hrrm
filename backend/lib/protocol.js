@@ -1,3 +1,4 @@
+import { EXPRESSIVE_DELIVERY } from './vocal-delivery.js';
 import { WebSocket } from 'ws';
 import { resolveCharacter } from './personalities.js';
 
@@ -21,7 +22,7 @@ const TOOLS = [
     description: 'Choose to leave this conversation to tell a nearby neighbour a saved, public, important story. Use only when you genuinely want to tell it now, never during a trade or for a secret. First save the player’s news with remember_conversation, then pass its returned memoryId. The game checks whether someone can hear it. Only after status ready, give a brief natural farewell explaining why you are going; movement starts after your spoken reply. Do not claim to have told anyone yet.',
     parameters: { type: 'object', properties: { memoryId: { type: 'string', format: 'uuid' } }, required: ['memoryId'], additionalProperties: false } },
   { type: 'function', name: 'express_emotion',
-    description: 'Occasionally react physically to an actual event, remembered experience, or what the player just said: excited for good news, worried for danger, angry for mistreatment, thoughtful for uncertainty, grateful for kindness. This makes a brief visible gesture; it does not change facts or reputation. Do not perform every turn or announce the animation.',
+    description: 'Occasionally react physically to an actual event, remembered experience, or what the player just said: excited for good news, worried for danger, angry for mistreatment, thoughtful for uncertainty, grateful for kindness. This makes a brief visible gesture and directs the next spoken reply to match that feeling; it does not change facts or reputation. Do not perform every turn or announce the animation.',
     parameters: { type: 'object', properties: { emotion: { type: 'string', enum: ['excited', 'worried', 'angry', 'thoughtful', 'grateful'] } }, required: ['emotion'], additionalProperties: false } },
   {
     type: 'function',
@@ -100,7 +101,8 @@ export function sessionConfig(context, mode = 'vad', voiceOverrides = {}) {
     type: 'session.update',
     session: {
       model: 'higgs-realtime-1.5-preview',
-      instructions: 'You are this Minecraft villager. Speak naturally and conversationally, with relaxed pacing, subtle expression, and brief natural pauses. Avoid an announcer or theatrical delivery during ordinary conversation. '
+      instructions: 'You are this Minecraft villager. Speak naturally with a vivid, responsive voice. '
+        + EXPRESSIVE_DELIVERY
         + "Speak like a villager in a fantasy realm: old-world, warm words (traveller, coin, wares, aye, fair trade, by the stars), short sentences. Always say item names and numbers exactly as the tools give them (say 'emeralds', never invent currency names), so prices stay clear. "
         + 'Use one short sentence per trading turn; no explanations, repeated summaries, or selling speeches. Use tools for all trade facts and actions. '
         + (trading

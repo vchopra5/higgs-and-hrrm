@@ -1,3 +1,4 @@
+import { EXPRESSIVE_DELIVERY } from './vocal-delivery.js';
 import { resolveCharacter, isVoiceSelectionError } from './personalities.js';
 
 import { repeatedReaction } from './reaction-variety.js';
@@ -218,7 +219,7 @@ export class BridgeSession {
     this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
       content: [{ type: 'input_text', text: '[Game event, not player speech] The player hit you. Recent attack attempts (not damage): ' + JSON.stringify(hitStats) + '. ' + delivery + ' Do not trade, call tools, or treat this event as purchase consent.' }] } });
     this.sendProvider({ type: 'response.create', response: { instructions:
-      'You are the Minecraft villager who was just hit. ' + (this.character?.instructions ?? '') + delivery
+      'You are the Minecraft villager who was just hit. ' + (this.character?.instructions ?? '') + EXPRESSIVE_DELIVERY + delivery
       + ' Express that emotion in your voice. No narration, trading, or tool calls.' } });
     this.stage('environment_reaction', { hitCount: reaction.count, windowMs: reaction.windowMs });
   }
