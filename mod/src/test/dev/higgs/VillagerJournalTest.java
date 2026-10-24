@@ -27,6 +27,10 @@ public final class VillagerJournalTest {
         check(kept.size() == 5, "per-pair cap");
         check(kept.stream().anyMatch(e -> e.type().equals("gift")) && kept.stream().anyMatch(e -> e.type().equals("trade")), "important episodes survive the cap");
         check(journal.counts(iris, steve, now + 20_000).get("kindness") == 2, "counts by type");
+        journal.record(iris, alex, "gift", "Alex gave me a flower", 13, now + 30_000, 3, false, 0);
+        var lately = journal.since(iris, now + 10_000);
+        check(lately.size() == 3 && lately.getLast().playerId().equals(alex), "a villager's recent episodes span players");
+        check(journal.since(bram, 0).isEmpty(), "and stay its own");
         var recent = journal.recent(iris, steve, now + 20_000, 2);
         check(recent.size() == 2 && recent.getFirst().at() <= recent.get(1).at(), "recent is chronological");
         // Expiry: routine fades after the lifetime, important events last longer; the summary never expires.

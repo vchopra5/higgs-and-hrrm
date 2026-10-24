@@ -35,7 +35,7 @@ final class VillagerChatter {
         void influenced(ServerPlayer player, Villager speaker, Villager listener, int standing);
         String villageName(Villager villager);
     }
-    private record Scene(MinecraftServer server, String id, Villager a, Villager b, String url, long until, Set<UUID> invited) {}
+    private record Scene(MinecraftServer server, String id, List<Villager> members, String url, long until, Set<UUID> invited) {}
     private static final double PAIR_DISTANCE_SQUARED = 6 * 6;
     private static final long SCENE_MS = 60_000;
     private static final long RECENT_HIT_MS = 10 * 60_000;
@@ -77,7 +77,7 @@ final class VillagerChatter {
         long now = System.currentTimeMillis();
         if (active != null) {
             if (now > active.until()) active = null; // Finished long ago; let any remaining playback end naturally.
-            else if (!idle(active.a()) || !idle(active.b())) stop(true);
+            else if (!active.members().stream().allMatch(this::idle)) stop(true);
             else if (ticks % 20 == 0) invite(server, active);
             return;
         }
@@ -94,7 +94,16 @@ final class VillagerChatter {
             for (int i = 0; i < nearby.size(); i++) {
                 for (int j = i + 1; j < nearby.size(); j++) {
                     if (nearby.get(i).distanceToSqr(nearby.get(j)) <= PAIR_DISTANCE_SQUARED) {
-                        start(server, player, nearby.get(i), nearby.get(j));
+                        List<Villager> group = new ArrayList<>(List.of(nearby.get(i), nearby.get(j)));
+                        // Sometimes a third neighbour standing with both joins in.
+                        for (int k = j + 1; k < nearby.size() && random.nextBoolean(); k++) {
+                            Villager third = nearby.get(k);
+                            if (third.distanceToSqr(group.get(0)) <= PAIR_DISTANCE_SQUARED && third.distanceToSqr(group.get(1)) <= PAIR_DISTANCE_SQUARED) {
+                                group.add(third);
+                                break;
+                            }
+                        }
+                        start(server, player, group);
                         return;
                     }
                 }
@@ -108,63 +117,77 @@ final class VillagerChatter {
             && !HiggsVillagers.bedtime(villager);
     }
 
-    private void start(MinecraftServer server, ServerPlayer player, Villager a, Villager b) {
+    private void start(MinecraftServer server, ServerPlayer player, List<Villager> group) {
         starting = true;
-        personalities.prepare(a).thenCombine(personalities.prepare(b), (first, second) -> List.of(first, second))
-            .whenComplete((prepared, failure) -> server.execute(() -> {
-                if (failure != null || server.isStopped() || !idle(a) || !idle(b) || !player.isAlive()) { starting = false; return; }
-                personalities.applyName(a, prepared.get(0));
-                personalities.applyName(b, prepared.get(1));
-                JsonObject body = scene(server, player, a, prepared.get(0).profile(), b, prepared.get(1).profile());
-                host.request("POST", "/scenes", body).whenComplete((reply, error) -> server.execute(() -> {
-                    starting = false;
-                    if (error != null) {
-                        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Villager chatter unavailable: {}", error.getMessage());
-                        return;
-                    }
-                    JsonObject created = reply.getAsJsonObject();
-                    String id = created.get("sceneId").getAsString();
-                    if (!idle(a) || !idle(b)) { host.request("DELETE", "/scenes/" + id, null).exceptionally(ignored -> null); return; }
-                    long now = System.currentTimeMillis();
-                    lastChat.put(a.getUUID(), now);
-                    lastChat.put(b.getUUID(), now);
-                    String url = publicBackend.replaceFirst("^http", "ws") + "/chatter?scene=" + URLEncoder.encode(id, StandardCharsets.UTF_8)
-                        + "&token=" + URLEncoder.encode(created.get("token").getAsString(), StandardCharsets.UTF_8);
-                    active = new Scene(server, id, a, b, url, now + SCENE_MS, new HashSet<>());
-                    org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Villager chatter scene={} topic={} between {} and {}",
-                        id, body.get("topic").getAsString(), a.getName().getString(), b.getName().getString());
-                    invite(server, active);
-                    if (body.get("topic").getAsString().equals("player")) gossip(player, a, b);
-                }));
+        List<CompletableFuture<VillagerPersonalityService.Prepared>> preparing = group.stream().map(personalities::prepare).toList();
+        CompletableFuture.allOf(preparing.toArray(CompletableFuture[]::new)).whenComplete((ignored, failure) -> server.execute(() -> {
+            if (failure != null || server.isStopped() || !group.stream().allMatch(this::idle) || !player.isAlive()) { starting = false; return; }
+            List<VillagerPersonalityStore.Profile> profiles = new ArrayList<>();
+            for (int i = 0; i < group.size(); i++) {
+                var prepared = preparing.get(i).join();
+                personalities.applyName(group.get(i), prepared);
+                profiles.add(prepared.profile());
+            }
+            JsonObject body = scene(player, group, profiles);
+            host.request("POST", "/scenes", body).whenComplete((reply, error) -> server.execute(() -> {
+                starting = false;
+                if (error != null) {
+                    org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Villager chatter unavailable: {}", error.getMessage());
+                    return;
+                }
+                JsonObject created = reply.getAsJsonObject();
+                String id = created.get("sceneId").getAsString();
+                if (!group.stream().allMatch(this::idle)) { host.request("DELETE", "/scenes/" + id, null).exceptionally(none -> null); return; }
+                long now = System.currentTimeMillis();
+                for (Villager member : group) lastChat.put(member.getUUID(), now);
+                String url = publicBackend.replaceFirst("^http", "ws") + "/chatter?scene=" + URLEncoder.encode(id, StandardCharsets.UTF_8)
+                    + "&token=" + URLEncoder.encode(created.get("token").getAsString(), StandardCharsets.UTF_8);
+                active = new Scene(server, id, List.copyOf(group), url, now + SCENE_MS, new HashSet<>());
+                org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Villager chatter scene={} topic={} between {}",
+                    id, body.get("topic").getAsString(), group.stream().map(v -> v.getName().getString()).toList());
+                invite(server, active);
+                if (body.get("topic").getAsString().equals("player")) gossip(player, group);
             }));
+        }));
     }
 
-    private JsonObject scene(MinecraftServer server, ServerPlayer player, Villager a, VillagerPersonalityStore.Profile first,
-                             Villager b, VillagerPersonalityStore.Profile second) {
-        JsonObject speakerA = speaker(player, a, first), speakerB = speaker(player, b, second);
-        JsonObject factsA = speakerA.getAsJsonObject("facts"), factsB = speakerB.getAsJsonObject("facts");
-        boolean playerNews = factsA.has("whatThePlayerToldMe") || factsB.has("whatThePlayerToldMe")
-            || !factsA.get("opinionOfPlayer").getAsString().equals("neutral") || !factsB.get("opinionOfPlayer").getAsString().equals("neutral");
-        boolean rumours = factsA.has("rumoursIHeard") || factsB.has("rumoursIHeard");
+    private JsonObject scene(ServerPlayer player, List<Villager> group, List<VillagerPersonalityStore.Profile> profiles) {
+        List<JsonObject> speakers = new ArrayList<>();
+        for (int i = 0; i < group.size(); i++) {
+            List<Villager> others = new ArrayList<>(group);
+            others.remove(i);
+            speakers.add(speaker(player, group.get(i), profiles.get(i), others));
+        }
+        boolean playerNews = speakers.stream().map(speaker -> speaker.getAsJsonObject("facts")).anyMatch(facts ->
+            facts.has("whatThePlayerToldMe") || !facts.get("opinionOfPlayer").getAsString().equals("neutral"));
+        boolean rumours = speakers.stream().anyMatch(speaker -> speaker.getAsJsonObject("facts").has("rumoursIHeard"));
+        Villager first = group.getFirst();
         JsonObject shared = new JsonObject();
         shared.addProperty("playerName", player.getName().getString());
-        shared.addProperty("timeOfDay", ChatterTopic.timeOfDay(a.level().getOverworldClockTime()));
-        shared.addProperty("weather", a.level().isThundering() ? "thunderstorm" : a.level().isRaining() ? "rain" : "clear");
-        String village = host.villageName(a);
+        shared.addProperty("timeOfDay", ChatterTopic.timeOfDay(first.level().getOverworldClockTime()));
+        shared.addProperty("weather", first.level().isThundering() ? "thunderstorm" : first.level().isRaining() ? "rain" : "clear");
+        String village = host.villageName(first);
         if (village != null) shared.addProperty("village", village);
         String topic = ChatterTopic.choose(random, playerNews, rumours);
         if (topic.equals("player")) {
-            stance(factsA, host.opinion(player, a).score(), host.opinion(player, b).score());
-            stance(factsB, host.opinion(player, b).score(), host.opinion(player, a).score());
+            for (int i = 0; i < group.size(); i++) {
+                int own = host.opinion(player, group.get(i)).score();
+                for (Villager other : group) {
+                    if (other == group.get(i)) continue;
+                    int listener = host.opinion(player, other).score();
+                    int next = VillageReputation.influence(own, listener);
+                    if (next != listener) { speakers.get(i).getAsJsonObject("facts").addProperty("stanceOnPlayer", next > listener ? "praise" : "badmouth"); break; }
+                }
+            }
         }
         JsonObject body = new JsonObject();
         body.addProperty("topic", topic);
-        body.addProperty("lines", ChatterTopic.lines(random));
+        body.addProperty("lines", ChatterTopic.lines(random) + (group.size() > 2 ? 1 : 0));
+        body.addProperty("playerId", player.getUUID().toString());
         body.add("shared", shared);
-        JsonArray speakers = new JsonArray();
-        speakers.add(speakerA);
-        speakers.add(speakerB);
-        body.add("speakers", speakers);
+        JsonArray list = new JsonArray();
+        speakers.forEach(list::add);
+        body.add("speakers", list);
         return body;
     }
 
@@ -175,7 +198,7 @@ final class VillagerChatter {
     }
 
     /** A villager's persona and what it may say about the player; shared with conversation companions. */
-    JsonObject speaker(ServerPlayer player, Villager villager, VillagerPersonalityStore.Profile profile) {
+    JsonObject speaker(ServerPlayer player, Villager villager, VillagerPersonalityStore.Profile profile, List<Villager> others) {
         JsonObject speaker = new JsonObject();
         speaker.addProperty("entityId", villager.getId());
         speaker.addProperty("villagerId", villager.getUUID().toString());
@@ -205,16 +228,33 @@ final class VillagerChatter {
             wares.add(offer.getResult().getHoverName().getString());
         }
         if (!wares.isEmpty()) facts.add("myWares", wares);
+        // TinyTroupe-style persona relationships and state of mind.
+        facts.add("mind", memory.mind(villager));
+        JsonObject bonds = new JsonObject();
+        for (Villager other : others) {
+            String name = other.getName().getString();
+            bonds.addProperty(name, VillagerBonds.describe(VillagerBonds.relation(villager.getUUID(), other.getUUID()), name));
+        }
+        if (!bonds.isEmpty()) facts.add("neighbours", bonds);
         speaker.add("facts", facts);
         return speaker;
     }
 
-    /** Both villagers hear each other's view of the player; computed from the opinions before either changes. */
-    private void gossip(ServerPlayer player, Villager a, Villager b) {
-        int scoreA = host.opinion(player, a).score(), scoreB = host.opinion(player, b).score();
-        int nextB = VillageReputation.influence(scoreA, scoreB), nextA = VillageReputation.influence(scoreB, scoreA);
-        if (nextB != scoreB) host.influenced(player, a, b, nextB);
-        if (nextA != scoreA) host.influenced(player, b, a, nextA);
+    /**
+     * Everyone hears everyone's view of the player, computed from the opinions before any changes. Each listener is
+     * swayed at most one step, by the speaker with the strongest clear opinion.
+     */
+    private void gossip(ServerPlayer player, List<Villager> group) {
+        Map<Villager, Integer> before = new HashMap<>();
+        for (Villager member : group) before.put(member, host.opinion(player, member).score());
+        for (Villager listener : group) {
+            Villager loudest = null;
+            for (Villager speaker : group) {
+                if (speaker == listener || VillageReputation.influence(before.get(speaker), before.get(listener)) == before.get(listener)) continue;
+                if (loudest == null || Math.abs(before.get(speaker)) > Math.abs(before.get(loudest))) loudest = speaker;
+            }
+            if (loudest != null) host.influenced(player, loudest, listener, VillageReputation.influence(before.get(loudest), before.get(listener)));
+        }
     }
 
     private static JsonArray summaries(JsonArray entries, boolean withSource) {
@@ -234,9 +274,9 @@ final class VillagerChatter {
 
     private void invite(MinecraftServer server, Scene scene) {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
-            if (scene.invited().contains(player.getUUID()) || player.level() != scene.a().level()
+            if (scene.invited().contains(player.getUUID()) || player.level() != scene.members().getFirst().level()
                 || !host.canSend(player) || host.talking(player)
-                || Math.min(player.distanceToSqr(scene.a()), player.distanceToSqr(scene.b())) > hearingSquared) continue;
+                || scene.members().stream().mapToDouble(player::distanceToSqr).min().orElse(Double.MAX_VALUE) > hearingSquared) continue;
             scene.invited().add(player.getUUID());
             JsonObject message = new JsonObject();
             message.addProperty("type", "chatter");
@@ -248,7 +288,7 @@ final class VillagerChatter {
 
     /** A player started talking to one of the chatting villagers: the scene yields to the conversation. */
     void villagerBusy(Villager villager) {
-        if (active != null && (active.a() == villager || active.b() == villager)) stop(true);
+        if (active != null && active.members().contains(villager)) stop(true);
     }
 
     void stop(boolean notifyBackend) {

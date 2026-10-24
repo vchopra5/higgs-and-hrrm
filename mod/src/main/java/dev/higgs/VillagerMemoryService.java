@@ -66,6 +66,22 @@ public final class VillagerMemoryService {
     /** Observed events (trades, gifts, quests…); null while unavailable, so callers record best-effort. */
     public VillagerJournal journal() { return stopping ? null : journal; }
 
+    /**
+     * The villager's state of mind right now: mood from what happened to it in the last in-game day (with anyone),
+     * today's goal from its trade, and the latest notable thing on its mind.
+     */
+    public JsonObject mind(Villager villager) {
+        JsonObject mind = new JsonObject();
+        long now = System.currentTimeMillis();
+        VillagerJournal current = journal();
+        var lately = current == null ? List.<VillagerJournal.Episode>of() : current.since(villager.getUUID(), now - VillagerMind.MOOD_MS);
+        mind.addProperty("mood", VillagerMind.mood(lately.stream().map(VillagerJournal.Episode::type).toList()));
+        mind.addProperty("goal", VillagerMind.goal(profession(villager), villager.getUUID(), gameDay(villager)));
+        lately.stream().filter(e -> e.salience() >= 3).reduce((first, second) -> second)
+            .ifPresent(latest -> mind.addProperty("onYourMind", latest.text()));
+        return mind;
+    }
+
     /** In-game day, for "yesterday" and "three days ago". */
     public static long gameDay(Villager villager) { return Math.floorDiv(villager.level().getOverworldClockTime(), 24000L); }
 

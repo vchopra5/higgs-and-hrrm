@@ -231,10 +231,12 @@ export class BridgeSession {
   correctUngroundedTrade(response) {
     const text = this.responseText;
     this.responseText = '';
-    if (response?.status !== 'completed' || this.turnId <= 0 || this.correctedTurn === this.turnId
+    const trading = this.context.trade?.canTrade !== false;
+    // The greeting (turn 0) is only checked for a non-trader offering wares: the mistake that prompted this check.
+    if (response?.status !== 'completed' || (this.turnId <= 0 && trading) || this.context.bedtime === true || this.correctedTurn === this.turnId
         || this.recording || this.cancelled || this.hasTools || [...this.pending.values()].some(tool => !tool.internal)) return false;
     const trade = this.tradeTurn();
-    const problem = ungroundedTrade(text, trade);
+    const problem = ungroundedTrade(text, { ...trade, trading });
     if (!problem) return false;
     this.correctedTurn = this.turnId;
     this.traceEvent('grounding_correction');

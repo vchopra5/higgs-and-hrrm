@@ -294,7 +294,14 @@ chatter. When they talk about you, a villager with a clear opinion (friendly, or
 and worse) praises or badmouths you to the other, moving that villager's opinion one
 point toward its own: never past it, and never into hostility, which only your own
 actions cause. You see hearts or angry particles and a note such as “Bram spoke well of
-you to Iris”. Each line plays from the speaking villager, fading with distance (16 blocks),
+you to Iris”. Sometimes a third neighbour standing with both joins in. Villagers have fixed bonds with
+one another (siblings, good friends, rivals or acquaintances) and a state of mind (a
+mood from what happened to them today, a goal from their trade, and what's on their
+mind), which colour the talk: a villager you hit stays shaken and suspicious while a
+friend you gave a diamond defends you. Whoever is addressed by name answers next, and a
+scene ends early on a goodbye. A line that only echoes another is never heard: the
+villager gets one fresh try. What they say about you becomes each villager's memory
+(“When we talked about you, Alden said you hit him”). Each line plays from the speaking villager, fading with distance (16 blocks),
 and appears in chat as a grey, italic caption. Starting your own conversation, or
 talking to either villager, stops the scene. Each villager chats at most once every
 five minutes, and one scene runs at a time.

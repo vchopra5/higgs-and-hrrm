@@ -133,6 +133,8 @@ export function sessionConfig(context, mode = 'vad', voiceOverrides = {}) {
         + 'If no openingRumour is provided, do not force another heardRumours entry into the greeting. '
         + 'During conversation, weave known rumours in only when relevant; keep answering the player’s actual topic. '
         + 'Do not repeat a story every turn, invent a scandal, or make a routine preference sound shocking. '
+        + 'context.mind is your own state of mind: mood (from what happened to you today), goal (what you are busy with) and what is on your mind. '
+        + 'Let it colour your manner and small talk naturally; never announce it as a list. '
         + 'context.relationship is your own long-term history with this player: summary, recent episodes and counts. '
         + 'Episodes are things you saw happen (trades, gifts, quests, errands, hits, kind or rude words); memories are things the player told you. '
         + 'Recognise the player from it, and once per conversation, when it fits naturally, bring up one shared past moment, such as a trade, a gift, a favour or a slight. '

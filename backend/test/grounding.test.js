@@ -27,6 +27,13 @@ test('accepting a gift needs receive_gift', () => {
   assert.equal(ungroundedTrade("Wolves again? I'll take it from here. It's done, thank you.", { tools: new Set(['deliver_errand']) }), null);
 });
 
+test('a villager with nothing to sell is corrected when it talks of wares or prices', () => {
+  assert.match(ungroundedTrade("Hello there, I've got some fine wares for you today.", { trading: false }), /nothing to sell.*you have no trade to offer/);
+  assert.match(ungroundedTrade('Bread is two emeralds a loaf.', { trading: false }), /nothing to sell/);
+  assert.equal(ungroundedTrade('Lovely evening for a walk, traveller.', { trading: false }), null);
+  assert.equal(ungroundedTrade("I've got some fine wares for you today.", { trading: true }), null, 'traders may say so');
+});
+
 test('grounded trade speech passes', () => {
   assert.equal(ungroundedTrade('Three emeralds for one iron axe. Confirm trade?', quoted), null);
   assert.equal(ungroundedTrade('3 emeralds for an iron axe. Confirm trade?', quoted), null);

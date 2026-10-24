@@ -12,6 +12,8 @@ const COUNT = '(?:\\d+|' + [...ONES.slice(1), ...TENS.slice(2), 'half', 'dozen',
 const PRICE = new RegExp(`\\b${COUNT}\\b[^.?!]{0,30}\\bemeralds?\\b`, 'i');
 const CONFIRM = /\bconfirm (?:the )?trade\b/i;
 const GIFT_TAKEN = /\b(?:i'?ll (?:gladly )?take (?:it|that|this|them|your)|thank you for the (?:gift|diamond|emerald|present))\b/i;
+const WARES = /\b(?:my wares|for sale|i(?:'ve| have) (?:got )?(?:some )?(?:fine |good )?(?:wares|goods) |buy (?:from me|something)|what (?:can i|would you like to) (?:sell|buy)|interested in (?:a )?trade|care to trade|want to trade)\b/i;
+const NO_TRADE_FIX = ' Correct yourself briefly and kindly: you have no trade to offer. Never mention wares, prices or deals again in this conversation.';
 const TRADE_FIX = ' Nothing was agreed or purchased. Briefly correct yourself, then call propose_trade for the deal the player wants '
   + 'and say only the exact terms it returns, then ask Confirm trade? Never say a trade is done unless confirm_trade returns purchased.';
 const GIFT_FIX = ' Nothing was handed over yet. If the player is clearly giving you something, call receive_gift with the item they named; '
@@ -35,8 +37,10 @@ function mentions(text, count) {
  * Gift receipts must come from receive_gift; trade claims from the trade tools. tools: trade tools called this turn;
  * purchased: confirm_trade returned purchased this turn; quote: counts from this turn's latest quote.
  */
-export function ungroundedTrade(text, { tools = new Set(), purchased = false, quote = null } = {}) {
+export function ungroundedTrade(text, { tools = new Set(), purchased = false, quote = null, trading = true } = {}) {
   if (typeof text !== 'string' || !text.trim()) return null;
+  // Persona adherence: a villager with nothing to sell must not talk itself into trading.
+  if (!trading && (PRICE.test(text) || WARES.test(text))) return 'You have nothing to sell, yet you spoke of wares or prices.' + NO_TRADE_FIX;
   // A delivered errand is also something real changing hands.
   if (tools.has('deliver_errand')) return null;
   if (GIFT_TAKEN.test(text) && !tools.has('receive_gift')) return 'You accepted a gift, but you have not received anything.' + GIFT_FIX;

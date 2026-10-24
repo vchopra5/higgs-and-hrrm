@@ -144,7 +144,7 @@ public final class HiggsVillagers implements ModInitializer {
             server.execute(() -> {
                 if (failure != null || sessions.get(s.player.getUUID()) != s || s.companion != null || !joining.isAlive()) { s.companionJoining = false; return; }
                 personalities.applyName(joining, prepared);
-                request("POST", "/sessions/" + s.id + "/companion", chatter.speaker(s.player, joining, prepared.profile()))
+                request("POST", "/sessions/" + s.id + "/companion", chatter.speaker(s.player, joining, prepared.profile(), List.of(s.villager)))
                     .whenComplete((reply, error) -> server.execute(() -> {
                         s.companionJoining = false;
                         if (error != null || sessions.get(s.player.getUUID()) != s || s.companion != null) return;
@@ -656,6 +656,24 @@ public final class HiggsVillagers implements ModInitializer {
             for (JsonElement element : reply.getAsJsonArray()) {
                 try {
                     JsonObject digest = element.getAsJsonObject();
+                    if (digest.has("kind") && digest.get("kind").getAsString().equals("scene")) {
+                        // Villagers chatting about the player: each remembers what the others said.
+                        UUID subject = UUID.fromString(digest.get("playerId").getAsString());
+                        String playerName = digest.get("playerName").getAsString();
+                        for (JsonElement participant : digest.getAsJsonArray("participants")) {
+                            String self = participant.getAsJsonObject().get("villagerId").getAsString();
+                            List<String> heard = new ArrayList<>();
+                            for (JsonElement line : digest.getAsJsonArray("lines")) {
+                                JsonObject said = line.getAsJsonObject();
+                                if (said.has("villagerId") && said.get("villagerId").getAsString().equals(self)) continue;
+                                heard.add(said.get("name").getAsString() + " said \"" + said.get("text").getAsString() + "\"");
+                            }
+                            if (heard.isEmpty()) continue;
+                            journal.record(UUID.fromString(self), subject, "chatter_heard", "When we talked about " + playerName + ", "
+                                + String.join("; ", heard.subList(Math.max(0, heard.size() - 2), heard.size())), day, now, 2, false, 0);
+                        }
+                        continue;
+                    }
                     UUID villager = UUID.fromString(digest.get("villagerId").getAsString());
                     UUID player = UUID.fromString(digest.get("playerId").getAsString());
                     String text = digest.get("digest").getAsString();
@@ -702,6 +720,7 @@ public final class HiggsVillagers implements ModInitializer {
             if (village != null) context.add("village", village);
             context.add("gifts", giftContext(player, villager));
             context.add("relationship", memory.relationshipContext(villager, player));
+            context.add("mind", memory.mind(villager));
             VillagerJournal journal = memory.journal();
             if (journal != null && journal.all(villager.getUUID(), player.getUUID(), System.currentTimeMillis()).stream().noneMatch(e -> !e.witnessed()))
                 memory.observe(villager, player, "first_met", "I met " + player.getName().getString() + " for the first time", 5, 0);
@@ -710,7 +729,7 @@ public final class HiggsVillagers implements ModInitializer {
                 neighbour.addProperty("name", s.companion.getName().getString());
                 neighbour.addProperty("profession", VillagerMemoryService.profession(s.companion));
                 context.add("companion", neighbour);
-                body.add("companion", chatter.speaker(player, s.companion, s.companionProfile));
+                body.add("companion", chatter.speaker(player, s.companion, s.companionProfile, List.of(s.villager)));
             }
             JsonObject errands = errandContext(player, villager);
             if (!errands.isEmpty()) context.add("errands", errands);

@@ -112,6 +112,7 @@ export function createBridge({
     try {
       scene = new ChatterScene(await readJsonBody(request), {
         apiKey, upstreamUrl, connect, now, log, voiceOverrides, onClose: id => scenes.delete(id),
+        onDigest: digest => { digests.push({ ...digest, at: now() }); if (digests.length > 200) digests = digests.slice(-200); },
       });
     } catch {
       return replyJson(response, 400, { error: 'Invalid chatter scene' });

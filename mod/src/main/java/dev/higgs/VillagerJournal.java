@@ -138,6 +138,16 @@ public final class VillagerJournal implements AutoCloseable {
         return chosen;
     }
 
+    /** A villager's episodes with anyone since a moment, oldest first: what its mood is made of. */
+    public synchronized List<Episode> since(UUID villager, long from) {
+        List<Episode> result = new ArrayList<>();
+        for (List<Episode> pair : episodes.values()) {
+            for (Episode episode : pair) if (episode.villagerId.equals(villager) && episode.at >= from) result.add(episode);
+        }
+        result.sort(Comparator.comparingLong(Episode::at));
+        return result;
+    }
+
     /** Live (unexpired) episodes for a pair, oldest first. */
     public synchronized List<Episode> all(UUID villager, UUID player, long now) {
         List<Episode> pair = new ArrayList<>(episodes.getOrDefault(key(villager, player), List.of()));

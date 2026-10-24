@@ -956,3 +956,14 @@ test('a goodnight cut off by the player still ends the conversation', async t =>
   f.emit({ type: 'response.done', response: { id: 'goodnight', status: 'cancelled' } });
   await until(() => f.events.some(e => e.type === 'end' && e.code === 'bedtime'));
 });
+
+test('a jobless villager offering wares in its greeting is corrected once', async t => {
+  const f = await fixture(t, { context: { name: 'Nit', autoGreeting: true, trade: { canTrade: false, reason: 'nitwit', wares: [], soldOut: [] } } });
+  await until(() => f.received.some(e => e.type === 'response.create'));
+  f.emit({ type: 'response.created', response: { id: 'hello' } });
+  f.emit({ type: 'response.output_audio_transcript.done', response_id: 'hello', transcript: "Welcome, traveller! I've got some fine wares for you." });
+  f.emit({ type: 'response.done', response: { id: 'hello', status: 'completed' } });
+  await until(() => f.received.filter(e => e.type === 'response.create').length === 2);
+  const note = f.received.findLast(e => e.type === 'conversation.item.create').item.content[0].text;
+  assert.match(note, /^\[Server check, not player speech\] You have nothing to sell, yet you spoke of wares or prices\./);
+});
