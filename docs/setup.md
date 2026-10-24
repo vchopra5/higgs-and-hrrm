@@ -105,8 +105,11 @@ live trade lookup, and audio-only purchases with one spoken confirmation.
    `HIGGS_BRIDGE_TOKEN`; the server mod and backend must share it. For a fresh
    clone, copy `.env.example` to `.env` and generate a token with
    `openssl rand -hex 32`. Never commit `.env`.
-2. Install Node.js 22+ and run `npm --prefix backend ci`, then
-   `npm --prefix backend start` in a terminal. Restart the backend after changing
+2. Install Node.js 22+ and run `npm --prefix backend ci`. To install the shared
+   villager and rap voices under your own Boson account, install current `yt-dlp`
+   and `ffmpeg` (macOS: `brew install yt-dlp ffmpeg`), then run
+   `npm --prefix backend run setup:voices`. This calls Boson and may incur usage.
+   Start `npm --prefix backend start` in a terminal. Restart the backend after changing
    the key; restart the game server if you change the bridge token.
 3. Build using JDK 25 and `./scripts/build-mod.sh`. The JAR is
    `mod/build/libs/higgs-villagers-0.1.0.jar`.

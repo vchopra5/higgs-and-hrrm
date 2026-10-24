@@ -50,6 +50,19 @@ The voice model judges newsworthiness semantically. Personal interests add a sma
 
 ## Voice configuration
 
+To reproduce the shared voices, run `npm --prefix backend run setup:voices` after
+installing backend dependencies, setting your own `BOSON_API_KEY` in `.env`, and
+installing current `yt-dlp` and `ffmpeg`. It registers the Annoying Villiagers voice
+for all personalities and the song-based Eminem voice for raps, then updates only
+the four voice settings in `.env`. Restart the backend afterward. Players using
+the same bridge need no separate voice setup. Separate bridges must register the
+voices using their own key; copying another account's voice IDs is insufficient.
+
+The script downloads the rap reference locally and uses Boson transcription and
+voice registration. Those requests may incur usage. Both registrations must
+succeed before configuration changes. Re-running with identical audio reuses the
+provider's existing voice. See [reference sources](../shared/voices/README.md).
+
 Optional backend settings in the root `.env` select approved presets or account-owned custom IDs:
 
 ```dotenv
