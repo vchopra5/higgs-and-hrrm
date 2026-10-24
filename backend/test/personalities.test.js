@@ -54,7 +54,22 @@ test('catalogue validation rejects incompatible editions and unsafe mappings', (
     const invalid = structuredClone(original); change(invalid);
     assert.throws(() => parseCatalogue(invalid));
   }
-  const edition = structuredClone(original.versions[0]); edition.version = 2;
-  original.versions.push(edition); original.currentVersion = 2;
-  assert.equal(parseCatalogue(original).size, 2, 'old editions remain available beside new ones');
+  const nextVersion = original.currentVersion + 1;
+  const edition = structuredClone(original.versions[0]); edition.version = nextVersion;
+  original.versions.push(edition); original.currentVersion = nextVersion;
+  assert.equal(parseCatalogue(original).size, original.versions.length, 'old editions remain available beside new ones');
+});
+
+
+test('Rook is mildly confrontational while retaining trade boundaries and previous identities', () => {
+  const personality = { catalogueVersion: 2, archetypeId: 'rook', styleId: 'clipped', familiarity: 0 };
+  const config = sessionConfig({ personality });
+  assert.equal(config.session.audio.output.voice, 'marcus');
+  assert.match(config.session.instructions, /Mildly aggressive, impatient and blunt/);
+  assert.match(config.session.instructions, /Back down when the evidence changes/);
+  assert.match(config.session.instructions, /restrained irritation/);
+  assert.match(config.session.instructions, /never overrides.*purchase consent/);
+  assert.match(config.session.tools.find(tool => tool.name === 'confirm_trade').description, /explicit spoken yes/);
+  assert.throws(() => resolveCharacter({ personality: { ...personality, catalogueVersion: 1 } }));
+  assert.equal(resolveCharacter({ personality: profile('bram', 'understated') }).voice, 'marcus');
 });

@@ -81,7 +81,7 @@ Stories stay attributed as player claims. Explicitly private entries do not spre
 
 ## One village, different minds
 
-**Mira** is generous, warm and nosy. **Rowan** demands evidence but hopes for a mystery. **Bram** is guarded, practical and quietly fond of poetry. Tell them the same story and discover their different perspectives through conversation. Their discretion also changes when they pass news along.
+**Mira** is generous, warm and nosy. **Rowan** demands evidence but hopes for a mystery. **Bram** is guarded, practical and quietly fond of poetry. Tell them the same story and discover their different perspectives through conversation. **Rook** adds a mildly aggressive edge: impatient, protective and quick with a dry challenge. Their discretion also changes when they pass news along.
 
 Villagers keep their identities across visits and restarts. Confirmed return visits build bounded familiarity. **[Meet the cast and prepare the demo →](docs/villager-personalities.md)**
 

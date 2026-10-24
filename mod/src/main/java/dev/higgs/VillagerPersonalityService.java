@@ -38,7 +38,8 @@ public final class VillagerPersonalityService {
     }
     private VillagerPersonalityStore.Profile assign(Villager villager) {
         String explicit = null;
-        for (String id : List.of("mira", "rowan", "bram")) {
+        for (var archetype : catalogue.current().archetypes()) {
+            String id = archetype.id();
             if (!villager.entityTags().contains("higgs_" + id)) continue;
             if (explicit != null) throw new IllegalStateException("Use only one HIGGS cast tag per villager");
             explicit = id;

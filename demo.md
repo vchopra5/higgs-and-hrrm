@@ -28,7 +28,7 @@ Our first audience is Minecraft players and creators who want more expressive ro
 
 ## One story, three perspectives · character extension
 
-[Prepare Mira, Rowan and Bram](docs/villager-personalities.md). Ask each “What matters most to you around here?” and let the audience hear the contrast: warm curiosity, sceptical fascination, guarded practicality. Their replies are generated, not scripted.
+[Prepare Mira, Rowan and Bram](docs/villager-personalities.md). Ask each “What matters most to you around here?” and let the audience hear the contrast: warm curiosity, sceptical fascination, guarded practicality. Their replies are generated, not scripted. Add **Rook** for a mildly aggressive contrast: ask “You seem wound up—what is bothering you?” and let his protective, impatient nature come through. Assign him with `higgs_rook`; see the cast guide.
 
 Tell Mira the hidden-library story, watch the small gossip indicator, then let Rowan open the next conversation. Return after a restart to show that the character and memory persist. Allow time for each character's gossip delay; rehearse the actual voices before presenting.
 

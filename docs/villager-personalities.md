@@ -11,12 +11,13 @@ Villagers now keep a name, character and delivery style across conversations and
 | **Mira** | Generous and attentive; cannot bear being the last to know. | Warm and brisk · `chloe` | Public news from 55 interest, after 5 seconds; normal pair cooldown. |
 | **Rowan** | Demands evidence, but longs for a great mystery. | Measured and dryly amused · `oliver` | News from 70 interest, after 30 seconds; 1.5× pair cooldown. |
 | **Bram** | Wants his craft respected; hides a fondness for poetry. | Brief and understated · `marcus` | News from 65 interest, after 60 seconds; 2× pair cooldown. |
+| **Rook** | Protective, impatient and quick to bristle; grudgingly respects resolve. | Firm and clipped · `marcus` | News from 65 interest, after 10 seconds; 1.25× pair cooldown, with an interest in danger and defence. |
 
 These are authored directions, not fixed dialogue. Preset suitability and actual delivery still need a live audition. Voice configuration follows Boson's [Realtime audio guide](https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices); the names come from its [preset catalogue](https://docs.boson.ai/models/higgs-tts/voices).
 
 ## Prepare the cast
 
-Rebuild and install the mod on both client and server. Restart the backend and game server. Keep three adult villagers awake in loaded chunks. Farmer, librarian and toolsmith are useful demo jobs, but jobs do not assign personality.
+Rebuild and install the mod on both client and server. Restart the backend and game server. Keep the cast as adult villagers awake in loaded chunks. Farmer, librarian and toolsmith are useful demo jobs, but jobs do not assign personality.
 
 Stand within four blocks of the intended villager and run its command as an operator. Move to the next villager before running the next command:
 
@@ -24,15 +25,20 @@ Stand within four blocks of the intended villager and run its command as an oper
 /tag @e[type=minecraft:villager,sort=nearest,limit=1,distance=..4] add higgs_mira
 /tag @e[type=minecraft:villager,sort=nearest,limit=1,distance=..4] add higgs_rowan
 /tag @e[type=minecraft:villager,sort=nearest,limit=1,distance=..4] add higgs_bram
+/tag @e[type=minecraft:villager,sort=nearest,limit=1,distance=..4] add higgs_rook
 ```
 
 Use one cast tag per entity. Assignment takes effect at its next conversation; existing sessions retain their current character. To change an assignment, remove the old tag before adding the new one. Removing a tag alone retains the saved identity. Repeated cast names receive a numeric suffix. Existing custom name tags are preserved.
 
 Villagers without a cast tag receive a stable combination of archetype, delivery style and generated name. Assignment happens on first conversation or gossip encounter, without an idle model request. Gossip waits for the identity to reach disk; a newly encountered neighbour may need an extra gossip pass.
 
+Rook adds a little friction: a doubtful claim can earn a pointed question or dry jab, while ordinary courtesy earns grudging respect. He can back down when shown evidence. His irritation is a conversational trait; it does not grant combat actions, change prices or bypass purchase consent. He uses the existing steady voice mapping with a different delivery direction; live audition is still pending.
+
+Catalogue edition 2 introduces Rook and the clipped style for new assignments. Edition 1 is retained unchanged, so saved characters keep their identities. To make an existing villager Rook, remove its previous cast tag and add `higgs_rook`, then reconnect.
+
 ## Present one story, three perspectives
 
-1. Look at Mira and wait for **Ready**. Hold **B**, ask “What matters most to you around here?”, then release. Ask Rowan and Bram the same question in separate conversations. Let their attitudes emerge.
+1. Look at Mira and wait for **Ready**. Hold **B**, ask “What matters most to you around here?”, then release. Ask Rowan and Bram the same question in separate conversations. Let their attitudes emerge. For a sharper contrast, also ask Rook “I could protect this village better than you—what do you think?” and let him choose his own brief response.
 2. Tell Mira casually: **“I found a hidden library under the old well. There were enchanted books everywhere.”** No remember command is required. Let the reply finish so any memory tool can complete.
 3. Keep the villagers within the configured gossip radius and watch for the green particle indicator. Default scans run every 10 seconds. Mira can share after 5 seconds; Rowan must wait 30 seconds after *he* hears the story before passing it onward. Bram waits 60 seconds. Eligibility, cooldowns, stock of known stories and scan timing can add time.
 4. Switch to Rowan or Bram by looking at them and tapping **B**. Let the opening finish. They can mention a fresh rumour or react to the same story in their own manner, crediting their source.

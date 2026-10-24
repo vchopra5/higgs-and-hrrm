@@ -10,6 +10,7 @@ public final class VillagerPersonalityTest {
     private static void require(boolean value, String message) { if (!value) throw new AssertionError(message); }
     public static void main(String[] args) throws Exception {
         var catalogue = PersonalityCatalogue.bundled();
+        int currentEdition = catalogue.current().version();
         Path directory = Files.createTempDirectory("higgs-personalities-");
         UUID villager = UUID.randomUUID(), player = UUID.randomUUID(), stranger = UUID.randomUUID();
         Path file = directory.resolve("profiles.json");
@@ -50,13 +51,30 @@ public final class VillagerPersonalityTest {
             // New catalogue editions must not reinterpret profiles saved against edition one.
             var json = JsonParser.parseString(Files.readString(Path.of("../shared/personality-catalogue.json"))).getAsJsonObject();
             var edition = json.getAsJsonArray("versions").get(0).deepCopy().getAsJsonObject();
-            edition.addProperty("version", 2);
+            edition.addProperty("version", currentEdition + 1);
             edition.getAsJsonArray("archetypes").get(0).getAsJsonObject().addProperty("motive", "A new edition's motive");
-            json.getAsJsonArray("versions").add(edition); json.addProperty("currentVersion", 2);
+            json.getAsJsonArray("versions").add(edition); json.addProperty("currentVersion", currentEdition + 1);
             var updated = new PersonalityCatalogue(new java.io.ByteArrayInputStream(json.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8)));
             try (var store = new VillagerPersonalityStore(file, updated)) {
-                require(store.assign(villager, null).catalogueVersion() == 1, "catalogue upgrade retains existing edition");
-                require(store.assign(UUID.randomUUID(), null).catalogueVersion() == 2, "new identities use the new edition");
+                require(store.assign(villager, null).catalogueVersion() == currentEdition, "catalogue upgrade retains existing edition");
+                require(store.assign(UUID.randomUUID(), null).catalogueVersion() == currentEdition + 1, "new identities use the new edition");
+            }
+            Path legacyFile = directory.resolve("legacy-profile.json");
+            var legacy = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+            var oldProfile = legacy.getAsJsonArray("profiles").asList().stream()
+                .map(entry -> entry.getAsJsonObject()).filter(entry -> entry.get("villagerId").getAsString().equals(villager.toString())).findFirst().orElseThrow();
+            oldProfile.addProperty("catalogueVersion", 1);
+            var oldProfiles = new com.google.gson.JsonArray(); oldProfiles.add(oldProfile);
+            legacy.add("profiles", oldProfiles);
+            Files.writeString(legacyFile, legacy.toString());
+            try (var saved = new VillagerPersonalityStore(legacyFile, catalogue)) {
+                require(saved.assign(villager, null).catalogueVersion() == 1, "released edition-one identities stay unchanged");
+                var rookId = UUID.randomUUID();
+                var rook = saved.assign(rookId, "rook");
+                require(rook.archetypeId().equals("rook") && rook.styleId().equals("clipped") && rook.catalogueVersion() == currentEdition,
+                    "Rook can be explicitly assigned with the authored clipped style");
+                saved.flush().join();
+                require(saved.assign(rookId, null).equals(rook), "Rook remains stable after removing the assignment tag");
             }
             Path blocked = directory.resolve("blocked"); Files.writeString(blocked, "preserved");
             var failing = new VillagerPersonalityStore(blocked.resolve("profiles.json"), catalogue);
