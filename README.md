@@ -175,6 +175,22 @@ Each finished turn from you and the villager is added to Minecraft chat, so the 
 
 Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
 
+## Overheard chatter
+
+Villagers sometimes talk to each other. Every minute or so (half the time), two idle
+adult villagers standing within six blocks of each other and within earshot of a player
+strike up a four-to-six line conversation, each in their own personality and voice.
+They gossip about the nearby player (their opinion of you, whether you hit them
+recently, and public things you told them), talk shop about their trade, chat about the
+weather and time of day, or pass on a public rumour. Private memories never reach
+chatter. Each line plays from the speaking villager, fading with distance (16 blocks),
+and appears in chat as a grey, italic caption. Starting your own conversation, or
+talking to either villager, stops the scene. Each villager chats at most once every
+five minutes, and one scene runs at a time.
+
+Chatter uses two Boson realtime sessions per scene. Tune or disable it with the
+`HIGGS_CHATTER_*` settings in `.env` (see `.env.example`), then restart the game server.
+
 ## Voice trading
 
 Ask for an item, a quantity, or a budget: “I would like fifteen bread” or “How much

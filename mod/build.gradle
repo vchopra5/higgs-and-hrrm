@@ -120,6 +120,30 @@ tasks.register('testVoiceCaptions', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testVoiceCaptions' }
 
+tasks.register('compileChatterTopicTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/ChatterTopic.java', 'src/test/dev/higgs/ChatterTopicTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('chatter-topic-test')
+}
+tasks.register('testChatterTopic', JavaExec) {
+    dependsOn 'compileChatterTopicTest'
+    classpath = files(layout.buildDirectory.dir('chatter-topic-test'))
+    mainClass = 'dev.higgs.ChatterTopicTest'
+}
+tasks.named('check') { dependsOn 'testChatterTopic' }
+
+tasks.register('compileChatterSequenceTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/ChatterSequence.java', 'src/client/test/dev/higgs/ChatterSequenceTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('chatter-sequence-test')
+}
+tasks.register('testChatterSequence', JavaExec) {
+    dependsOn 'compileChatterSequenceTest'
+    classpath = files(layout.buildDirectory.dir('chatter-sequence-test'))
+    mainClass = 'dev.higgs.ChatterSequenceTest'
+}
+tasks.named('check') { dependsOn 'testChatterSequence' }
+
 tasks.register('compileRealtimeGateTest', JavaCompile) {
     source = files('src/client/java/dev/higgs/RealtimeGate.java', 'src/client/test/dev/higgs/RealtimeGateTest.java')
     classpath = files()

@@ -38,6 +38,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     private int debugScroll;
     private boolean tutorialDisabled;
     private VoiceSession lastVoice;
+    private AmbientChatter chatter;
     private long diagnosticRefresh;
     private int diagnosticWidth;
     private List<String> diagnosticLines = List.of();
@@ -144,10 +145,14 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             (graphics, delta) -> tracker.render(graphics));
         ClientPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) ->
             context.client().execute(() -> receive(payload.json())));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); handoff.clear(); VillagerExpressions.clear(); });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); stopChatter(); handoff.clear(); VillagerExpressions.clear(); });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             handoff.tick(client);
-            if (client.player == null || client.level == null) { stop(false); return; }
+            if (client.player == null || client.level == null) { stop(false); stopChatter(); return; }
+            if (chatter != null) {
+                chatter.tick(client);
+                if (chatter.closed()) chatter = null;
+            }
             // Keep the local voice demo free of the unsigned-chat toast.
             // Scope this to loopback so other servers retain their warning.
             if (client.getConnection() != null
@@ -216,12 +221,19 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             + "  generation " + generation);
         lines.add("Server mod " + (ClientPlayNetworking.canSend(ControlPayload.TYPE) ? "present" : "missing")
             + "  window " + (client.isWindowActive() ? "focused" : "unfocused") + "  B " + (wasTalking ? "held" : "up"));
+        lines.add("Overheard chatter " + (chatter == null ? "none" : chatter.sceneId.substring(0, Math.min(8, chatter.sceneId.length())) + " " + chatter.status()));
         lines.add("Status history (newest first)");
         for (Status status : STATUS_HISTORY) lines.add("  " + DebugPages.seconds(now - status.at()) + "  " + status.message());
         return lines;
     }
 
+    private void stopChatter() {
+        if (chatter != null) chatter.stop();
+        chatter = null;
+    }
+
     private void start(Minecraft client, Villager target) {
+        stopChatter(); // Your own conversation takes priority over overheard chatter.
         if (!ClientPlayNetworking.canSend(ControlPayload.TYPE)) {
             status("This server needs the Higgs Villagers mod.");
             return;
@@ -248,12 +260,21 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     java.util.UUID.fromString(message.get("villagerId").getAsString()), message.get("expression").getAsString(),
                     message.has("standing") ? message.get("standing").getAsInt() : 0);
                 case "trade_complete" -> handoff.start(Minecraft.getInstance(), message);
+                case "chatter" -> {
+                    if (voice != null || pending) return;
+                    stopChatter();
+                    chatter = new AmbientChatter(message.get("sceneId").getAsString(), message.get("url").getAsString());
+                }
+                case "chatter_end" -> {
+                    if (chatter != null && chatter.sceneId.equals(message.get("sceneId").getAsString())) stopChatter();
+                }
                 case "trade_status" -> {
                     if (activeSessionId != null && activeSessionId.equals(message.get("sessionId").getAsString())
                         && targetId == message.get("entityId").getAsInt()) tracker.update(message);
                 }
                 case "reaction_start" -> {
                     stop(false);
+                    stopChatter();
                     targetId = message.get("entityId").getAsInt();
                     ConversationOutline.set(targetId);
                     pending = true;

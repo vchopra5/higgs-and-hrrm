@@ -4,6 +4,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { LIMITS, readJsonBody, replyJson } from './protocol.js';
 import { validateVoiceOverrides } from './personalities.js';
 import { BridgeSession } from './session.js';
+import { CHATTER_LIMITS, ChatterScene } from './chatter.js';
 import { submitToolResult } from './tools.js';
 
 export function createBridge({
@@ -20,6 +21,7 @@ export function createBridge({
   }
   voiceOverrides = validateVoiceOverrides(voiceOverrides);
   const sessions = new Map();
+  const scenes = new Map();
   const expectedAuth = Buffer.from(`Bearer ${token}`);
   const sessionOptions = {
     apiKey, upstreamUrl, connect, now, log, voiceOverrides,
@@ -50,10 +52,35 @@ export function createBridge({
     replyJson(response, 201, { sessionId: session.id, ticket: session.ticket });
   }
 
+  async function createScene(request, response) {
+    if (!apiKey) return replyJson(response, 503, { error: 'BOSON_API_KEY is not configured' });
+    if (scenes.size >= CHATTER_LIMITS.scenes) return replyJson(response, 429, { error: 'Scene limit reached' });
+    let scene;
+    try {
+      scene = new ChatterScene(await readJsonBody(request), {
+        apiKey, upstreamUrl, connect, now, log, voiceOverrides, onClose: id => scenes.delete(id),
+      });
+    } catch {
+      return replyJson(response, 400, { error: 'Invalid chatter scene' });
+    }
+    scenes.set(scene.id, scene);
+    scene.start();
+    replyJson(response, 201, { sceneId: scene.id, token: scene.token });
+  }
+
   async function handleRequest(request, response) {
     if (!authorized(request)) return replyJson(response, 401, { error: 'Unauthorized' });
     try {
       const path = new URL(request.url, 'http://localhost').pathname;
+      if (request.method === 'POST' && path === '/scenes') return await createScene(request, response);
+      const sceneMatch = path.match(/^\/scenes\/([^/]+)$/);
+      if (sceneMatch) {
+        const scene = scenes.get(sceneMatch[1]);
+        if (!scene) return replyJson(response, 404, { error: 'Scene not found' });
+        if (request.method !== 'DELETE') return replyJson(response, 405, { error: 'Method not allowed' });
+        scene.close();
+        return replyJson(response, 200, { ok: true });
+      }
       if (request.method === 'POST' && path === '/sessions') {
         return await createSession(request, response);
       }
@@ -98,6 +125,16 @@ export function createBridge({
       socket.end('HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n');
       return;
     }
+    if (url.pathname === '/chatter') {
+      const scene = scenes.get(url.searchParams.get('scene') ?? '');
+      const token = Buffer.from(url.searchParams.get('token') ?? '');
+      if (!scene || token.length !== scene.token.length || !timingSafeEqual(token, Buffer.from(scene.token))) {
+        socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+        return;
+      }
+      wss.handleUpgrade(request, socket, head, client => scene.attach(client));
+      return;
+    }
     const ticket = url.searchParams.get('ticket');
     const session = [...sessions.values()].find(candidate => candidate.ticket && candidate.ticket === ticket);
     if (url.pathname !== '/audio' || !session || now() - session.created > LIMITS.ticketMs || session.client) {
@@ -119,11 +156,12 @@ export function createBridge({
     closing ??= (async () => {
       clearInterval(sweep);
       for (const session of sessions.values()) session.close();
+      for (const scene of scenes.values()) scene.close();
       for (const client of wss.clients) client.terminate();
       wss.close();
       await new Promise(resolve => server.close(resolve));
     })();
     return closing;
   }
-  return { server, sessions, close };
+  return { server, sessions, scenes, close };
 }

@@ -69,6 +69,21 @@ export function resolveCharacter(context, overrides = {}) {
   };
 }
 
+/** Character for villager-to-villager chatter: the same persona and voice, without player familiarity. */
+export function ambientCharacter(profile, overrides = {}) {
+  if (!profile || Array.isArray(profile) || typeof profile !== 'object') return null;
+  const edition = editions.get(profile.catalogueVersion);
+  const archetype = edition?.archetypes.find(item => item.id === profile.archetypeId);
+  const style = edition?.styles.find(item => item.id === profile.styleId);
+  if (!archetype || !style) return null;
+  return {
+    voice: { ...defaults, ...validateVoiceOverrides(overrides) }[archetype.voiceKey],
+    instructions: `Your enduring character: ${archetype.motive} ${archetype.contradiction} ${archetype.socialStyle} `
+      + `Vocal delivery: ${style.delivery} Personal interests: ${archetype.interests.join(', ')}. `
+      + 'Express these traits naturally without reciting a profile or repeating catchphrases. Your profession is your job, not your identity. ',
+  };
+}
+
 export function isVoiceSelectionError(error) {
   return error?.type === 'invalid_request_error'
     && ['audio.output.voice', 'session.audio.output.voice'].includes(error.param);

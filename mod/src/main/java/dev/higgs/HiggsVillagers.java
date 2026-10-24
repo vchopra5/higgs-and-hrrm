@@ -38,6 +38,7 @@ public final class HiggsVillagers implements ModInitializer {
     private String backend, token, publicBackend;
     private VillagerMemoryService memory;
     private VillagerPersonalityService personalities;
+    private VillagerChatter chatter;
     private int ticks;
     private final Map<String, RecentHits> hits = new HashMap<>();
     private void hit(MinecraftServer server, ServerPlayer player, Villager villager) {
@@ -226,6 +227,16 @@ public final class HiggsVillagers implements ModInitializer {
         token = config.getOrDefault("HIGGS_BRIDGE_TOKEN", "");
         personalities = new VillagerPersonalityService();
         memory = new VillagerMemoryService(config, personalities);
+        chatter = new VillagerChatter(config, new VillagerChatter.Host() {
+            public CompletableFuture<JsonElement> request(String method, String path, JsonObject body) { return HiggsVillagers.this.request(method, path, body); }
+            public void send(ServerPlayer player, JsonObject message) { HiggsVillagers.this.send(player, message); }
+            public boolean canSend(ServerPlayer player) { return ServerPlayNetworking.canSend(player, ControlPayload.TYPE); }
+            public boolean talking(ServerPlayer player) { return sessions.containsKey(player.getUUID()); }
+            public boolean talking(Villager villager) { return sessions.values().stream().anyMatch(s -> s.villager == villager); }
+            public TradeReputation opinion(ServerPlayer player, Villager villager) {
+                return relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral());
+            }
+        }, personalities, memory, publicBackend);
         ServerLifecycleEvents.SERVER_STARTED.register(personalities::start);
         ServerLifecycleEvents.SERVER_STARTED.register(memory::start);
         PayloadTypeRegistry.serverboundPlay().register(ControlPayload.TYPE, ControlPayload.STREAM_CODEC);
@@ -250,6 +261,7 @@ public final class HiggsVillagers implements ModInitializer {
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             memory.tick(server, ++ticks);
+            if (!token.isBlank()) chatter.tick(server, ticks);
             // Rotate explicitly: the demo villagers have NoAI, so look controls alone do nothing.
             Map<UUID, Session> facing = new HashMap<>();
             for (Session s : sessions.values()) {
@@ -327,6 +339,7 @@ public final class HiggsVillagers implements ModInitializer {
             lastStart.clear();
             memory.stop();
             personalities.stop();
+            chatter.clear();
             hits.clear();
         });
     }
@@ -352,6 +365,7 @@ public final class HiggsVillagers implements ModInitializer {
             if (token.isBlank()) { error(player, "Set HIGGS_BRIDGE_TOKEN in the server environment or project .env."); return; }
             end(player, false);
             sessions.put(player.getUUID(), s);
+            chatter.villagerBusy(villager);
             personalities.prepare(villager).whenComplete((prepared, failure) -> {
                 if (server.isStopped()) return;
                 server.execute(() -> {
