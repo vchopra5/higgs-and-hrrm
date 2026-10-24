@@ -746,3 +746,22 @@ test('a greeting cancelled before it starts cannot silence every later turn', as
     assert.ok(f.logs.some(entry => entry.stage === 'cancellation_released'));
   }
 });
+
+test('a gift during a conversation gets one spoken reaction, and malformed gifts are rejected', async t => {
+  const f = await fixture(t);
+  const session = f.bridge.sessions.get(f.sessionId);
+  const creates = () => f.received.filter(event => event.type === 'response.create').length;
+  const before = creates();
+  for (const bad of [{ type: 'gift', item: '', verdict: 'loved', repeat: false, change: 2 },
+    { type: 'gift', item: 'Book', verdict: 'adored', repeat: false, change: 2 },
+    { type: 'gift', item: 'Book', verdict: 'loved', repeat: false, change: 9 }]) {
+    assert.equal((await f.request(`/sessions/${f.sessionId}/events`, 'POST', bad)).status, 400);
+  }
+  const ok = await f.request(`/sessions/${f.sessionId}/events`, 'POST', { type: 'gift', item: 'Rotten Flesh', verdict: 'disliked', repeat: true, change: -1 });
+  assert.equal(ok.status, 202);
+  await until(() => creates() === before + 1);
+  const note = f.received.findLast(event => event.type === 'conversation.item.create').item.content[0].text;
+  assert.match(note, /^\[Game event, not player speech\] The player just handed you a gift: "Rotten Flesh"\. You do not want it and already refused it before/);
+  assert.equal(session.responseDone, false);
+  assert.ok(f.logs.some(entry => entry.stage === 'gift_reaction' && entry.verdict === 'disliked'));
+});

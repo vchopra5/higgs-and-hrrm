@@ -9,7 +9,9 @@ final class TradeTrackerState {
     boolean active;
 
     /** Quest updates show the deal a quest unlocks; like interest, they never invite a purchase yes. */
-    static boolean informational(String status) { return status.equals("interest") || status.startsWith("quest"); }
+    static boolean informational(String status) {
+        return status.equals("interest") || status.startsWith("quest") || status.startsWith("gift");
+    }
 
     void update(String villager, String status, Quote next, long now) { update(villager, status, next, "", now); }
 
@@ -34,7 +36,7 @@ final class TradeTrackerState {
     }
     float opacity(long now) {
         expire(now);
-        long hold = status.startsWith("quest") ? 20000 : status.equals("interest") ? 15000 : 6000;
+        long hold = status.startsWith("quest") ? 20000 : status.equals("interest") ? 15000 : status.startsWith("gift") ? 8000 : 6000;
         return status.isEmpty() ? 0 : active ? 1 : Math.max(0, Math.min(1, (hold - (now - updated)) / 1500f));
     }
     void clear() { quote = null; villager = ""; status = ""; previous = ""; quest = ""; active = false; updated = 0; }

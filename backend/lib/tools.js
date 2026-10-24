@@ -58,6 +58,9 @@ function validArguments(name, args) {
   }
   if (name === 'get_trades' || name === 'cancel_trade') return true;
   if (name === 'complete_quest') return Object.keys(args).length === 0;
+  if (name === 'receive_gift') return Object.keys(args).every(key => ['item', 'count'].includes(key))
+    && typeof args.item === 'string' && args.item.trim().length > 0 && args.item.length <= 64 && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.item)
+    && (args.count === undefined || (Number.isInteger(args.count) && args.count >= 1 && args.count <= 64));
   if (name === 'offer_quest') return Object.keys(args).length === 1 && typeof args.item === 'string' && /^[a-z0-9_:.\/-]{1,64}$/.test(args.item);
   if (name === 'confirm_trade') return typeof args.proposalId === 'string' && /^[a-f0-9-]{36}$/.test(args.proposalId);
   if (name === 'preview_trade') return Number.isInteger(args.offerIndex) && args.offerIndex >= 0;

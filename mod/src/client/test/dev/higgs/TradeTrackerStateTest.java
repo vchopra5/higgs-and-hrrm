@@ -34,6 +34,9 @@ public final class TradeTrackerStateTest {
         check(state.opacity(60000) == 1 && state.opacity(80000) == 0, "quest stays readable longer, then fades");
         state.update("Weaponsmith", "awaiting_confirmation", new TradeTrackerState.Quote("deal", "2 × Emerald", "1 × Iron Axe", 200000), 90000);
         check(state.active && state.quest.isEmpty() && state.previous.isEmpty(), "completed quest opens a normal confirmable deal");
+        state.clear();
+        state.update("Idris", "gift_precious", new TradeTrackerState.Quote("gift", "1 × Diamond", "Very grateful (+2)", 0), 100000);
+        check(!state.active && state.opacity(106000) == 1 && state.opacity(108000) == 0, "a gift card never asks for a yes and fades");
         System.out.println("Trade tracker lifecycle checks passed");
     }
     static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }

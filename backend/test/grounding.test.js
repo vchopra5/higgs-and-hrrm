@@ -17,6 +17,15 @@ test('the reported weaponsmith conversation is caught at every invented step', (
   assert.match(ungroundedTrade('Done, thanks.'), /nothing was purchased/);
 });
 
+test('accepting a gift needs receive_gift', () => {
+  // The reported conversation: the villager took the diamond only in words.
+  assert.match(ungroundedTrade("A diamond? That's a fine gift, Itzahria. I'll take it. Thank you, traveller."), /received anything\. Nothing was handed over yet\. .*call receive_gift/);
+  assert.match(ungroundedTrade("I'll take that diamond, Itzahria. Thank you, traveller."), /receive_gift/);
+  assert.equal(ungroundedTrade("I'll take that diamond, Itzahria. Thank you, traveller.", { tools: new Set(['receive_gift']) }), null);
+  assert.equal(ungroundedTrade('Oh? A gift for me? What have you got there, traveller?'), null);
+  assert.doesNotMatch(ungroundedTrade('Done, thanks.'), /receive_gift/, 'trade corrections keep their own fix');
+});
+
 test('grounded trade speech passes', () => {
   assert.equal(ungroundedTrade('Three emeralds for one iron axe. Confirm trade?', quoted), null);
   assert.equal(ungroundedTrade('3 emeralds for an iron axe. Confirm trade?', quoted), null);

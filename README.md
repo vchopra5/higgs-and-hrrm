@@ -175,6 +175,30 @@ Each finished turn from you and the villager is added to Minecraft chat, so the 
 
 Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
 
+## Gifts
+
+Hand a villager a gift by voice (“I brought you a diamond… here you go”) or by sneaking
+and using an item on it. By voice, the server takes the item you named from your hands
+or inventory (with a count, if you said one); a sneak-use gives one of the held item.
+Every villager has fixed tastes, derived from its identity and profession: two loved
+items (one from its trade, such as books for a librarian, and one treat) and two it
+refuses. A gift card appears in the trade tracker showing what you gave and how it landed.
+
+| Gift | Result |
+| --- | --- |
+| Loved | +3 reputation, hearts |
+| Precious (diamond, emerald, gold, enchanted book, golden apple…) | +2 reputation |
+| Nice food, flowers or useful materials | +1 reputation |
+| Anything else | Accepted politely, no reputation |
+| Disliked | Handed back and remembered; offering it again costs 1 reputation |
+
+Reputation from gifts counts at most once every five minutes per villager, and gifts
+never make a villager hostile; a loved gift lifts a hostile villager straight back to
+trading terms. A villager you are talking to reacts out loud, knows its own tastes, and
+remembers what you gave and what it refused (saved in `data/higgs-gifts.json`). Ask
+what it likes. A villager that says it took a gift without actually receiving one is
+corrected, like an invented trade.
+
 ## Villages
 
 Every generated village gets a name the first time a player comes near it, picked at

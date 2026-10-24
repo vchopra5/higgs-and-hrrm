@@ -16,6 +16,7 @@ const DURATION_MESSAGE = 'The ten-minute conversation limit was reached. '
   + 'Start a new conversation to continue.';
 const RESPONSE_STATUSES = new Set(['completed', 'cancelled', 'failed', 'incomplete']);
 const CANCELLATION_MS = 3000;
+const GIFT_VERDICTS = new Set(['loved', 'precious', 'liked', 'junk', 'disliked']);
 const DEBUG_EVENTS = 12;
 const DEBUG_TOOLS = 8;
 const debugText = value => (typeof value === 'string' ? value : JSON.stringify(value) ?? '').slice(0, 240);
@@ -77,6 +78,7 @@ export class BridgeSession {
   }
 
   environmentEvent(event) {
+    if (event?.type === 'gift') { this.giftEvent(event); return; }
     if (event?.type !== 'hit' || event.windowMs !== 30_000
         || !Number.isInteger(event.count) || event.count < 1 || event.count > 601
         || !Number.isInteger(event.spanMs) || event.spanMs < 0 || event.spanMs >= event.windowMs
@@ -89,6 +91,40 @@ export class BridgeSession {
       sincePreviousMs: event.sincePreviousMs,
       tradeCancelled: event.tradeCancelled || Boolean(this.pendingReaction?.tradeCancelled), at: this.now() };
     this.flushReaction();
+  }
+
+  giftEvent(event) {
+    if (typeof event.item !== 'string' || !event.item.trim() || event.item.length > 64 || /[\u0000-\u001f\u007f-\u009f]/u.test(event.item)
+        || !GIFT_VERDICTS.has(event.verdict) || typeof event.repeat !== 'boolean'
+        || !Number.isInteger(event.change) || event.change < -1 || event.change > 3) {
+      throw new Error('Invalid gift event');
+    }
+    // Only the latest gift gets a spoken reaction; a burst of clicks should not queue a speech each.
+    this.pendingGift = { item: event.item, verdict: event.verdict, repeat: event.repeat, change: event.change, at: this.now() };
+    this.flushGift();
+  }
+
+  flushGift() {
+    if (!this.pendingGift || !this.ready || this.recording || !this.responseDone || this.reactionActive
+        || this.awaitingCancellation || this.queuedResponse || [...this.pending.values()].some(tool => !tool.internal) || this.hasTools) return;
+    const gift = this.pendingGift;
+    this.pendingGift = null;
+    if (this.now() - gift.at > 10_000) return;
+    const feeling = {
+      loved: 'It is one of your favourite things and you are delighted.',
+      precious: 'It is a generous, valuable gift and you are warmly grateful.',
+      liked: 'You like it and are grateful.',
+      junk: 'It is of little use to you, but you accept it politely without gushing.',
+      disliked: gift.repeat
+        ? 'You do not want it and already refused it before; you handed it back and are a little annoyed they tried again.'
+        : 'You do not want it; you handed it back. Decline kindly and make clear you will remember you do not care for it.',
+    }[gift.verdict];
+    this.responseDone = false; // Reserve the response before response.created arrives.
+    this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text',
+      text: '[Game event, not player speech] The player just handed you a gift: ' + JSON.stringify(gift.item) + '. ' + feeling
+        + ' React in one short sentence, in character. Do not trade, quote prices, or call tools.' }] } });
+    this.sendProvider({ type: 'response.create' });
+    this.stage('gift_reaction', { verdict: gift.verdict });
   }
 
   flushReaction() {
@@ -187,9 +223,7 @@ export class BridgeSession {
     this.stage('grounding_correction', { turnId: this.turnId });
     this.responseDone = false;
     this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text',
-      text: '[Server check, not player speech] ' + problem + ' Nothing was agreed or purchased. Briefly correct yourself, '
-        + 'then call propose_trade for the deal the player wants and say only the exact terms it returns, then ask Confirm trade? '
-        + 'Never say a trade is done unless confirm_trade returns purchased.' }] } });
+      text: '[Server check, not player speech] ' + problem }] } });
     this.sendProvider({ type: 'response.create' });
     return true;
   }
@@ -581,6 +615,7 @@ export class BridgeSession {
     if (this.awaitingCancellation && this.now() - this.cancelRequestedAt > CANCELLATION_MS) this.releaseCancellation('timeout');
     expireTools(this);
     this.flushReaction();
+    this.flushGift();
   }
 
   close(reason = 'session_ended', code = 1000) {

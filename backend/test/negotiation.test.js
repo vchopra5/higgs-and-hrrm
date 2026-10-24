@@ -34,6 +34,14 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   call('quest-id', 'offer_quest', {item:'minecraft:diamond'});
   assert.ok(session.pending.has('quest-id'));
   call('deliver', 'complete_quest', {});
+  call('gift', 'receive_gift', {item:'diamond'});
+  assert.ok(session.pending.has('gift'));
+  call('gifts', 'receive_gift', {item:'bread', count:3});
+  assert.ok(session.pending.has('gifts'));
+  for (const [i, args] of [{}, {item:''}, {item:'bread', count:0}, {item:'bread', count:99}, {item:'bread', extra:1}].entries()) {
+    call('bad-gift'+i, 'receive_gift', args);
+    assert.equal(session.pending.has('bad-gift'+i), false);
+  }
   assert.ok(session.pending.has('deliver'));
   for (const [i, args] of [{}, {item:''}, {item:'Diamond Sword'}, {item:7}, {item:'x', count:2}].entries()) {
     call('bad-quest'+i, 'offer_quest', args);
@@ -47,7 +55,7 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   assert.ok(session.pending.has('tone'));
   call('bad-tone', 'report_treatment', {treatment:'give_everything_free'});
   assert.equal(session.pending.has('bad-tone'), false);
-  assert.equal(outputs.length, 20);
+  assert.equal(outputs.length, 25);
   assert.ok(outputs.every(event => JSON.parse(event.item.output).error === 'Invalid tool request'));
 });
 

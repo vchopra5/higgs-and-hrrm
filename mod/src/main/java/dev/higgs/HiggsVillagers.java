@@ -208,6 +208,23 @@ public final class HiggsVillagers implements ModInitializer {
         }
         String ask() { return count + " × " + itemName; }
     }
+    /** What a player has given a villager, and what it refused; the villager remembers both. */
+    private record GiftLedger(List<String> refused, List<String> received, long lastReward) {}
+    private static final long GIFT_COOLDOWN_MS = 5 * 60_000;
+    private final Map<String, GiftLedger> gifts = new HashMap<>();
+    private final Map<UUID, Long> lastGiftClick = new HashMap<>();
+    private Path giftFile;
+    private void saveGifts() {
+        if (giftFile == null) return;
+        try {
+            Files.createDirectories(giftFile.getParent());
+            Path temporary = giftFile.resolveSibling("higgs-gifts.json.tmp");
+            Files.writeString(temporary, GSON.toJson(gifts));
+            Files.move(temporary, giftFile, StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.io.IOException e) {
+            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not save villager gifts");
+        }
+    }
     private final Map<String, Quest> quests = new HashMap<>();
     private Path questFile;
     private void saveQuests() {
@@ -270,8 +287,12 @@ public final class HiggsVillagers implements ModInitializer {
         });
         // A hostile villager also refuses the vanilla trading screen.
         net.fabricmc.fabric.api.event.player.UseEntityCallback.EVENT.register((player, world, hand, entity, hitResult) -> {
-            if (world.isClientSide() || !(player instanceof ServerPlayer sp) || !(entity instanceof Villager villager)
-                || !Negotiation.hostile(standing(new Session(sp, villager)))) return net.minecraft.world.InteractionResult.PASS;
+            if (world.isClientSide() || !(player instanceof ServerPlayer sp) || !(entity instanceof Villager villager)) return net.minecraft.world.InteractionResult.PASS;
+            if (sp.isShiftKeyDown() && !sp.isSpectator() && !villager.isBaby() && !sp.getItemInHand(hand).isEmpty()) {
+                gift(sp, villager, hand);
+                return net.minecraft.world.InteractionResult.SUCCESS;
+            }
+            if (!Negotiation.hostile(standing(new Session(sp, villager)))) return net.minecraft.world.InteractionResult.PASS;
             villager.playSound(SoundEvents.VILLAGER_NO);
             moodParticles(sp, villager, false);
             return net.minecraft.world.InteractionResult.FAIL;
@@ -341,6 +362,12 @@ public final class HiggsVillagers implements ModInitializer {
             }
         });
         ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            giftFile = server.getWorldPath(LevelResource.ROOT).resolve("data/higgs-gifts.json");
+            gifts.clear();
+            if (Files.exists(giftFile)) try {
+                JsonObject saved = JsonParser.parseString(Files.readString(giftFile)).getAsJsonObject();
+                for (var entry : saved.entrySet()) gifts.put(entry.getKey(), GSON.fromJson(entry.getValue(), GiftLedger.class));
+            } catch (Exception e) { org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not load villager gifts"); }
             questFile = server.getWorldPath(LevelResource.ROOT).resolve("data/higgs-quests.json");
             quests.clear();
             if (Files.exists(questFile)) try {
@@ -417,6 +444,7 @@ public final class HiggsVillagers implements ModInitializer {
             context.addProperty("relationship", band(s).name());
             JsonObject village = villages.context(player, villager);
             if (village != null) context.add("village", village);
+            context.add("gifts", giftContext(player, villager));
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
@@ -544,11 +572,13 @@ public final class HiggsVillagers implements ModInitializer {
                             result = confirmTrade(s, call.getAsJsonObject("arguments").get("proposalId").getAsString(), call.get("turnId").getAsInt());
                         } else if (name.equals("offer_quest")) {
                             result = offerQuest(s, call.getAsJsonObject("arguments").get("item").getAsString());
+                        } else if (name.equals("receive_gift")) {
+                            result = receiveGift(s, call.getAsJsonObject("arguments"));
                         } else if (name.equals("complete_quest")) {
                             result = completeQuest(s, call.get("turnId").getAsInt());
                         } else result.addProperty("error", "Unknown tool.");
-                        if (Set.of("offer_quest", "complete_quest").contains(name))
-                            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Quest tool={} turn={} status={}",
+                        if (Set.of("offer_quest", "complete_quest", "receive_gift").contains(name))
+                            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Tool={} turn={} status={}",
                                 name, call.get("turnId").getAsInt(), result.has("status") ? result.get("status").getAsString() : "unknown");
                         if (Set.of("preview_trade", "propose_trade", "confirm_trade", "cancel_trade").contains(name)) {
                             tradeStatus(s, result);
@@ -611,6 +641,175 @@ public final class HiggsVillagers implements ModInitializer {
         result.addProperty("status", "interest");
         result.addProperty("message", "Suggest this item briefly and ask Interested? A yes means interest only: call propose_trade next to quote exact terms. Do not call confirm_trade.");
         return result;
+    }
+    /** Sneak + use: hand over one of the held item. */
+    private void gift(ServerPlayer player, Villager villager, net.minecraft.world.InteractionHand hand) {
+        long now = System.currentTimeMillis();
+        // Fabric reports both the interact and interact-at packets; one click is one gift.
+        if (now - lastGiftClick.getOrDefault(player.getUUID(), 0L) < 300) return;
+        lastGiftClick.put(player.getUUID(), now);
+        giveGift(player, villager, player.getItemInHand(hand), 1, false);
+    }
+    /** Spoken gift: the item the player named, from their hands first, then their inventory. */
+    private JsonObject receiveGift(Session s, JsonObject arguments) {
+        String query = arguments.get("item").getAsString();
+        int count = arguments.has("count") ? arguments.get("count").getAsInt() : 1;
+        ItemStack found = findGift(s.player, query);
+        if (found == null) return outcome("not_found", "The player has no " + query + " to give. Say so kindly; nothing was given. "
+            + "Never say you received it.");
+        return giveGift(s.player, s.villager, found, count, true);
+    }
+    private ItemStack findGift(ServerPlayer player, String query) {
+        String wanted = giftName(query);
+        if (wanted.isEmpty()) return null;
+        List<ItemStack> candidates = new ArrayList<>(List.of(player.getMainHandItem(), player.getOffhandItem()));
+        candidates.addAll(player.getInventory().getNonEquipmentItems());
+        for (boolean exact : new boolean[] {true, false}) {
+            for (ItemStack stack : candidates) {
+                if (stack.isEmpty()) continue;
+                String name = giftName(stack.getHoverName().getString()), path = giftName(BuiltInRegistries.ITEM.getKey(stack.getItem()).getPath());
+                if (exact ? name.equals(wanted) || path.equals(wanted)
+                    : name.contains(wanted) || wanted.contains(name) || path.contains(wanted)) return stack;
+            }
+        }
+        return null;
+    }
+    /** "a couple of Diamonds" and "diamond" both become "diamond". */
+    private static String giftName(String text) {
+        String clean = text.toLowerCase(java.util.Locale.ROOT).replace('_', ' ').replaceAll("[^a-z ]", " ")
+            .replaceAll("\\b(a|an|the|some|my|this|these|of|couple|few)\\b", " ").trim().replaceAll("\\s+", " ");
+        return clean.endsWith("ies") ? clean.substring(0, clean.length() - 3) + "y"
+            : clean.endsWith("s") && !clean.endsWith("ss") ? clean.substring(0, clean.length() - 1) : clean;
+    }
+    /**
+     * Judges and (unless refused) takes up to count of the given stack's item. Updates reputation and the gift
+     * memory, shows feedback and the tracker card, and returns the result the voice model reports.
+     */
+    private JsonObject giveGift(ServerPlayer player, Villager villager, ItemStack source, int requested, boolean spoken) {
+        long now = System.currentTimeMillis();
+        ItemStack template = source.copyWithCount(1);
+        String item = id(template), name = template.getHoverName().getString();
+        String key = player.getUUID() + ":" + villager.getUUID();
+        GiftLedger ledger = gifts.getOrDefault(key, new GiftLedger(List.of(), List.of(), 0));
+        var verdict = GiftCatalogue.judge(GiftCatalogue.preferences(villager.getUUID(), VillagerMemoryService.profession(villager)), item);
+        boolean refusedBefore = ledger.refused().contains(item);
+        boolean cooldown = now - ledger.lastReward() < GIFT_COOLDOWN_MS;
+        TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
+        int next = GiftCatalogue.standingAfter(previous.score(), verdict, refusedBefore, cooldown);
+        List<String> refused = new ArrayList<>(ledger.refused()), received = new ArrayList<>(ledger.received());
+        int given = 0;
+        if (verdict == GiftCatalogue.Verdict.DISLIKED) {
+            if (!refusedBefore) refused.add(item); // Handed back; the item stays with the player.
+        } else {
+            int count = Math.max(1, Math.min(64, requested));
+            var match = (java.util.function.Predicate<ItemStack>) stack -> ItemStack.isSameItemSameComponents(stack, template);
+            var craft = player.inventoryMenu.getCraftSlots();
+            // Taken in every game mode: a gift you still hold afterwards does not feel given.
+            given = player.getInventory().clearOrCountMatchingItems(match, count, craft);
+            if (given <= 0) return outcome("not_found", "The player no longer has the " + name + ". Nothing was given.");
+            player.inventoryMenu.broadcastChanges();
+            received.add(given > 1 ? given + " × " + name : name);
+            while (received.size() > 8) received.removeFirst();
+        }
+        gifts.put(key, new GiftLedger(refused, received, next > previous.score() ? now : ledger.lastReward()));
+        saveGifts();
+        Session s = sessions.get(player.getUUID());
+        boolean talking = s != null && s.villager == villager && s.id != null;
+        if (next != previous.score()) {
+            relationships.put(key, new TradeReputation(next, now, previous.lastHit()));
+            saveTradeReputations();
+            if (talking && s.proposal != null) {
+                s.proposal = null;
+                tradeStatus(s, outcome("cancelled", "Reputation changed; ask again for the new price."));
+            }
+        }
+        String villagerName = villager.getName().getString();
+        int change = next - previous.score();
+        String delta = change == 0 ? "" : String.format(" (%+d)", change);
+        String gift = given > 1 ? given + " × " + name : name;
+        String message = switch (verdict) {
+            case LOVED -> villagerName + " loves the " + gift + "!" + (cooldown ? " (too soon for more reputation)" : delta);
+            case PRECIOUS, LIKED -> villagerName + " gratefully accepts the " + gift + (cooldown ? " (too soon for more reputation)" : delta);
+            case JUNK -> villagerName + " politely accepts the " + gift;
+            case DISLIKED -> refusedBefore ? villagerName + " refuses the " + name + " again, annoyed" + delta
+                : villagerName + " refuses the " + name + " and will remember that";
+        };
+        player.sendSystemMessage(net.minecraft.network.chat.Component.literal(message).withStyle(
+            verdict == GiftCatalogue.Verdict.DISLIKED ? net.minecraft.ChatFormatting.GOLD
+                : verdict == GiftCatalogue.Verdict.JUNK ? net.minecraft.ChatFormatting.GRAY : net.minecraft.ChatFormatting.GREEN), true);
+        villager.playSound(verdict == GiftCatalogue.Verdict.DISLIKED ? SoundEvents.VILLAGER_NO
+            : verdict == GiftCatalogue.Verdict.JUNK ? SoundEvents.VILLAGER_AMBIENT : SoundEvents.VILLAGER_YES);
+        if (verdict != GiftCatalogue.Verdict.JUNK) moodParticles(player, villager, verdict != GiftCatalogue.Verdict.DISLIKED);
+        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Gift {} -> {}: {} x{} verdict={} spoken={} standing {} -> {}",
+            player.getName().getString(), villagerName, item, given, verdict, spoken, previous.score(), next);
+        String status = "gift_" + verdict.name().toLowerCase(java.util.Locale.ROOT);
+        String feeling = switch (verdict) {
+            case LOVED -> "Delighted";
+            case PRECIOUS -> "Very grateful";
+            case LIKED -> "Grateful";
+            case JUNK -> "Polite";
+            case DISLIKED -> refusedBefore ? "Annoyed" : "Not for them";
+        };
+        if (talking) giftStatus(s, status, template.copyWithCount(Math.max(1, given)), feeling + (cooldown && change == 0 && verdict != GiftCatalogue.Verdict.DISLIKED
+            && verdict != GiftCatalogue.Verdict.JUNK ? " · too soon" : delta));
+        if (talking && !spoken) {
+            // Sneak-and-use while talking: the villager reacts out loud.
+            JsonObject event = new JsonObject();
+            event.addProperty("type", "gift");
+            event.addProperty("item", gift.length() > 64 ? gift.substring(0, 64) : gift);
+            event.addProperty("verdict", verdict.name().toLowerCase(java.util.Locale.ROOT));
+            event.addProperty("repeat", refusedBefore);
+            event.addProperty("change", change);
+            request("POST", "/sessions/" + s.id + "/events", event).exceptionally(ex -> null);
+        }
+        String react = switch (verdict) {
+            case LOVED -> "You received " + gift + ". It is one of your favourite things: be delighted. ";
+            case PRECIOUS -> "You received " + gift + ", a generous gift: be warmly grateful. ";
+            case LIKED -> "You received " + gift + " and like it: thank them. ";
+            case JUNK -> "You received " + gift + ". It is of little use to you; accept politely without gushing. ";
+            case DISLIKED -> refusedBefore ? "You refused " + name + " before and refuse it again; it was handed back. Be a little annoyed. "
+                : "You do not want " + name + "; it was handed back and you will remember. Decline kindly. ";
+        };
+        JsonObject result = outcome(status, react + "React in one short sentence. Never claim to receive a gift without this result.");
+        result.addProperty("given", given);
+        result.addProperty("reputationChange", change);
+        return result;
+    }
+    /** Tracker card for a gift: what was given and how it landed. */
+    private void giftStatus(Session s, String status, ItemStack gift, String reaction) {
+        JsonObject message = new JsonObject();
+        message.addProperty("type", "trade_status");
+        message.addProperty("sessionId", s.id);
+        message.addProperty("entityId", s.villager.getId());
+        message.addProperty("villager", s.villager.getName().getString());
+        message.addProperty("status", status);
+        message.addProperty("message", "");
+        message.add("costA", item(gift));
+        message.add("costB", item(ItemStack.EMPTY));
+        message.addProperty("reaction", reaction);
+        send(s.player, message);
+    }
+    /** The villager's own tastes and its history with this player, so it can talk about gifts and remember refusals. */
+    private JsonObject giftContext(ServerPlayer player, Villager villager) {
+        var preferences = GiftCatalogue.preferences(villager.getUUID(), VillagerMemoryService.profession(villager));
+        GiftLedger ledger = gifts.getOrDefault(player.getUUID() + ":" + villager.getUUID(), new GiftLedger(List.of(), List.of(), 0));
+        JsonObject context = new JsonObject();
+        context.add("youLove", itemNames(preferences.loves()));
+        context.add("youDislike", itemNames(preferences.dislikes()));
+        context.add("refusedFromPlayer", itemNames(ledger.refused()));
+        JsonArray received = new JsonArray();
+        ledger.received().forEach(received::add);
+        context.add("receivedFromPlayer", received);
+        return context;
+    }
+    private static JsonArray itemNames(List<String> ids) {
+        JsonArray names = new JsonArray();
+        for (String key : ids) {
+            var identifier = net.minecraft.resources.Identifier.tryParse(key);
+            names.add(identifier != null && BuiltInRegistries.ITEM.containsKey(identifier)
+                ? BuiltInRegistries.ITEM.getValue(identifier).getDefaultInstance().getHoverName().getString() : key);
+        }
+        return names;
     }
     /** Quest options for a lowball offer: only from villagers who are not annoyed, one open quest at a time. */
     private QuestOffer questOffer(Session s, MerchantOffer offer, Negotiation.Band limits, int index, Integer quantity, Integer payment) {
