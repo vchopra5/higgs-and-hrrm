@@ -25,169 +25,190 @@
 
 ## Less hrrm. More hello.
 
-Villagers have professions, stock, and a place in your world. Now you can ask them about it.
+**HIGGS HRRM** gives Minecraft villagers a voice, a memory, and relationships that grow through play. Talk naturally, negotiate real trades, share news, give gifts, and ask a neighbour to show you around. A **live browser dashboard** makes the village's state visible for demos, debugging, and tuning.
 
-**HIGGS HRRM** gives Minecraft villagers a voice through Boson Higgs Realtime. Walk up, start a conversation, ask what is available, and request a trade. The mod connects the conversation to live offers and completes a native trade after one spoken confirmation.
+## BosonAI API usage — how we use the model
 
-<table>
-  <tr>
-    <td width="33%" valign="top">
-      <h3>01 &nbsp; Meet</h3>
-      <p>Look at a nearby villager to connect automatically. If they are gossiping, tap <kbd>B</kbd> to interrupt and connect. Let it greet you.</p>
-    </td>
-    <td width="33%" valign="top">
-      <h3>02 &nbsp; Speak</h3>
-      <p>Hold <kbd>B</kbd>, say what is on your mind, then release to hear the reply.</p>
-    </td>
-    <td width="33%" valign="top">
-      <h3>03 &nbsp; Trade</h3>
-      <p>Ask for an available offer. Hear the quote and say yes to confirm.</p>
-    </td>
-  </tr>
-</table>
+**Boson Higgs is the conversational engine behind each villager.** It turns a player's speech and the villager's current context into an expressive spoken response and requests for game actions.
 
-## The conversation
-
-Try these prompts with a villager. Responses are generated live; available items depend on its actual offers.
-
-> **Say hello** &nbsp; “What do you do around here?”
->
-> **Explore the shop** &nbsp; “What can I buy from you?”
->
-> **Make a request** &nbsp; “I would like…” — name an available item it mentioned.
-
-The villager reads the exact quote. Say yes in a new push-to-talk turn to complete one trade, without opening a screen.
-
-## A voice with a connection to the world
-
-| | What happens |
+| Where we use Boson | What it adds to the experience |
 | :--- | :--- |
-| **A village of characters** | Saved identities, voices and delivery styles make Mira, Rowan and Bram respond differently. Jobs and name tags preserve their character. |
-| **A village that remembers** | Saved summaries let each villager recall past conversations across visits and server restarts. |
-| **Stories worth repeating** | The voice model judges surprising or consequential stories; neighbours prioritise news relevant to their professions. |
-| **A neighbour with something to say** | Start a conversation and the villager can lead with a fresh rumour, without a special question. |
-| **Live offer lookup** | `get_trades` reads current offers from the Minecraft server. |
-| **An action you can see** | `propose_trade` quotes an exact bundle; `confirm_trade` performs one validated purchase after a fresh spoken yes. |
-| **Room to interrupt** | Hold **B** during a reply to interrupt and begin your next turn. |
-| **Player-controlled purchases** | You approve the exact quote by voice; Minecraft validates stock, payment, and inventory before the exchange. |
+| **Live voice conversations** | The bridge streams microphone audio to Higgs Realtime and streams the villager's voice back into Minecraft. Personality, delivery style, and interruptions make each encounter feel distinct. |
+| **Actions grounded in the game** | The model requests tools to look up offers, propose trades, remember stories, give quests, or guide a player. The Minecraft server validates and executes those requests. Prices, stock, inventory, and purchases remain controlled by game rules; a trade requires a fresh spoken confirmation. |
+| **Memory and relationships** | The model selects meaningful stories and judges their relevance for gossip. After a conversation with at least two player turns, a separate text-only call writes a short digest, relationship summary, and promises for future visits. |
+| **A village that reacts** | Additional voice sessions power nearby chatter, a second conversation partner, and reactions to events such as danger, gifts, music, and the village bell. |
 
-## The village remembers
+The main conversation uses **`higgs-realtime-1.5-preview`**, with **`higgs-stt-3.1`** for player transcription. Memory consolidation uses **`higgs-realtime`** in text-only mode. The Node.js bridge authenticates with `BOSON_API_KEY` over Boson's realtime WebSocket API; the key stays in the backend. Audio, relevant game context, and selected memories are sent to Boson to generate responses.
 
-Casually tell a villager, **“I found a hidden library under the old well.”** It decides whether that is useful personal information or a story the village would find surprising. You do not need to ask it to remember. Saved summaries survive visits and server restarts.
+**Usage grows with conversations and ambient activity.** A companion adds a second session; chatter opens sessions for its participants; memory consolidation adds one short text-only session after qualifying conversations. Set `HIGGS_COMPANION_ENABLED=false`, `HIGGS_CHATTER_ENABLED=false`, or `HIGGS_CONSOLIDATION_ENABLED=false` to disable those extras. There is no fixed cost estimate here; usage depends on the demo and your Boson account. [Integration details](backend/README.md) · [Session configuration](backend/lib/protocol.js)
 
-Keep another awake villager nearby. A brief burst of green particles signals that news has passed between them. Look at the neighbour and tap **B** to switch, then let it speak first: it can open with a fresh rumour and credit its source. A librarian gives extra attention to the library discovery; routine preferences can stay personal memories. Freshness, relevance, and recent-topic tracking guide what comes up.
+## See it in action
 
-Stories stay attributed as player claims. Explicitly private entries do not spread; ordinary stories can reach other players through village news. **[Try the memory and rumours demo →](docs/memory-rumours.md)**
+![Minecraft demo: three villagers with reputation bars in the game world](docs/assets/screenshots/minecraft-villagers.png)
 
-## One village, different minds
+*Actual Minecraft capture from the local demo, with profession-specific villagers and reputation bars.*
 
-**Mira** is generous, warm and nosy. **Rowan** demands evidence but hopes for a mystery. **Bram** is guarded, practical and quietly fond of poetry. Tell them the same story and discover their different perspectives through conversation. **Rook** adds a mildly aggressive edge: impatient, protective and quick with a dry challenge. Their discretion also changes when they pass news along.
+![Live dashboard map of Willowmere showing villagers, landmarks, the player, and the selected weaponsmith](docs/assets/screenshots/dashboard-village.png)
 
-Villagers keep their identities across visits and restarts. Confirmed return visits build bounded familiarity. **[Meet the cast and prepare the demo →](docs/villager-personalities.md)**
+*Willowmere, captured from the running server: a live terrain map with villagers, the player, bell, workstations, and beds. Selecting the weaponsmith reveals its details and controls below the map.*
+
+## What you can do
+
+| Experience | Current behavior |
+| :--- | :--- |
+| **Talk and interrupt** | Look at an awake adult villager, hold **B** to talk, and release to send. Replies use positional audio and appear in chat. Nearby villagers can join, answer by name, and hand over a trading conversation. |
+| **Trade by voice** | Browse real offers, request quantities or a budget, haggle, and confirm a purchase. Reputation affects prices; quests can unlock a better deal. An on-screen quote and receipt track the exchange. |
+| **Build a relationship** | Give gifts, keep promises, complete quests and errands, and earn friendship, nicknames, daily presents, and a keepsake book. Mistreatment can lead to refusals and hostility. |
+| **Leave a lasting memory** | Villagers retain summaries and a journal of shared events. Public stories spread through nearby gossip and overheard chatter; explicitly private memories do not spread. |
+| **Explore together** | Ask for a walk, directions to a neighbour or workplace, or rumours of real landmarks beyond the village. Friendly villagers can escort you when conditions allow. |
+| **Bring the village to life** | Named villages, distinct personalities, expressive gestures, bedtime, danger cries, jukebox dancing and raps, bell gatherings, fireworks, children's games, and pet remarks add reactions to the world. |
+| **Inspect and tune** | Use the dashboard to inspect villagers, players, live conversations, memories, trades, and relationships, and apply supported edits. |
+
+Try **“What can I buy from you?”**, **“I found a hidden library under the old well”**, **“Anything I can help with?”**, or **“Show me the librarian.”** The game state determines what can happen.
+
+[Full gameplay reference](docs/gameplay.md) · [Memory and rumours demo](docs/memory-rumours.md) · [Meet the personalities](docs/villager-personalities.md)
+
+## Village dashboard
+
+The dashboard ships with the voice bridge: **no separate frontend build or server is needed**.
+
+- **Villages and villagers:** loaded villagers grouped by village, player reputation, and a top-down terrain map when a real village's chunks are loaded. Select a villager to inspect profession, personality, mood, trades, stock, memories, rumours, and relationships.
+- **Players:** online players, active conversations, open quotes, walks, errands, quests, earned deals, and nearby villagers.
+- **Live conversations:** transcripts and the exact session context supplied to Boson, useful for explaining why a villager responded as it did.
+- **Edits:** rename villagers, restock trades, toggle AI, adjust standing or nicknames, manage quests and errands, forget a journal episode, or reset a relationship. Edits affect the running world.
+
+The game server syncs every **3 seconds**, builds full snapshots only while the dashboard is being watched, and applies edits on the next sync. Only loaded villagers appear. Visit a generated village to populate its map; a group of spawned demo villagers outside a village still appears in the list. Maps refresh roughly once a minute. **AI off** refers to Minecraft movement AI, as used by stationary demo villagers.
+
+To enable it, set `HIGGS_DASHBOARD_TOKEN` in the root `.env` to a random token of at least 16 characters and restart the bridge. Generate a token with:
+
+```sh
+openssl rand -hex 16
+```
+
+Open `http://localhost:8787/dashboard?token=YOUR_DASHBOARD_TOKEN`, replacing the placeholder with your local token. The page removes the token from the address bar and keeps it in that tab's session storage. Access is restricted to local connections. Set `HIGGS_DASHBOARD_OPEN=false` if you prefer to open it manually instead of at bridge startup. Join the game so the server is awake and villagers are loaded.
+
+## Run Minecraft and the dashboard
+
+You need a licensed **Minecraft Java 26.1.2** client, **Fabric Loader 0.20.1**, **JDK 25**, **Node.js 22+**, and a **Boson API key**. Install Higgs Villagers and Fabric API on both client and server. This repository's server setup also uses Cardboard and iCommon; those belong on the server only.
+
+### 1. Configure the bridge
+
+From the repository root, create `.env` on first setup (keep an existing file):
+
+```sh
+cp -n .env.example .env
+npm --prefix backend ci
+openssl rand -hex 32
+openssl rand -hex 16
+```
+
+Edit `.env` and set:
+
+```dotenv
+BOSON_API_KEY=YOUR_BOSON_API_KEY
+HIGGS_BRIDGE_TOKEN=YOUR_FIRST_GENERATED_TOKEN
+HIGGS_DASHBOARD_TOKEN=YOUR_SECOND_GENERATED_TOKEN
+HIGGS_HOST=127.0.0.1
+HIGGS_PORT=8787
+HIGGS_DASHBOARD_OPEN=true
+```
+
+The game server and bridge must read the same `HIGGS_BRIDGE_TOKEN`; the local server reads the project `.env`. Keep credentials out of Git. Restart the bridge after changing its settings, and the game server after changing server-side settings.
+
+To register the project's shared voices with your Boson account:
+
+```sh
+npm --prefix backend run setup:voices
+```
+
+Voice registration calls Boson and may incur usage. [Voice setup details](shared/voices/README.md)
+
+### 2. Install the mod and provision the server
+
+For a **fresh clone**, follow the [complete setup guide](docs/setup.md) for server downloads, checksums, client dependencies, and Minecraft EULA acceptance. Worlds, server JARs, Java, and credentials are not included in the repository.
+
+On Linux, the setup script downloads the pinned server dependencies, builds the mod, and installs it into the supplied client mods folder:
+
+```sh
+./scripts/setup-linux.sh /absolute/path/to/your/instance/.minecraft/mods
+```
+
+For an **already provisioned installation**, rebuild and copy the mod with Minecraft and the server stopped:
+
+```sh
+./scripts/build-mod.sh
+cp mod/build/libs/higgs-villagers-0.1.0.jar server-cardboard/mods/
+cp mod/build/libs/higgs-villagers-0.1.0.jar /absolute/path/to/your/instance/.minecraft/mods/
+```
+
+Use the same built JAR on both sides. For animated faces, install the pinned client-only visual dependencies using the [villager visuals guide](docs/villager-visuals.md). [Linux / CachyOS walkthrough](docs/linux.md)
+
+### 3. Start both services
+
+Terminal 1 — voice bridge and dashboard:
+
+```sh
+npm --prefix backend start
+```
+
+Terminal 2 — provisioned Minecraft server:
+
+```sh
+./server-cardboard/start.command
+```
+
+Launch the configured Fabric client in Prism or your Minecraft launcher, then choose **Multiplayer → Direct Connection → `localhost:25565`**. Use the dashboard URL above; it also opens automatically unless disabled. If the server whitelist is enabled, add your account from the server console as described in the setup guide.
+
+Face an awake adult villager within eight blocks and wait for **Ready**. Hold **B**, speak, and release. Ask for an available item, listen to the exact quote, then say **yes** in a new turn. Allow microphone access for the Minecraft/Java process when prompted. Type `stop` in the server console to save and shut down cleanly; stop the bridge with Ctrl+C.
+
+| Control | Action |
+| :--- | :--- |
+| **Look at a villager** | Connect automatically; press B to interrupt gossip or switch to another villager |
+| **Hold B → release** | Speak and send; pressing B during a reply interrupts it |
+| **T** | Scroll conversation captions in Minecraft chat |
+| **F6 / F7 / F8 / F9** | Inspect session / model context / audio / quests and relationships |
+| **PgUp / PgDn** | Scroll the open debug page |
+
+**No dashboard data?** Join the server, load nearby villagers, and wait a few seconds. An empty server may be paused. **Dashboard disabled?** Set a token of at least 16 characters and restart the backend. **No voice?** Check the Boson key, shared bridge token, microphone permission, and F8 diagnostics. [Full troubleshooting](docs/setup.md)
 
 ## Under the hood
 
 ```mermaid
 flowchart LR
     P["You · microphone"] --> C["Fabric client"]
-    C <-->|"Streaming audio"| B["Local voice bridge"]
+    C <-->|"Streaming audio"| B["Local Node.js bridge"]
     B <-->|"Voice + tool calls"| H["Boson Higgs Realtime"]
-    B <-->|"Trade requests + results"| S["Fabric server"]
-    S --> T["Live offers · native trading"]
-
-    classDef game fill:#10251f,color:#f6edcf,stroke:#76d59a,stroke-width:2px
-    classDef voice fill:#76d59a,color:#10251f,stroke:#10251f,stroke-width:2px
-    classDef player fill:#f6edcf,color:#10251f,stroke:#d8a374,stroke-width:2px
-    class C,S,T game
-    class B,H voice
-    class P player
+    B <-->|"Validated game actions"| S["Fabric server"]
+    S --> T["Offers · inventory · memories · relationships"]
+    S <-->|"Snapshots + edits"| B
+    B <-->|"State + conversations"| D["Browser dashboard"]
 ```
 
-We build the mod, audio capture and playback, local bridge, session handling, and game tools. Higgs powers voice and tool-call generation. Minecraft owns the offers, inventory, and actual transaction.
+The mod owns game state, persistence, microphone capture, and playback. The bridge manages Boson sessions, tool routing, and the dashboard. Boson generates dialogue and tool requests; Minecraft decides which actions succeed. [Architecture](docs/architecture.md)
 
-## Bring your village to life
+## Development and validation
 
-You will need **Minecraft Java 26.1.2**, a matching **Fabric client**, **JDK 25**, **Node.js 22+**, and a **Boson API key**. Install the mod on both client and server. The bridge runs locally alongside the game server.
-
-**[Follow the complete setup guide →](docs/setup.md)** · **[Linux / CachyOS from scratch →](docs/linux.md)**
-
-Already have the local installation configured? Start the bridge and server in separate terminals:
-
-```sh
-npm --prefix backend start
-```
-
-```sh
-./server-cardboard/start.command
-```
-
-Join `localhost:25565`, face an adult, awake villager within eight blocks, and wait for the automatic voice connection. [Installation, credentials, microphone permission, and troubleshooting](docs/setup.md#villager-voice-prototype) are covered in the setup guide.
-
-| Key | Action |
-| :--- | :--- |
-| **Look at a villager** | Connect automatically; gossiping villagers require B. Look at another and press B to switch |
-| **Hold B → release** | Speak, then send your turn |
-| **F6** | Debug: conversation / Boson session (state, tool calls, provider events) |
-| **F7** | Debug: context sent to Boson (personality, rumours, memories, offers) |
-| **F8** | Debug: audio & connection (devices, mic level, queues, status history) |
-| **F9** | Debug: your quests, earned deals, errand, open quote, walk, and how each villager you know regards you (standing, stage, nickname, open promises) |
-| **PgUp / PgDn** | Scroll the open debug page |
-
-## On the workbench
-
-This is a hackathon prototype. The voice bridge, Fabric integration, and trade tools are implemented. Full microphone, playback, and in-game trade validation still need confirmation on the target setup; local mock tests and synthetic voice probes cover only part of that path.
-
-Current scope includes push-to-talk, positional voice audio for the speaking player, persistent conversation summaries, automatic story selection, and local gossip with a particle indicator. Voice-confirmed trading, reputation-based prices, relationship scores, captions, automatic targeting, and hit reactions are also implemented. Memory and gossip have local regression coverage; live story judgments, recall, and particle visibility still need in-game validation. Distinct saved personalities, per-character voices, familiarity and different gossip habits are implemented with local regression coverage. Live voice auditions and the three-character demo still need rehearsal; shared audio remains a future direction.
-
-<details>
-<summary><strong>Development checks</strong></summary>
+This is a hackathon prototype. The screenshots above show the running Minecraft client and live dashboard; they do not establish that every voice interaction or gameplay feature has been playtested.
 
 ```sh
 npm --prefix backend test
 ./scripts/build-mod.sh
 ```
 
-Backend tests use a local fake Higgs endpoint. The build compiles the mod; neither check establishes a successful live conversation. See the [bridge notes](backend/README.md) for investigation evidence.
-
-</details>
-
-## Village dashboard
-
-A browser view of everything the mod tracks, with edits. Set `HIGGS_DASHBOARD_TOKEN` in `.env`,
-and restart the backend: the dashboard opens in your browser (`HIGGS_DASHBOARD_OPEN=false` stops
-that; the address is `http://localhost:8787/dashboard?token=<token>`). The token is kept in the
-tab after the first visit. The dashboard only accepts local connections.
-
-- **Villages:** loaded villagers grouped by village, with each online player's village
-  reputation. A top-down **map** draws the village like a vanilla map (terrain colours
-  from loaded chunks, redrawn each minute), with the bell, workstations and beds, villagers
-  (click one to open it) and players. A villager's page shows:
-  - profession, level, position, personality and state of mind;
-  - trades (current and base price, stock, demand);
-  - memories and rumours it holds;
-  - one card per player it knows: standing, stage, nickname, summary, episode counts, open or
-    earned quest, open promises and the journal.
-- **Players:** online players with their conversation, open quote, walk, errand, quests, earned
-  deals and nearby villagers.
-- **Live conversations:** each conversation's transcript and the exact context sent to Boson.
-- **Edits:** set standing, rename, restock, turn AI on or off, set or clear a nickname, mark a
-  quest delivered, clear a quest or earned deal, clear an errand, forget a journal episode, or
-  reset a relationship (standing 0 and its journal cleared; saved memories and rumours remain).
-
-The game server syncs every 3 seconds. It builds a full snapshot only while the page is open, and
-edits apply on the next sync. Only loaded villagers are shown.
+Backend tests use a local fake Higgs endpoint. The build compiles the mod; live API access, microphone behavior, and end-to-end gameplay require the [playtest checklist](docs/playtest-checklist.md). Demo instructions and rehearsal notes are in [demo.md](demo.md).
 
 ## Explore the project
 
 | Path | Inside |
 | :--- | :--- |
-| [`mod/`](mod/) | Fabric client and server; microphone, playback, sessions, and trades |
-| [`backend/`](backend/) | Local Higgs voice bridge and tool routing |
-| [`docs/architecture.md`](docs/architecture.md) | System boundaries and the end-to-end interaction |
-| [`docs/setup.md`](docs/setup.md) | Full installation, controls, local server, and troubleshooting |
-| [`docs/memory-rumours.md`](docs/memory-rumours.md) | Persistent memory, nearby gossip, demo prompts, and settings |
-| [`demo.md`](demo.md) | Presentation script, demo flow, and rehearsal checklist |
-| [`docs/brand.md`](docs/brand.md) | Logo, colors, and artwork notes |
+| [`mod/`](mod/) | Fabric client and server, gameplay, audio, and persistence |
+| [`backend/`](backend/) | Boson voice bridge, session coordination, tools, and dashboard |
+| [`backend/public/dashboard.html`](backend/public/dashboard.html) | Browser dashboard UI |
+| [`docs/setup.md`](docs/setup.md) | Installation, credentials, checksums, and troubleshooting |
+| [`docs/gameplay.md`](docs/gameplay.md) | Detailed feature behavior and limits |
+| [`docs/memory-rumours.md`](docs/memory-rumours.md) | Persistent memory and gossip demo |
+| [`docs/assets/screenshots/`](docs/assets/screenshots/) | Actual Minecraft and dashboard captures |
+| [`demo.md`](demo.md) | Presentation and rehearsal guide |
 
 ---
 
@@ -195,327 +216,5 @@ edits apply on the next sync. Only loaded villagers are shown.
   <img src="docs/assets/logo.png" alt="HIGGS HRRM villager speech-bubble emblem" width="72" /><br />
   <strong>Give the hrrm a voice.</strong><br />
   <sub>Built with Fabric · Powered by Boson Higgs Realtime</sub><br />
-  <sub>Unofficial Minecraft project. Banner artwork is illustrative, not a gameplay screenshot.</sub>
+  <sub>Unofficial Minecraft project. The top banner is illustrative; the screenshots show the running prototype.</sub>
 </p>
-
-Each finished turn from you and the villager is added to Minecraft chat, so the conversation stacks up and can be scrolled back with T. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F6, F7, F8 and F9 toggle the debug pages.
-
-Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
-
-## Long-term memory
-
-Villagers remember what actually happened between you, not only what you told them:
-trades (with what you paid), gifts and refused gifts, quests set and finished, errands,
-hits, kind or rude words, and the day you first met. Villagers nearby who saw you hit,
-gift or trade with a neighbour remember that too. Each conversation starts with this
-history, and a villager may bring up one shared moment naturally (“still happy with
-those axes?”); asking “what did I buy last time?” finds it. Routine events fade after 30
-real days, important ones (quests, first meetings) last up to four times longer, and
-things you told villagers now last 30 days. Saved in `data/higgs-journal.json`.
-
-After each real conversation, the villager also folds it into memory in its own words:
-a short digest of what mattered, any promises (“you said you'd deal with the wolves”),
-and a running summary of your whole relationship that never expires. This uses one
-short text-only Boson call per conversation; turn it off with
-`HIGGS_CONSOLIDATION_ENABLED=false` in `.env`.
-
-## Gifts
-
-Hand a villager a gift by voice (“I brought you a diamond… here you go”) or by sneaking
-and using an item on it. By voice, the server takes the item you named from your hands
-or inventory (with a count, if you said one); a sneak-use gives one of the held item.
-Every villager has fixed tastes, derived from its identity and profession: two loved
-items (one from its trade, such as books for a librarian, and one treat) and two it
-refuses. A gift card appears in the trade tracker showing what you gave and how it landed.
-
-| Gift | Result |
-| --- | --- |
-| Loved | +3 reputation, hearts |
-| Precious (diamond, emerald, gold, enchanted book, golden apple…) | +2 reputation |
-| Nice food, flowers or useful materials | +1 reputation |
-| Anything else | Accepted politely, no reputation |
-| Disliked | Handed back and remembered; offering it again costs 1 reputation |
-
-Reputation from gifts counts at most once every five minutes per villager, and gifts
-never make a villager hostile; a loved gift lifts a hostile villager straight back to
-trading terms. A villager you are talking to reacts out loud, knows its own tastes, and
-remembers what you gave and what it refused (saved in `data/higgs-gifts.json`). Ask
-what it likes. A villager that says it took a gift without actually receiving one is
-corrected, like an invented trade.
-
-## Three-way conversations
-
-A nearby idle neighbour can join your conversation, with its own voice and personality.
-One villager owns the turn through generation and playback. The client acknowledges
-completion after its PCM queues drain, allowing 500 ms for Minecraft's native audio
-buffers. A named, direct question can hand the turn to the other villager. Listeners also get
-occasional opportunities to add a relevant thought, with permission to remain silent.
-Casual mentions do not force an answer. At most one NPC follow-up runs before yielding
-to the player. Newcomer greetings wait for a free turn instead of being lost during speech.
-
-Say a participant's name to address them, or look at them when pressing **B**. Explicit
-spoken address takes priority over gaze. Selecting someone already in the group keeps
-the existing sessions; selecting an outsider retains the normal partner-switch flow.
-Compliment and insult effects use that same recipient: hearts, reputation, and memories
-apply to the addressed villager. An absent recipient does not redirect those effects
-to the main partner, and a companion reputation change does not cancel the main trade.
-B interrupts the entire group and clears queued replies. A companion asked directly to trade can request a merchant handoff. The previous
-quote is cancelled, the old merchant stays as a listener, and the new merchant loads
-their own offers and reputation. The request is carried across without a new greeting.
-Purchasing requires a fresh quote and a subsequent confirmation addressed to that
-merchant. Ordinary conversation does not rebuild sessions. Gifts and quest actions
-remain with the main partner.
-
-Shared conversation history receives completed lines after playback acknowledgement.
-Interrupted speech receives an incomplete marker rather than its potentially unheard
-transcript. This conservatively omits the spoken prefix too; it does not claim word-level
-playback alignment. A joining neighbour does not receive dialogue from before arrival.
-Private memories remain separate. Companion failures release the turn and recover an
-unanswered routed request through the main partner. Missing playback acknowledgements
-expire the session with a reconnect message instead of holding the floor indefinitely.
-
-Ask a companion to leave (“Bram, could you give us a moment?”): its willingness depends
-on its opinion of you. Goodbye finishes playing before departure. Each three-way
-conversation uses a second Boson session; `HIGGS_COMPANION_ENABLED=false` disables it.
-The updated mod opts into the acknowledgement protocol with `context.coordinated`;
-older bridge clients retain their existing behavior and do not need to send acknowledgements.
-
-## Night and danger
-
-From dusk until dawn (in-game 12500–23500) villagers
-want to go to bed: try to talk to one and it says a short goodnight in character, then
-the conversation ends once the line has played. For the next 90 seconds it just shows
-“heading to bed” instead of starting another conversation. Chatter and companions also
-stop for the night. Hitting a villager still gets a reaction.
-
-A villager being chased by a zombie (any zombie hunting it within 8 blocks, including
-husks, drowned and zombie villagers) screams for help in its own voice, every 8–14
-seconds while the chase lasts; players within earshot hear it from the villager, with a
-caption. Screams are cached per voice (three variants), so after the first few they cost
-no extra Boson usage and play at once.
-
-## Music and the bell
-
-Play a record in a jukebox and villagers within 12 blocks dance: they spin, nod, hop and
-give off music notes. Soon after the music starts, one of them breaks into a short rap
-about its trade in its own voice (a fresh verse each time; at most one per jukebox every
-90 seconds). Ring a village bell and, instead of everyone hiding, up to three villagers
-nearby walk over and ask who rang it and what the matter is. Villagers with AI disabled
-only answer if they are already within six blocks.
-
-## Fireworks, children and pets
-
-Launch a firework near villagers and they look up at the sky; one of them “ooh”s, and
-the ones who like you clap (a happy hop and sparkles). By day, village children near you
-pair up for games of tag: one chases, the other runs, and each tag swaps them with a
-giggle. At dusk an adult calls the children home and they run to it. When your tamed
-wolf, cat or parrot wanders up to a villager, it remarks on it in its own voice, using the
-pet's name if you gave it one; about one villager in four is nervous of wolves, asks you
-to keep it back and steps away. Pet remarks come at most every 30 seconds, and each
-villager comments at most every five minutes.
-
-## Walking together
-
-Ask a villager to walk with you (“come for a walk with me”) and, unless it dislikes you,
-it's dark, or something is chasing it, it follows you while you keep talking. Along the
-way it mentions who and what you pass, calls out if you run ahead, and when you reach the
-edge of its village, nightfall, or danger, it says so and heads home. Say “you can go
-home” to end the walk; ending the conversation does too. Villagers with AI disabled (like
-demo villagers) get it back for the walk and are returned to their exact spot, with AI
-off again, afterwards. The walk becomes a memory (“I walked with Steve through Kettleby,
-past Iris the librarian”).
-
-## Directions
-
-Ask a villager for directions (“where's the librarian?”, “take me to Iris”, “show me the
-bell”, “which way to the library?”) and it leads you there, within its village: to a
-villager by name or trade (any smith for “a smith”), to the village bell, or to a trade's
-workplace. It talks as you walk, waits and calls “this way!” if you fall behind, and if it
-loses the way it apologises and tells you where to go instead. At a landmark it says
-you've arrived. At a villager it introduces you: your conversation moves to the new
-villager, who greets you and thanks your guide, and the guide stays with you as a
-companion until it leaves or the conversation ends, then walks home. Both remember it
-(“I showed Steve the way to Iris”, “Bram brought Steve to meet me”).
-
-Villagers also know of places beyond the village by rumour: “where's the nearest forest?”,
-“is there a pyramid around here?”, “have you heard of any hidden chests?”, “which way to
-the sea?”, “is there another village?”. The server finds the nearest real one (a biome
-within about 1,000 blocks, or a structure such as a desert or jungle temple, buried treasure,
-a shipwreck, an ocean monument, a mansion, an outpost, a ruined portal or another village).
-It never makes one up.
-
-- **Directions:** usually the villager tells you where to look as something it heard, with
-  a rough direction and distance. A grey chat note keeps it for you (“Rumour from Iris: a
-  desert temple, about 400 blocks north-west of Kettleby”).
-- **Escort:** a villager that counts you as a friend or closer walks you there if it's
-  within about 320 blocks, chatting on the way. It points the place out, wishes you luck and
-  heads back to the village. Out of anyone's sight, it's set down back home (its home chunk
-  is loaded first).
-- **Turning back:** nightfall or a zombie sends it home early.
-
-## Growing closer
-
-Each villager keeps track of how close you've grown, from what it has seen: conversations,
-trades, gifts, quests, errands, walks, and kept promises count for you; hits, insults and
-broken promises count against you. Five stages: stranger, acquaintance, friend, close
-friend, confidant. Each also needs goodwill, so a villager who dislikes you stays an
-acquaintance. The stage sets its warmth without ever being named aloud.
-
-- **Milestones:** the first time you reach friend, close friend, or confidant, the action
-  bar says so (“Bram now considers you a friend”), with hearts and a cheer. It becomes a
-  memory (“Today Steve and I became friends”). If you're talking, the villager warms up
-  then and there. A stage once reached is kept, even as old memories fade.
-- **Nickname:** a close friend picks a fond nickname for you once, keeps it, and greets you
-  by it.
-- **Promises:** promises either of you made stay open. The villager asks how one is going
-  when it fits. When a later conversation shows you kept it, standing rises by 1 and it
-  remembers (“A promise was kept: …”). A broken one costs 1.
-- **Daily present:** once per in-game day, a confidant greets you with something from its
-  own wares and mentions it.
-- **Keepsake:** on reaching confidant, or when a close friend is asked to “write down our
-  story”, the villager gives you a signed book, *Our story*. It holds the relationship
-  summary, the milestones with their days, and up to eight notable shared moments, all
-  written from its journal. One per villager.
-
-Stages, nicknames, promises and the keepsake flag live in `world/data/higgs-journal.json`
-(schema 2; older saves load as before).
-
-## Errands
-
-Ask a villager for work (“anything I can help with?”) and it may send you to a neighbour
-in the same village: either to pass on a short message it writes (“Tell Bram the wolves
-are back”) or to deliver a package from its wares, which it hands you. The recipient
-glows for two minutes, and an **ERRAND** card shows what you carry, who it is for, and
-roughly where they are (“30 blocks north-east”). You also get a book and quill titled
-“Errand: Iris → Bram” recording who sent you, who it is for, the exact message or
-package, where the recipient was, and the reward. Talk to the recipient and pass it on in your
-own words. It knows nothing in advance and learns the message only from you; the server
-checks that what you said carries the gist (or takes the package) and gains 1 reputation, and the villager who
-sent you gains 2 and remembers the favour. One errand at a time; it lapses after two
-hours. Hostile villagers do not hand out errands, so errands are a good way to rebuild
-a damaged reputation. Saved in `data/higgs-errands.json`.
-
-## Villagers who dislike you
-
-A villager who dislikes you may refuse to talk: a 25% chance at -2, rising to 75% when
-hostile. It says no, turns its back and walks off (villagers with AI disabled can only
-turn away), and keeps refusing for 30 seconds. Hitting it still gets a reaction.
-
-## Villages
-
-Every generated village gets a name the first time a player comes near it, picked at
-random from 20 names in `mod/src/main/resources/higgs_villagers/village_names.txt`
-and saved with the world (`data/higgs-villages.json`). Walking within 64 blocks of a
-village's centre shows its name as a title, with your village reputation underneath:
-the average of how every villager in that radius regards you (villagers you have never
-met count as neutral), for example “Reputation: Friendly (+1.6)”. Villagers know their
-village's name and its overall opinion of you. Change the radius with
-`HIGGS_VILLAGE_RADIUS` in `.env`.
-
-## Overheard chatter
-
-Villagers sometimes talk to each other. Every minute or so (half the time), two idle
-adult villagers standing within six blocks of each other and within earshot of a player
-strike up a four-to-six line conversation, each in their own personality and voice.
-They gossip about the nearby player (their opinion of you, whether you hit them
-recently, and public things you told them), talk shop about their trade, chat about the
-weather and time of day, or pass on a public rumour. Private memories never reach
-chatter. When they talk about you, a villager with a clear opinion (friendly, or annoyed
-and worse) praises or badmouths you to the other, moving that villager's opinion one
-point toward its own: never past it, and never into hostility, which only your own
-actions cause. You see hearts or angry particles and a note such as “Bram spoke well of
-you to Iris”. Sometimes a third neighbour standing with both joins in. Villagers have fixed bonds with
-one another (siblings, good friends, rivals or acquaintances) and a state of mind (a
-mood from what happened to them today, a goal from their trade, and what's on their
-mind), which colour the talk: a villager you hit stays shaken and suspicious while a
-friend you gave a diamond defends you. Whoever is addressed by name answers next, and a
-scene ends early on a goodbye. A line that only echoes another is never heard: the
-villager gets one fresh try. What they say about you becomes each villager's memory
-(“When we talked about you, Alden said you hit him”). Each line plays from the speaking villager, fading with distance (16 blocks),
-and appears in chat as a grey, italic caption. Starting your own conversation, or
-talking to either villager, stops the scene. Each villager chats at most once every
-five minutes, and one scene runs at a time.
-
-Chatter uses two Boson realtime sessions per scene. Tune or disable it with the
-`HIGGS_CHATTER_*` settings in `.env` (see `.env.example`), then restart the game server.
-
-Before a demo, run through the [playtest checklist](docs/playtest-checklist.md).
-
-## Voice trading
-
-Villagers know before speaking whether they have anything to sell and what is in stock.
-One with no profession, a nitwit, or one sold out of everything gets no trading tools at
-all and says so instead of inventing wares. The **Hero of the Village** effect applies
-vanilla's discount (30%, plus 6.25% per extra level) to voice quotes and haggling floors
-alike, and the villager thanks you for saving the village.
-
-Ask for an item, a quantity, or a budget: “I would like fifteen bread” or “How much
-bread can I buy with four emeralds?” The server quotes exact whole-item amounts,
-opening at the villager's normal price; say yes in a new turn to buy. A changed
-bundle always needs a fresh yes.
-
-Each villager keeps one reputation score towards you, from -5 to +5, starting at 0
-(the middle of the bar above its head). A compliment adds 1; a hit or insult takes 2.
-The lowest price a villager accepts is `100 − 5 × score` percent of the base price:
-+5 is 75%, 0 is 100%, and -5 is 125%, with payments rounded to whole items and never
-below 1. Quotes open at the normal price, or the marked-up price when the villager
-dislikes you. A villager who likes you can be haggled down: ask for a better price,
-or name one (“Would you take 27 sticks?”). Any offer at or above its floor is
-accepted as stated; a lower offer gets the villager's best price as a counteroffer.
-Neutral and annoyed villagers hold firm. At -5 a villager turns hostile: it refuses
-every voice trade and the vanilla trading screen, speaks coldly, and nearby iron golems
-attack you as if you had hit them (player-built golems still never attack players, as in
-vanilla). One sincere compliment or apology lifts it back to -4. Reputation
-changes cancel any open quote; ask again for the current price. Vanilla Minecraft
-reputation does not affect these voice quotes. Scores persist per player and
-villager in the world data folder. Higgs classifies the utterance, while the server
-decides every price and enforces every limit. Quotes expire after two minutes.
-
-**Quests.** When your offer is below what a villager will accept (but at least 40% of
-its normal price), a villager who isn't annoyed with you may set a quest instead of
-countering: “Bring me a pillager banner first, then I'll take two emeralds for the
-axe.” The server offers profession-themed errands, harder for a bigger discount (coal or
-wheat for a small one, iron or gold for a fair one, an ominous banner or diamonds for a
-steep one), and the villager picks one. Tell the villager when you have the items: the
-server checks your inventory, takes them, and opens the deal at your price for one
-purchase, confirmed with a yes as usual. Setting a quest also hands you a book and quill
-(“Quest: Iris”) noting what to bring, the deal it unlocks, and where the villager was. Each villager keeps one open quest per player,
-saved with the world (`data/higgs-quests.json`) and remembered in later conversations.
-If the trade changes or sells out, the delivered quest waits for it to restock.
-
-Bundles are limited to one stack per item (at most 64); secondary payments scale
-proportionally, rounding up to whole items. A budget buys the most items it can
-afford at or above the villager's floor, never paying more than the normal price, within stack and stock limits. Larger quantities
-consume proportional stock, rounded up to native trade uses; small purchases
-still use one stock unit. The native inventory transaction handles item
-components, space, trade statistics and rewards. Every purchase checks payment,
-stock, proximity and inventory space.
-
-A compact, non-interactive trade tracker shows the villager and the current server quote: YOU GIVE, YOU GET, and “Say yes to accept.” Revised amounts briefly show the previous deal crossed out. Expired or cancelled offers stop inviting acceptance, and success or failure fades after six seconds. Switching villagers clears the tracker; all choices still use voice.
-
-Every quote uses the current reputation for its floor. If the villager repeats identical terms in the acceptance turn, the player's yes can still confirm that purchase. A repeated confirmation returns the existing purchase receipt without buying again. Trade diagnostics log tool names, turn numbers, and outcomes without speech content.
-
-Trade suggestions use an optional “Interested?” preview, which cannot be purchased. Interest leads to an exact quote at the player's current reputation and “Confirm trade?”; one yes then completes it. Direct purchase requests skip browsing. The tracker sits at the right edge, and conversation lines appear in Minecraft chat. Villagers use short, warm fantasy language while saying item names and numbers exactly as the server provides them, with one short sentence per trading turn.
-
-### Environmental reactions
-
-Hitting a nearby adult villager starts voice automatically, including invulnerable demo villagers. A rolling 30-second window records attack count, elapsed time between the first and latest hits, and time since the previous hit. Higgs chooses the wording and emotional delivery from these statistics and the conversation; there are no fixed reaction tiers or scripted lines. These are attack attempts, not measured damage.
-
-A hit costs 2 reputation, down to the minimum of -5; a changed score cancels an active quoted trade. Only an active trade shows cancellation feedback, which fades after six seconds; repeated hits do not restart the fade. Hits outside a trade do not open the tracker. Reactions cannot execute trade tools or count as spoken confirmation.
-
-The bridge keeps only the latest queued statistics, waits until player speech/provider work finishes, and drops events older than 10 seconds. Higgs delivery uses per-response `instructions` for tone and energy: https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices.
-
-Test isolated hits, then several rapid hits, and listen for context-sensitive reactions. Wait 30 seconds for previous hits to age out. Hit during an active quote to see cancellation fade; hit outside a trade to check that no trade card appears.
-
-### Expressive reactions and urgent gossip
-
-Higgs can choose a short physical reaction with `express_emotion`: excitement, worry,
-anger, thoughtfulness, or gratitude grounded in the conversation. Gestures use vanilla
-head movement and selected particles, with a hop for excitement and an eight-second cooldown.
-
-With `share_news`, a villager can choose to leave after a spoken farewell to tell a free
-neighbour a specific saved public story. The server checks privacy, relevance, proximity,
-trade state, and availability again before departure. Interrupting the farewell cancels it.
-Major news (interest 75–84) uses one-third of ordinary sharing delays; exceptional news
-(85+) uses one-sixth. High-interest stories are considered every two seconds by default.
-Spread remains person-to-person, with existing privacy and forwarding limits.

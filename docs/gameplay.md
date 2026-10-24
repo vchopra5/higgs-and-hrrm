@@ -1,0 +1,327 @@
+# Gameplay reference
+
+[← Project overview](../README.md) · [Setup](setup.md) · [Playtest checklist](playtest-checklist.md)
+
+Detailed behavior, limits, and controls for the current prototype.
+
+Each finished turn from you and the villager is added to Minecraft chat, so the conversation stacks up and can be scrolled back with T. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F6, F7, F8 and F9 toggle the debug pages.
+
+Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
+
+## Long-term memory
+
+Villagers remember what actually happened between you, not only what you told them:
+trades (with what you paid), gifts and refused gifts, quests set and finished, errands,
+hits, kind or rude words, and the day you first met. Villagers nearby who saw you hit,
+gift or trade with a neighbour remember that too. Each conversation starts with this
+history, and a villager may bring up one shared moment naturally (“still happy with
+those axes?”); asking “what did I buy last time?” finds it. Routine events fade after 30
+real days, important ones (quests, first meetings) last up to four times longer, and
+things you told villagers now last 30 days. Saved in `data/higgs-journal.json`.
+
+After each real conversation, the villager also folds it into memory in its own words:
+a short digest of what mattered, any promises (“you said you'd deal with the wolves”),
+and a running summary of your whole relationship that never expires. This uses one
+short text-only Boson call per conversation; turn it off with
+`HIGGS_CONSOLIDATION_ENABLED=false` in `.env`.
+
+## Gifts
+
+Hand a villager a gift by voice (“I brought you a diamond… here you go”) or by sneaking
+and using an item on it. By voice, the server takes the item you named from your hands
+or inventory (with a count, if you said one); a sneak-use gives one of the held item.
+Every villager has fixed tastes, derived from its identity and profession: two loved
+items (one from its trade, such as books for a librarian, and one treat) and two it
+refuses. A gift card appears in the trade tracker showing what you gave and how it landed.
+
+| Gift | Result |
+| --- | --- |
+| Loved | +3 reputation, hearts |
+| Precious (diamond, emerald, gold, enchanted book, golden apple…) | +2 reputation |
+| Nice food, flowers or useful materials | +1 reputation |
+| Anything else | Accepted politely, no reputation |
+| Disliked | Handed back and remembered; offering it again costs 1 reputation |
+
+Reputation from gifts counts at most once every five minutes per villager, and gifts
+never make a villager hostile; a loved gift lifts a hostile villager straight back to
+trading terms. A villager you are talking to reacts out loud, knows its own tastes, and
+remembers what you gave and what it refused (saved in `data/higgs-gifts.json`). Ask
+what it likes. A villager that says it took a gift without actually receiving one is
+corrected, like an invented trade.
+
+## Three-way conversations
+
+A nearby idle neighbour can join your conversation, with its own voice and personality.
+One villager owns the turn through generation and playback. The client acknowledges
+completion after its PCM queues drain, allowing 500 ms for Minecraft's native audio
+buffers. A named, direct question can hand the turn to the other villager. Listeners also get
+occasional opportunities to add a relevant thought, with permission to remain silent.
+Casual mentions do not force an answer. At most one NPC follow-up runs before yielding
+to the player. Newcomer greetings wait for a free turn instead of being lost during speech.
+
+Say a participant's name to address them, or look at them when pressing **B**. Explicit
+spoken address takes priority over gaze. Selecting someone already in the group keeps
+the existing sessions; selecting an outsider retains the normal partner-switch flow.
+Compliment and insult effects use that same recipient: hearts, reputation, and memories
+apply to the addressed villager. An absent recipient does not redirect those effects
+to the main partner, and a companion reputation change does not cancel the main trade.
+B interrupts the entire group and clears queued replies. A companion asked directly to trade can request a merchant handoff. The previous
+quote is cancelled, the old merchant stays as a listener, and the new merchant loads
+their own offers and reputation. The request is carried across without a new greeting.
+Purchasing requires a fresh quote and a subsequent confirmation addressed to that
+merchant. Ordinary conversation does not rebuild sessions. Gifts and quest actions
+remain with the main partner.
+
+Shared conversation history receives completed lines after playback acknowledgement.
+Interrupted speech receives an incomplete marker rather than its potentially unheard
+transcript. This conservatively omits the spoken prefix too; it does not claim word-level
+playback alignment. A joining neighbour does not receive dialogue from before arrival.
+Private memories remain separate. Companion failures release the turn and recover an
+unanswered routed request through the main partner. Missing playback acknowledgements
+expire the session with a reconnect message instead of holding the floor indefinitely.
+
+Ask a companion to leave (“Bram, could you give us a moment?”): its willingness depends
+on its opinion of you. Goodbye finishes playing before departure. Each three-way
+conversation uses a second Boson session; `HIGGS_COMPANION_ENABLED=false` disables it.
+The updated mod opts into the acknowledgement protocol with `context.coordinated`;
+older bridge clients retain their existing behavior and do not need to send acknowledgements.
+
+## Night and danger
+
+From dusk until dawn (in-game 12500–23500) villagers
+want to go to bed: try to talk to one and it says a short goodnight in character, then
+the conversation ends once the line has played. For the next 90 seconds it just shows
+“heading to bed” instead of starting another conversation. Chatter and companions also
+stop for the night. Hitting a villager still gets a reaction.
+
+A villager being chased by a zombie (any zombie hunting it within 8 blocks, including
+husks, drowned and zombie villagers) screams for help in its own voice, every 8–14
+seconds while the chase lasts; players within earshot hear it from the villager, with a
+caption. Screams are cached per voice (three variants), so after the first few they cost
+no extra Boson usage and play at once.
+
+## Music and the bell
+
+Play a record in a jukebox and villagers within 12 blocks dance: they spin, nod, hop and
+give off music notes. Soon after the music starts, one of them breaks into a short rap
+about its trade in its own voice (a fresh verse each time; at most one per jukebox every
+90 seconds). Ring a village bell and, instead of everyone hiding, up to three villagers
+nearby walk over and ask who rang it and what the matter is. Villagers with AI disabled
+only answer if they are already within six blocks.
+
+## Fireworks, children and pets
+
+Launch a firework near villagers and they look up at the sky; one of them “ooh”s, and
+the ones who like you clap (a happy hop and sparkles). By day, village children near you
+pair up for games of tag: one chases, the other runs, and each tag swaps them with a
+giggle. At dusk an adult calls the children home and they run to it. When your tamed
+wolf, cat or parrot wanders up to a villager, it remarks on it in its own voice, using the
+pet's name if you gave it one; about one villager in four is nervous of wolves, asks you
+to keep it back and steps away. Pet remarks come at most every 30 seconds, and each
+villager comments at most every five minutes.
+
+## Walking together
+
+Ask a villager to walk with you (“come for a walk with me”) and, unless it dislikes you,
+it's dark, or something is chasing it, it follows you while you keep talking. Along the
+way it mentions who and what you pass, calls out if you run ahead, and when you reach the
+edge of its village, nightfall, or danger, it says so and heads home. Say “you can go
+home” to end the walk; ending the conversation does too. Villagers with AI disabled (like
+demo villagers) get it back for the walk and are returned to their exact spot, with AI
+off again, afterwards. The walk becomes a memory (“I walked with Steve through Kettleby,
+past Iris the librarian”).
+
+## Directions
+
+Ask a villager for directions (“where's the librarian?”, “take me to Iris”, “show me the
+bell”, “which way to the library?”) and it leads you there, within its village: to a
+villager by name or trade (any smith for “a smith”), to the village bell, or to a trade's
+workplace. It talks as you walk, waits and calls “this way!” if you fall behind, and if it
+loses the way it apologises and tells you where to go instead. At a landmark it says
+you've arrived. At a villager it introduces you: your conversation moves to the new
+villager, who greets you and thanks your guide, and the guide stays with you as a
+companion until it leaves or the conversation ends, then walks home. Both remember it
+(“I showed Steve the way to Iris”, “Bram brought Steve to meet me”).
+
+Villagers also know of places beyond the village by rumour: “where's the nearest forest?”,
+“is there a pyramid around here?”, “have you heard of any hidden chests?”, “which way to
+the sea?”, “is there another village?”. The server finds the nearest real one (a biome
+within about 1,000 blocks, or a structure such as a desert or jungle temple, buried treasure,
+a shipwreck, an ocean monument, a mansion, an outpost, a ruined portal or another village).
+It never makes one up.
+
+- **Directions:** usually the villager tells you where to look as something it heard, with
+  a rough direction and distance. A grey chat note keeps it for you (“Rumour from Iris: a
+  desert temple, about 400 blocks north-west of Kettleby”).
+- **Escort:** a villager that counts you as a friend or closer walks you there if it's
+  within about 320 blocks, chatting on the way. It points the place out, wishes you luck and
+  heads back to the village. Out of anyone's sight, it's set down back home (its home chunk
+  is loaded first).
+- **Turning back:** nightfall or a zombie sends it home early.
+
+## Growing closer
+
+Each villager keeps track of how close you've grown, from what it has seen: conversations,
+trades, gifts, quests, errands, walks, and kept promises count for you; hits, insults and
+broken promises count against you. Five stages: stranger, acquaintance, friend, close
+friend, confidant. Each also needs goodwill, so a villager who dislikes you stays an
+acquaintance. The stage sets its warmth without ever being named aloud.
+
+- **Milestones:** the first time you reach friend, close friend, or confidant, the action
+  bar says so (“Bram now considers you a friend”), with hearts and a cheer. It becomes a
+  memory (“Today Steve and I became friends”). If you're talking, the villager warms up
+  then and there. A stage once reached is kept, even as old memories fade.
+- **Nickname:** a close friend picks a fond nickname for you once, keeps it, and greets you
+  by it.
+- **Promises:** promises either of you made stay open. The villager asks how one is going
+  when it fits. When a later conversation shows you kept it, standing rises by 1 and it
+  remembers (“A promise was kept: …”). A broken one costs 1.
+- **Daily present:** once per in-game day, a confidant greets you with something from its
+  own wares and mentions it.
+- **Keepsake:** on reaching confidant, or when a close friend is asked to “write down our
+  story”, the villager gives you a signed book, *Our story*. It holds the relationship
+  summary, the milestones with their days, and up to eight notable shared moments, all
+  written from its journal. One per villager.
+
+Stages, nicknames, promises and the keepsake flag live in `world/data/higgs-journal.json`
+(schema 2; older saves load as before).
+
+## Errands
+
+Ask a villager for work (“anything I can help with?”) and it may send you to a neighbour
+in the same village: either to pass on a short message it writes (“Tell Bram the wolves
+are back”) or to deliver a package from its wares, which it hands you. The recipient
+glows for two minutes, and an **ERRAND** card shows what you carry, who it is for, and
+roughly where they are (“30 blocks north-east”). You also get a book and quill titled
+“Errand: Iris → Bram” recording who sent you, who it is for, the exact message or
+package, where the recipient was, and the reward. Talk to the recipient and pass it on in your
+own words. It knows nothing in advance and learns the message only from you; the server
+checks that what you said carries the gist (or takes the package) and gains 1 reputation, and the villager who
+sent you gains 2 and remembers the favour. One errand at a time; it lapses after two
+hours. Hostile villagers do not hand out errands, so errands are a good way to rebuild
+a damaged reputation. Saved in `data/higgs-errands.json`.
+
+## Villagers who dislike you
+
+A villager who dislikes you may refuse to talk: a 25% chance at -2, rising to 75% when
+hostile. It says no, turns its back and walks off (villagers with AI disabled can only
+turn away), and keeps refusing for 30 seconds. Hitting it still gets a reaction.
+
+## Villages
+
+Every generated village gets a name the first time a player comes near it, picked at
+random from 20 names in `mod/src/main/resources/higgs_villagers/village_names.txt`
+and saved with the world (`data/higgs-villages.json`). Walking within 64 blocks of a
+village's centre shows its name as a title, with your village reputation underneath:
+the average of how every villager in that radius regards you (villagers you have never
+met count as neutral), for example “Reputation: Friendly (+1.6)”. Villagers know their
+village's name and its overall opinion of you. Change the radius with
+`HIGGS_VILLAGE_RADIUS` in `.env`.
+
+## Overheard chatter
+
+Villagers sometimes talk to each other. Every minute or so (half the time), two idle
+adult villagers standing within six blocks of each other and within earshot of a player
+strike up a four-to-six line conversation, each in their own personality and voice.
+They gossip about the nearby player (their opinion of you, whether you hit them
+recently, and public things you told them), talk shop about their trade, chat about the
+weather and time of day, or pass on a public rumour. Private memories never reach
+chatter. When they talk about you, a villager with a clear opinion (friendly, or annoyed
+and worse) praises or badmouths you to the other, moving that villager's opinion one
+point toward its own: never past it, and never into hostility, which only your own
+actions cause. You see hearts or angry particles and a note such as “Bram spoke well of
+you to Iris”. Sometimes a third neighbour standing with both joins in. Villagers have fixed bonds with
+one another (siblings, good friends, rivals or acquaintances) and a state of mind (a
+mood from what happened to them today, a goal from their trade, and what's on their
+mind), which colour the talk: a villager you hit stays shaken and suspicious while a
+friend you gave a diamond defends you. Whoever is addressed by name answers next, and a
+scene ends early on a goodbye. A line that only echoes another is never heard: the
+villager gets one fresh try. What they say about you becomes each villager's memory
+(“When we talked about you, Alden said you hit him”). Each line plays from the speaking villager, fading with distance (16 blocks),
+and appears in chat as a grey, italic caption. Starting your own conversation, or
+talking to either villager, stops the scene. Each villager chats at most once every
+five minutes, and one scene runs at a time.
+
+Chatter uses two Boson realtime sessions per scene. Tune or disable it with the
+`HIGGS_CHATTER_*` settings in `.env` (see `.env.example`), then restart the game server.
+
+Before a demo, run through the [playtest checklist](playtest-checklist.md).
+
+## Voice trading
+
+Villagers know before speaking whether they have anything to sell and what is in stock.
+One with no profession, a nitwit, or one sold out of everything gets no trading tools at
+all and says so instead of inventing wares. The **Hero of the Village** effect applies
+vanilla's discount (30%, plus 6.25% per extra level) to voice quotes and haggling floors
+alike, and the villager thanks you for saving the village.
+
+Ask for an item, a quantity, or a budget: “I would like fifteen bread” or “How much
+bread can I buy with four emeralds?” The server quotes exact whole-item amounts,
+opening at the villager's normal price; say yes in a new turn to buy. A changed
+bundle always needs a fresh yes.
+
+Each villager keeps one reputation score towards you, from -5 to +5, starting at 0
+(the middle of the bar above its head). A compliment adds 1; a hit or insult takes 2.
+The lowest price a villager accepts is `100 − 5 × score` percent of the base price:
++5 is 75%, 0 is 100%, and -5 is 125%, with payments rounded to whole items and never
+below 1. Quotes open at the normal price, or the marked-up price when the villager
+dislikes you. A villager who likes you can be haggled down: ask for a better price,
+or name one (“Would you take 27 sticks?”). Any offer at or above its floor is
+accepted as stated; a lower offer gets the villager's best price as a counteroffer.
+Neutral and annoyed villagers hold firm. At -5 a villager turns hostile: it refuses
+every voice trade and the vanilla trading screen, speaks coldly, and nearby iron golems
+attack you as if you had hit them (player-built golems still never attack players, as in
+vanilla). One sincere compliment or apology lifts it back to -4. Reputation
+changes cancel any open quote; ask again for the current price. Vanilla Minecraft
+reputation does not affect these voice quotes. Scores persist per player and
+villager in the world data folder. Higgs classifies the utterance, while the server
+decides every price and enforces every limit. Quotes expire after two minutes.
+
+**Quests.** When your offer is below what a villager will accept (but at least 40% of
+its normal price), a villager who isn't annoyed with you may set a quest instead of
+countering: “Bring me a pillager banner first, then I'll take two emeralds for the
+axe.” The server offers profession-themed errands, harder for a bigger discount (coal or
+wheat for a small one, iron or gold for a fair one, an ominous banner or diamonds for a
+steep one), and the villager picks one. Tell the villager when you have the items: the
+server checks your inventory, takes them, and opens the deal at your price for one
+purchase, confirmed with a yes as usual. Setting a quest also hands you a book and quill
+(“Quest: Iris”) noting what to bring, the deal it unlocks, and where the villager was. Each villager keeps one open quest per player,
+saved with the world (`data/higgs-quests.json`) and remembered in later conversations.
+If the trade changes or sells out, the delivered quest waits for it to restock.
+
+Bundles are limited to one stack per item (at most 64); secondary payments scale
+proportionally, rounding up to whole items. A budget buys the most items it can
+afford at or above the villager's floor, never paying more than the normal price, within stack and stock limits. Larger quantities
+consume proportional stock, rounded up to native trade uses; small purchases
+still use one stock unit. The native inventory transaction handles item
+components, space, trade statistics and rewards. Every purchase checks payment,
+stock, proximity and inventory space.
+
+A compact, non-interactive trade tracker shows the villager and the current server quote: YOU GIVE, YOU GET, and “Say yes to accept.” Revised amounts briefly show the previous deal crossed out. Expired or cancelled offers stop inviting acceptance, and success or failure fades after six seconds. Switching villagers clears the tracker; all choices still use voice.
+
+Every quote uses the current reputation for its floor. If the villager repeats identical terms in the acceptance turn, the player's yes can still confirm that purchase. A repeated confirmation returns the existing purchase receipt without buying again. Trade diagnostics log tool names, turn numbers, and outcomes without speech content.
+
+Trade suggestions use an optional “Interested?” preview, which cannot be purchased. Interest leads to an exact quote at the player's current reputation and “Confirm trade?”; one yes then completes it. Direct purchase requests skip browsing. The tracker sits at the right edge, and conversation lines appear in Minecraft chat. Villagers use short, warm fantasy language while saying item names and numbers exactly as the server provides them, with one short sentence per trading turn.
+
+### Environmental reactions
+
+Hitting a nearby adult villager starts voice automatically, including invulnerable demo villagers. A rolling 30-second window records attack count, elapsed time between the first and latest hits, and time since the previous hit. Higgs chooses the wording and emotional delivery from these statistics and the conversation; there are no fixed reaction tiers or scripted lines. These are attack attempts, not measured damage.
+
+A hit costs 2 reputation, down to the minimum of -5; a changed score cancels an active quoted trade. Only an active trade shows cancellation feedback, which fades after six seconds; repeated hits do not restart the fade. Hits outside a trade do not open the tracker. Reactions cannot execute trade tools or count as spoken confirmation.
+
+The bridge keeps only the latest queued statistics, waits until player speech/provider work finishes, and drops events older than 10 seconds. Higgs delivery uses per-response `instructions` for tone and energy: https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices.
+
+Test isolated hits, then several rapid hits, and listen for context-sensitive reactions. Wait 30 seconds for previous hits to age out. Hit during an active quote to see cancellation fade; hit outside a trade to check that no trade card appears.
+
+### Expressive reactions and urgent gossip
+
+Higgs can choose a short physical reaction with `express_emotion`: excitement, worry,
+anger, thoughtfulness, or gratitude grounded in the conversation. Gestures use vanilla
+head movement and selected particles, with a hop for excitement and an eight-second cooldown.
+
+With `share_news`, a villager can choose to leave after a spoken farewell to tell a free
+neighbour a specific saved public story. The server checks privacy, relevance, proximity,
+trade state, and availability again before departure. Interrupting the farewell cancels it.
+Major news (interest 75–84) uses one-third of ordinary sharing delays; exceptional news
+(85+) uses one-sixth. High-interest stories are considered every two seconds by default.
+Spread remains person-to-person, with existing privacy and forwarding limits.
