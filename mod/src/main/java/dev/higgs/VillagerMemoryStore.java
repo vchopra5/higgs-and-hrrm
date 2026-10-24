@@ -32,7 +32,7 @@ public final class VillagerMemoryStore implements AutoCloseable {
     public record Memory(UUID rootId, UUID ownerId, UUID playerId, String playerName,
                          UUID originId, String originName, UUID sourceId, String sourceName,
                          String summary, boolean privateMemory, long createdAt, long expiresAt,
-                         int hops, long revision, Interest interest) {}
+                         int hops, long revision, Interest interest, long learnedAt) {}
     private record Snapshot(int schemaVersion, List<Memory> memories) {}
 
     private static final Gson GSON = new Gson();
@@ -48,23 +48,30 @@ public final class VillagerMemoryStore implements AutoCloseable {
     private CompletableFuture<Void> lastWrite = CompletableFuture.completedFuture(null);
 
     public VillagerMemoryStore(Path file, Limits limits) throws IOException {
+        this(file, limits, System.currentTimeMillis());
+    }
+    VillagerMemoryStore(Path file, Limits limits, long loadedAt) throws IOException {
         this.file = file;
         this.limits = limits;
         if (!Files.exists(file)) return;
         try {
             if (Files.size(file) > MAX_FILE_BYTES) throw new IOException("Memory save exceeds size limit");
             Snapshot snapshot = GSON.fromJson(Files.readString(file), Snapshot.class);
-            if (snapshot == null || (snapshot.schemaVersion != 1 && snapshot.schemaVersion != 2) || snapshot.memories == null
+            if (snapshot == null || (snapshot.schemaVersion < 1 || snapshot.schemaVersion > 3) || snapshot.memories == null
                 || snapshot.memories.size() > limits.total) throw new IOException("Invalid memory save");
             for (Memory memory : snapshot.memories) {
                 if (snapshot.schemaVersion == 1 && memory != null) memory = withInterest(memory, Interest.legacy());
+                if (snapshot.schemaVersion < 3 && memory != null) memory = new Memory(memory.rootId, memory.ownerId,
+                    memory.playerId, memory.playerName, memory.originId, memory.originName, memory.sourceId, memory.sourceName,
+                    memory.summary, memory.privateMemory, memory.createdAt, memory.expiresAt, memory.hops, memory.revision,
+                    memory.interest, Math.max(memory.createdAt, loadedAt));
                 validate(memory);
                 var owner = memories.computeIfAbsent(memory.ownerId, ignored -> new LinkedHashMap<>());
                 if (owner.putIfAbsent(memory.rootId, memory) != null) throw new IOException("Duplicate memory entry");
                 revision = Math.max(revision, memory.revision);
             }
             persistedRevision = submittedRevision = revision;
-            if (snapshot.schemaVersion == 1) revision++;
+            if (snapshot.schemaVersion < 3) revision++;
             for (var owner : memories.values()) {
                 while (owner.size() > limits.perVillager) {
                     owner.remove(owner.keySet().iterator().next()); revision++;
@@ -78,7 +85,7 @@ public final class VillagerMemoryStore implements AutoCloseable {
     private void validate(Memory m) throws IOException {
         if (m == null || m.rootId == null || m.ownerId == null || m.playerId == null
             || m.originId == null || m.sourceId == null || m.hops < 0 || m.hops > 8
-            || m.createdAt < 0 || m.expiresAt <= m.createdAt || m.revision < 1
+            || m.createdAt < 0 || m.learnedAt < m.createdAt || m.expiresAt <= m.createdAt || m.revision < 1
             || !validText(m.summary, MAX_SUMMARY) || !validText(m.playerName, 80)
             || !validText(m.originName, 80) || !validText(m.sourceName, 80)
             || m.interest == null || (m.privateMemory && m.hops != 0)) throw new IOException("Invalid memory entry");
@@ -86,7 +93,7 @@ public final class VillagerMemoryStore implements AutoCloseable {
 
     private static Memory withInterest(Memory m, Interest interest) {
         return new Memory(m.rootId, m.ownerId, m.playerId, m.playerName, m.originId, m.originName,
-            m.sourceId, m.sourceName, m.summary, m.privateMemory, m.createdAt, m.expiresAt, m.hops, m.revision, interest);
+            m.sourceId, m.sourceName, m.summary, m.privateMemory, m.createdAt, m.expiresAt, m.hops, m.revision, interest, m.learnedAt);
     }
 
     private static boolean validText(String value, int max) {
@@ -117,14 +124,14 @@ public final class VillagerMemoryStore implements AutoCloseable {
                     if (previous.privateMemory == keepPrivate && previous.interest.equals(interest)) return previous;
                     Memory updated = new Memory(previous.rootId, owner, player, playerName, owner,
                         ownerName, owner, ownerName, previous.summary, keepPrivate, previous.createdAt,
-                        previous.expiresAt, 0, ++revision, interest);
+                        previous.expiresAt, 0, ++revision, interest, previous.learnedAt);
                     entries.put(updated.rootId, updated);
                     return updated;
                 }
             }
         }
         Memory memory = new Memory(UUID.randomUUID(), owner, player, playerName, owner, ownerName,
-            owner, ownerName, summary.strip(), privateMemory, now, now + limits.lifetimeMs, 0, ++revision, interest);
+            owner, ownerName, summary.strip(), privateMemory, now, now + limits.lifetimeMs, 0, ++revision, interest, now);
         insert(memory);
         return memory;
     }
@@ -180,7 +187,7 @@ public final class VillagerMemoryStore implements AutoCloseable {
         if (current.privateMemory || !current.equals(memory)) return false;
         insert(new Memory(memory.rootId, recipient, memory.playerId, memory.playerName,
             memory.originId, memory.originName, source, label(sourceName), memory.summary,
-            false, memory.createdAt, memory.expiresAt, memory.hops + 1, ++revision, memory.interest));
+            false, memory.createdAt, memory.expiresAt, memory.hops + 1, ++revision, memory.interest, Math.max(now, memory.createdAt)));
         return true;
     }
 
@@ -212,7 +219,7 @@ public final class VillagerMemoryStore implements AutoCloseable {
             .thenComparing(Comparator.comparingLong(Memory::createdAt).reversed());
     }
 
-    private static long priority(Memory memory, String profession, UUID player, long now) {
+    static long priority(Memory memory, String profession, UUID player, long now) {
         long ageHours = Math.max(0, now - memory.createdAt) / 3_600_000;
         int audience = memory.interest.audiences.contains(profession) && !profession.equals("all") ? 18 : 0;
         int personal = memory.playerId.equals(player) ? 15 : 0;
@@ -235,7 +242,7 @@ public final class VillagerMemoryStore implements AutoCloseable {
                 Files.createDirectories(file.toAbsolutePath().getParent());
                 Path temp = file.resolveSibling(file.getFileName() + ".tmp");
                 try {
-                    String json = GSON.toJson(new Snapshot(2, snapshot));
+                    String json = GSON.toJson(new Snapshot(3, snapshot));
                     byte[] bytes = json.getBytes(StandardCharsets.UTF_8);
                     if (bytes.length > MAX_FILE_BYTES) throw new IOException("Memory save exceeds size limit");
                     Files.write(temp, bytes);

@@ -62,7 +62,7 @@ The villager reads the exact quote. Say yes in a new push-to-talk turn to comple
 
 | | What happens |
 | :--- | :--- |
-| **In-character conversation** | Villager name, profession, and level give the conversation context. |
+| **A village of characters** | Saved identities, voices and delivery styles make Mira, Rowan and Bram respond differently. Jobs and name tags preserve their character. |
 | **A village that remembers** | Saved summaries let each villager recall past conversations across visits and server restarts. |
 | **Stories worth repeating** | The voice model judges surprising or consequential stories; neighbours prioritise news relevant to their professions. |
 | **A neighbour with something to say** | Start a conversation and the villager can lead with a fresh rumour, without a special question. |
@@ -78,6 +78,12 @@ Casually tell a villager, **“I found a hidden library under the old well.”**
 Keep another awake villager nearby. A brief burst of green particles signals that news has passed between them. Look at the neighbour and tap **B** to switch, then let it speak first: it can open with a fresh rumour and credit its source. A librarian gives extra attention to the library discovery; routine preferences can stay personal memories. Freshness, relevance, and recent-topic tracking guide what comes up.
 
 Stories stay attributed as player claims. Explicitly private entries do not spread; ordinary stories can reach other players through village news. **[Try the memory and rumours demo →](docs/memory-rumours.md)**
+
+## One village, different minds
+
+**Mira** is generous, warm and nosy. **Rowan** demands evidence but hopes for a mystery. **Bram** is guarded, practical and quietly fond of poetry. Tell them the same story and discover their different perspectives through conversation. Their discretion also changes when they pass news along.
+
+Villagers keep their identities across visits and restarts. Confirmed return visits build bounded familiarity. **[Meet the cast and prepare the demo →](docs/villager-personalities.md)**
 
 ## Under the hood
 
@@ -127,7 +133,7 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and w
 
 This is a hackathon prototype. The voice bridge, Fabric integration, and trade tools are implemented. Full microphone, playback, and in-game trade validation still need confirmation on the target setup; local mock tests and synthetic voice probes cover only part of that path.
 
-Current scope includes push-to-talk, system audio for the speaking player, persistent conversation summaries, automatic story selection, and local gossip with a particle indicator. Voice-confirmed trading, bounded negotiation, relationship scores, captions, automatic targeting, and hit reactions are also implemented. Memory and gossip have local regression coverage; live story judgments, recall, and particle visibility still need in-game validation. Distinct saved personalities and spatial or shared audio are future directions.
+Current scope includes push-to-talk, system audio for the speaking player, persistent conversation summaries, automatic story selection, and local gossip with a particle indicator. Voice-confirmed trading, bounded negotiation, relationship scores, captions, automatic targeting, and hit reactions are also implemented. Memory and gossip have local regression coverage; live story judgments, recall, and particle visibility still need in-game validation. Distinct saved personalities, per-character voices, familiarity and different gossip habits are implemented with local regression coverage. Live voice auditions and the three-character demo still need rehearsal; spatial or shared audio remains a future direction.
 
 <details>
 <summary><strong>Development checks</strong></summary>

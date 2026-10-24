@@ -21,6 +21,8 @@ public final class VillagerMemoryTest {
             changedSettingsAndGlobalBounds(directory.resolve("settings.json"));
             storyInterestAndNaturalOpenings(directory.resolve("interest.json"));
             legacyMigration(directory.resolve("legacy.json"));
+            personalityGossip(directory.resolve("personality-gossip.json"));
+            learnedTimeMigration(directory.resolve("version-two.json"));
             invalidSaves(directory);
             System.out.println("Villager memory and gossip regression checks passed");
         } finally {
@@ -217,6 +219,57 @@ public final class VillagerMemoryTest {
         }
     }
 
+    private static void personalityGossip(Path file) throws Exception {
+        var eager = new VillagerGossip.Policy(55, 5000, 100, List.of("people"));
+        var sceptic = new VillagerGossip.Policy(70, 30000, 150, List.of("books"));
+        var guarded = new VillagerGossip.Policy(65, 60000, 200, List.of("tools"));
+        try (var store = store(file)) {
+            var low = store.remember(FARMER, "Mira", PLAYER, "Alex", "A village gathering", false, interest(60, "all"), NOW);
+            var book = store.remember(FARMER, "Mira", PLAYER, "Alex", "Found enchanted books", false, interest(80, "all"), NOW);
+            store.remember(FARMER, "Mira", PLAYER, "Alex", "Found unusual tools", false, interest(80, "all"), NOW);
+            var secret = store.remember(FARMER, "Mira", PLAYER, "Alex", "Private enchanted books", true, interest(100, "all"), NOW);
+            store.flush().join();
+            var source = contact(FARMER, "overworld", 0, true);
+            var target = contact(LIBRARIAN, "overworld", 5, true);
+            var third = contact(THIRD, "overworld", 10, true);
+            var gossip = new VillagerGossip(16, 60000);
+            var snapshot = store.gossipSnapshot(NOW).get(FARMER);
+            require(!gossip.spread(source, target, snapshot, store, NOW + 4999, eager, sceptic), "eager character still waits for its delay");
+            require(!gossip.spread(source, target, snapshot, store, NOW + 5000, guarded, sceptic), "guarded character waits longer for the same story");
+            require(gossip.spread(source, target, snapshot, store, NOW + 5000, eager, sceptic), "eager character shares first");
+            store.flush().join();
+            require(store.has(LIBRARIAN, book.rootId()), "personal interests break ties independently of profession");
+            var heard = store.recall(LIBRARIAN, PLAYER, "", false, NOW + 5000).getFirst();
+            require(heard.learnedAt() == NOW + 5000 && heard.createdAt() == NOW, "each holder has its own learned time");
+            require(!gossip.spread(target, third, List.of(heard), store, NOW + 30000, sceptic, guarded), "original story age cannot bypass a recipient's delay");
+            require(gossip.spread(target, third, List.of(heard), store, NOW + 35000, sceptic, guarded), "later hop waits from the actual hearing time");
+            require(!gossip.spread(source, target, List.of(low), store, NOW + 64000, eager, sceptic), "existing pair cooldown remains enforced");
+            require(gossip.spread(source, target, List.of(low), store, NOW + 65000, eager, sceptic), "pair cooldown expires at its configured boundary");
+            require(!gossip.spread(source, contact(UUID.randomUUID(), "overworld", 5, true), List.of(low), store, NOW + 120000, sceptic, eager), "sceptic declines lower-interest news even after waiting");
+            require(!gossip.spread(source, contact(UUID.randomUUID(), "overworld", 5, true), List.of(secret), store, NOW + 120000, eager, eager), "eager traits never bypass privacy");
+        }
+    }
+
+    private static void learnedTimeMigration(Path file) throws Exception {
+        UUID root;
+        try (var store = store(file)) {
+            root = store.remember(FARMER, "Mira", PLAYER, "Alex", "An old but interesting story", false, NOW).rootId();
+        }
+        var saved = JsonParser.parseString(Files.readString(file)).getAsJsonObject();
+        saved.addProperty("schemaVersion", 2);
+        saved.getAsJsonArray("memories").forEach(entry -> entry.getAsJsonObject().remove("learnedAt"));
+        Files.writeString(file, saved.toString());
+        try (var migrated = new VillagerMemoryStore(file, VillagerMemoryStore.Limits.defaults(), NOW + 100000)) {
+            var memory = migrated.recall(FARMER, PLAYER, "", false, NOW + 100000).getFirst();
+            require(memory.rootId().equals(root) && memory.learnedAt() == NOW + 100000 && memory.createdAt() == NOW,
+                "version-two migration conservatively starts the delay at load time and retains provenance");
+        }
+        try (var restarted = store(file)) {
+            require(restarted.recall(FARMER, PLAYER, "", false, NOW + 100000).getFirst().learnedAt() == NOW + 100000,
+                "migrated learned time persists without resetting on later restarts");
+        }
+    }
+
     private static void legacyMigration(Path file) throws Exception {
         UUID root;
         try (var store = store(file)) {
@@ -234,6 +287,6 @@ public final class VillagerMemoryTest {
             require(reassessed.rootId().equals(root) && migrated.size() == 1 && migrated.gossipSnapshot(NOW + 1).isEmpty(),
                 "a fresh semantic assessment can demote an old story without duplicating its root");
         }
-        require(JsonParser.parseString(Files.readString(file)).getAsJsonObject().get("schemaVersion").getAsInt() == 2, "legacy save upgrades to the new schema");
+        require(JsonParser.parseString(Files.readString(file)).getAsJsonObject().get("schemaVersion").getAsInt() == 3, "legacy save upgrades to the new schema");
     }
 }

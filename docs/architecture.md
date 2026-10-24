@@ -4,11 +4,12 @@
 
 [← HIGGS HRRM](../README.md) · [Visual identity](brand.md)
 
-**Status: voice/trade prototype plus persistent memory and local gossip implemented; full live in-game validation pending.**
+**Status: voice/trade prototype plus persistent personalities, memory and local gossip implemented; full live in-game validation pending.**
 The code is in `mod/` and `backend/`. The diagram remains the target architecture.
 The prototype uses default system audio rather than spatial playback; persona
-comes from a shared prompt plus villager context rather than persistent per-villager
-voice configuration. It uses a ten-minute session limit; hands-free sessions use
+comes from a saved world/villager profile and a shared versioned catalogue. The
+bridge compiles trusted character directions and selects a mapped voice after
+validating profile identifiers. [Personality implementation](villager-personalities.md). It uses a ten-minute session limit; hands-free sessions use
 Higgs server-side voice activity detection. The live API accepts this configuration;
 end-to-end microphone and in-game trade validation still need the Fabric client.
 See the [setup guide](setup.md) for installation and controls.

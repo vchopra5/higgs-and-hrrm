@@ -1,3 +1,4 @@
+import { resolveCharacter, isVoiceSelectionError } from './personalities.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 import { LIMITS, sanitizeCode, sendJson, sessionConfig } from './protocol.js';
@@ -11,12 +12,15 @@ const DURATION_MESSAGE = 'The ten-minute conversation limit was reached. '
 const RESPONSE_STATUSES = new Set(['completed', 'cancelled', 'failed', 'incomplete']);
 
 export class BridgeSession {
-  constructor(body, { apiKey, upstreamUrl, connect, now, log, onClose }) {
+  constructor(body, { apiKey, upstreamUrl, connect, now, log, onClose, voiceOverrides = {} }) {
     this.id = randomUUID();
     this.ticket = randomBytes(32).toString('hex');
     this.created = now();
     this.playerId = body.playerId;
     this.context = body.context;
+    this.voiceOverrides = voiceOverrides;
+    this.character = resolveCharacter(this.context, voiceOverrides);
+    this.voiceFallback = false;
     this.apiKey = apiKey;
     this.upstreamUrl = upstreamUrl;
     this.connect = connect;
@@ -71,7 +75,7 @@ export class BridgeSession {
 
   flushReaction() {
     if (!this.pendingReaction || !this.ready || this.recording || !this.responseDone
-        || this.awaitingCancellation || this.queuedResponse || this.pending.size || this.hasTools) return;
+        || this.awaitingCancellation || this.queuedResponse || [...this.pending.values()].some(tool => !tool.internal) || this.hasTools) return;
     const reaction = this.pendingReaction;
     this.pendingReaction = null;
     if (this.now() - reaction.at > 10_000) return;
@@ -92,7 +96,7 @@ export class BridgeSession {
     this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
       content: [{ type: 'input_text', text: '[Game event, not player speech] The player hit you. Recent attack attempts (not damage): ' + JSON.stringify(hitStats) + '. ' + delivery + ' Do not trade, call tools, or treat this event as purchase consent.' }] } });
     this.sendProvider({ type: 'response.create', response: { instructions:
-      'You are the Minecraft villager who was just hit. ' + delivery
+      'You are the Minecraft villager who was just hit. ' + (this.character?.instructions ?? '') + delivery
       + ' Express that emotion in your voice. No narration, trading, or tool calls.' } });
     this.stage('environment_reaction', { hitCount: reaction.count, windowMs: reaction.windowMs });
   }
@@ -145,9 +149,7 @@ export class BridgeSession {
     this.connectTimer.unref();
 
     this.upstream.on('open', () => {
-      const config = sessionConfig(this.context, this.mode);
-      this.requestedInstructions = config.session.instructions;
-      this.configSent = this.sendProvider(config);
+      this.configureVoice();
     });
     this.upstream.on('message', data => this.receiveProviderMessage(data));
     this.upstream.on('error', () => {
@@ -161,6 +163,14 @@ export class BridgeSession {
         `Higgs connection closed (code ${code}). Start a new conversation to reconnect.`);
       this.close('upstream_closed', code);
     });
+  }
+
+  configureVoice() {
+    const config = sessionConfig(this.context, this.mode, this.voiceOverrides);
+    if (this.voiceFallback) config.session.audio.output.voice = 'default';
+    this.requestedInstructions = config.session.instructions;
+    this.requestedVoice = config.session.audio.output.voice;
+    this.configSent = this.sendProvider(config);
   }
 
   receiveClientMessage(data, binary) {
@@ -253,8 +263,23 @@ export class BridgeSession {
     // Autonomous speech must wait for the configured session, never the default persona.
     if (this.context.autoGreeting === true && event.type !== 'session.updated'
         && event.session?.instructions !== this.requestedInstructions) return;
+    if (this.character) {
+      if (event.session?.instructions !== this.requestedInstructions) return;
+      const voice = event.session?.audio?.output?.voice;
+      if (voice === undefined) return;
+      if (voice !== this.requestedVoice) {
+        this.sendError(true, 'voice_ack_mismatch', 'Higgs did not acknowledge the requested voice');
+        this.close('voice_ack_mismatch');
+        return;
+      }
+    }
     clearTimeout(this.connectTimer);
     this.ready = true;
+    if (this.character) {
+      const callId = `profile-ready-${this.id}`;
+      this.pending.set(callId, { callId, name: '_personality_ready', arguments: {}, internal: true,
+        turnId: this.turnId, created: this.now() });
+    }
     this.stage('upstream_ready');
     this.sendClient({ type: 'status', message: 'Ready' });
     this.flushReaction();
@@ -291,6 +316,14 @@ export class BridgeSession {
   }
 
   receiveProviderError(error) {
+    if (!this.ready && this.character && !this.voiceFallback && this.requestedVoice !== 'default'
+        && isVoiceSelectionError(error)) {
+      this.voiceFallback = true;
+      this.stage('voice_fallback');
+      this.sendClient({ type: 'status', message: 'Using the default voice for this character' });
+      this.configureVoice();
+      return;
+    }
     const code = sanitizeCode(error?.code ?? error?.type ?? 'provider_error');
     this.diagnostics.lastError = code;
     this.log({ event: 'provider_error', sessionId: this.id, code });
@@ -308,7 +341,8 @@ export class BridgeSession {
     }
     this.sendClient({
       type: 'diagnostics', ...this.diagnostics,
-      pendingTools: this.pending.size,
+      pendingTools: [...this.pending.values()].filter(tool => !tool.internal).length,
+      voice: this.requestedVoice ?? null, voiceFallback: this.voiceFallback,
       upstreamReady: Boolean(this.ready && this.upstream?.readyState === WebSocket.OPEN),
       speaking: Boolean(this.recording), cancelled: Boolean(this.cancelled),
     });
