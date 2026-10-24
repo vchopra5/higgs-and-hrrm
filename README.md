@@ -287,8 +287,12 @@ the existing sessions; selecting an outsider retains the normal partner-switch f
 Compliment and insult effects use that same recipient: hearts, reputation, and memories
 apply to the addressed villager. An absent recipient does not redirect those effects
 to the main partner, and a companion reputation change does not cancel the main trade.
-B interrupts the entire group and clears queued replies. The companion still cannot
-trade, accept gifts, or assign quests; the main partner handles those actions.
+B interrupts the entire group and clears queued replies. A companion asked directly to trade can request a merchant handoff. The previous
+quote is cancelled, the old merchant stays as a listener, and the new merchant loads
+their own offers and reputation. The request is carried across without a new greeting.
+Purchasing requires a fresh quote and a subsequent confirmation addressed to that
+merchant. Ordinary conversation does not rebuild sessions. Gifts and quest actions
+remain with the main partner.
 
 Shared conversation history receives completed lines after playback acknowledgement.
 Interrupted speech receives an incomplete marker rather than its potentially unheard

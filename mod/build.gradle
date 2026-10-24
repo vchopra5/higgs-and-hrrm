@@ -450,3 +450,16 @@ tasks.register('testPlaybackCompletion', JavaExec) {
     mainClass = 'dev.higgs.PlaybackCompletionTest'
 }
 tasks.named('check') { dependsOn 'testPlaybackCompletion' }
+
+tasks.register('compileMerchantTurnTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/MerchantTurn.java', 'src/main/java/dev/higgs/QuoteConfirmation.java',
+        'src/main/java/dev/higgs/VoiceConfirmation.java', 'src/confirmation/test/dev/higgs/MerchantTurnTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('merchant-turn-test')
+}
+tasks.register('testMerchantTurn', JavaExec) {
+    dependsOn 'compileMerchantTurnTest'
+    classpath = files(layout.buildDirectory.dir('merchant-turn-test'))
+    mainClass = 'dev.higgs.MerchantTurnTest'
+}
+tasks.named('check') { dependsOn 'testMerchantTurn' }
