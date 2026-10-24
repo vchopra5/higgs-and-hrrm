@@ -777,6 +777,7 @@ test('a companion answers when named, hears every line, and its lines reach the 
   await until(() => session.companion?.ready);
   const companionConfig = f.received.filter(e => e.type === 'session.update').at(-1).session;
   assert.match(companionConfig.instructions, /^You are Bram 2, a Minecraft villager who works as a farmer\. You are standing with your neighbour Iris/);
+  assert.match(companionConfig.instructions, /Never confirm or add details about errands, quests, prices or directions/);
   assert.equal(companionConfig.tools, undefined, 'the companion has no tools');
   const creates = () => f.received.filter(e => e.type === 'response.create').length;
   const before = creates();

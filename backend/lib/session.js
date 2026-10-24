@@ -13,6 +13,8 @@ import { MemoryContext } from './memory-context.js';
 import { TRADE_TOOLS, ungroundedTrade } from './grounding.js';
 import { Companion, addressedTo, askedToLeave, parseCompanion } from './companion.js';
 import { GAME_EVENTS, gameEventCue, parseGameEvent } from './game-events.js';
+// While haggling, the neighbour keeps quiet: the player is talking business with the main villager.
+const BARGAINING = new Set(['get_trades', 'preview_trade', 'propose_trade', 'confirm_trade', 'cancel_trade', 'offer_quest', 'complete_quest']);
 
 const DURATION_MESSAGE = 'The ten-minute conversation limit was reached. '
   + 'Start a new conversation to continue.';
@@ -243,6 +245,7 @@ export class BridgeSession {
 
   noteToolCall(name) {
     if (TRADE_TOOLS.has(name)) this.tradeTurn().tools.add(name);
+    if (BARGAINING.has(name)) this.bargainTurn = this.turnId;
   }
 
   noteToolResult(tool, result) {
@@ -654,7 +657,8 @@ export class BridgeSession {
     } else if (!this.correctUngroundedTrade(response)) completeToolBatch(this);
     // Nothing else started: the neighbour may chime in after a finished spoken line.
     if (response?.status === 'completed' && spoken && this.responseDone && !this.hasTools && !this.recording
-        && !this.queuedResponse && ![...this.pending.values()].some(tool => !tool.internal)) this.companion?.maybeInterject(this.turnId);
+        && !this.queuedResponse && ![...this.pending.values()].some(tool => !tool.internal)
+        && !(this.turnId - (this.bargainTurn ?? -10) <= 2)) this.companion?.maybeInterject(this.turnId);
   }
 
   /** Companions who heard this conversation also remember being there. */

@@ -114,6 +114,9 @@ test('trade schema opens at normal prices and lets reputation decide haggling', 
   assert.match(instructions, /context\.relationship\.nickname, when set, is your fond name for the player: greet them by it/);
   assert.match(instructions, /context\.relationship\.openPromises are promises still open between you; when it fits, ask how one is going/);
   assert.match(instructions, /never invent a neighbour, and never claim the village has a trade nobody listed practises/);
+  assert.match(instructions, /Call it before saying anything about the errand: never name a recipient, message or place until its result tells you/);
+  assert.match(instructions, /If context\.errands\.playerIsBusyWith is set, they are still running that errand: offer no new one/);
+  assert.match(instructions, /never think aloud or plan what you will say \("let me tell them"\), and never call the player "the player"/);
   assert.match(instructions, /If context\.dailyGift is set, you have just given the player that small present/);
   assert.match(instructions, /If context.introducedBy is set, that neighbour just brought the player to meet you/);
   assert.match(instructions, /call deliver_errand/);

@@ -1444,7 +1444,9 @@ public final class HiggsVillagers implements ModInitializer {
                 + "a neighbour. Ask what they were asked to tell you, then call deliver_errand with their words. Do not offer an errand."));
         }
         if (open != null) return CompletableFuture.completedFuture(outcome("errand_open",
-            "The player is already on an errand for " + open.giverName() + "; they can only carry one at a time. Say so; do not offer another."));
+            "They are still running an errand for " + open.giverName() + " (to " + open.targetName() + "). Do not offer another. "
+            + "Remind them in one short, natural sentence spoken to them, as if you just remembered, such as \"Aren't you still running "
+            + open.giverName() + "'s errand to " + open.targetName() + "? Finish that first.\" Do not mention rules or limits."));
         String kind = arguments.get("kind").getAsString();
         String message = arguments.has("message") ? arguments.get("message").getAsString().trim() : "";
         if (kind.equals("message") && (message.isEmpty() || message.length() > Errands.MESSAGE_LIMIT))
@@ -1578,6 +1580,9 @@ public final class HiggsVillagers implements ModInitializer {
         Errand errand = errand(player);
         String id = villager.getUUID().toString();
         if (errand != null && errand.giverId().equals(id)) context.addProperty("youGaveThePlayer", errand.describe() + " (not yet done)");
+        // Anyone else only knows the player is busy for a neighbour, not what the errand is (the recipient learns it on delivery).
+        else if (errand != null && !errand.targetId().equals(id))
+            context.addProperty("playerIsBusyWith", "an errand for " + errand.giverName() + " to " + errand.targetName());
         List<String> done = errandHistory.get(player.getUUID() + ":" + id);
         if (done != null && !done.isEmpty()) {
             JsonArray finished = new JsonArray();
