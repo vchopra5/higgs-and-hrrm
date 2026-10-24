@@ -1,11 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-if [[ -z "${JAVA_HOME:-}" ]]; then
-  for candidate in "$ROOT"/.tools/jdk-*/Contents/Home; do
-    if [[ -x "$candidate/bin/javac" ]]; then export JAVA_HOME="$candidate"; break; fi
-  done
-fi
+source "$ROOT/scripts/java-runtime.sh"
+higgs_select_java "$ROOT" true
 export GRADLE_USER_HOME="${GRADLE_USER_HOME:-$ROOT/.gradle}"
 cd "$ROOT/mod"
 if [[ -x ./gradlew ]]; then
@@ -14,5 +11,6 @@ fi
 for candidate in "$ROOT"/.tools/gradle-*/bin/gradle; do
   if [[ -x "$candidate" ]]; then exec "$candidate" build "$@"; fi
 done
-echo 'Install JDK 25 and generate/use the Gradle wrapper to build this mod.' >&2
+if command -v gradle >/dev/null 2>&1; then exec gradle build "$@"; fi
+echo 'Install a compatible Gradle distribution or generate/use the Gradle wrapper to build this mod.' >&2
 exit 1

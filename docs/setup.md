@@ -11,6 +11,8 @@ Fabric API and iCommon are installed. The Higgs integration prototype lives in
 Exact mod versions, download URLs, and checksums are in
 [`server-cardboard/components.json`](../server-cardboard/components.json).
 
+For a fresh Linux installation, follow **[Linux and CachyOS: from clone to conversation](linux.md)**. It covers packages, server downloads, Prism and audio troubleshooting.
+
 ## Villager voice prototype
 
 See the [build architecture and diagram](architecture.md). The first pass
@@ -37,8 +39,8 @@ live trade lookup, and audio-only purchases with one spoken confirmation.
 
 A neighbour with a fresh relevant rumour may bring it up in the greeting.
 
-Allow microphone access for the Minecraft/Java process when macOS asks. On macOS,
-use Prism Launcher: the official launcher may block microphone permission requests.
+On macOS, allow microphone access for the Minecraft/Java process when asked; use Prism Launcher if the official launcher cannot request access. On Linux, select the microphone and speakers in the desktop sound settings; see [Linux audio troubleshooting](linux.md#microphone-and-playback).
+
 The microphone sends audio only while B is held in the focused game window.
 Releasing B, opening a menu, or switching away ends the turn. Pressing B during a
 reply interrupts it. The top-right HUD shows microphone strength while you speak.
@@ -75,8 +77,7 @@ The mod also saves conversation summaries per villager and spreads public storie
 
 These launch commands use the already-provisioned local installation. A fresh
 clone does not include Java, server JARs, mods, worlds, or EULA acceptance.
-For a fresh setup, install an Apple Silicon Java 25 runtime at
-`server/runtime/Contents/Home`, download the mods listed in
+For a fresh setup, install JDK 25 for your operating system and CPU, then download the mods listed in
 `server-cardboard/components.json` into `server-cardboard/mods`, and download
 the [pinned Fabric launcher](https://meta.fabricmc.net/v2/versions/loader/26.1.2/0.20.1/1.1.2/server/jar)
 as `server-cardboard/fabric-server-launch.jar`. Copy
@@ -85,7 +86,7 @@ Read and accept the [Minecraft EULA](https://aka.ms/MinecraftEULA) before settin
 `eula=true` in `server-cardboard/eula.txt`. With the whitelist enabled, add your
 account using `whitelist add YOUR_USERNAME` in the server console.
 
-Double-click `server-cardboard/start.command`, or run:
+On Linux or macOS, run the following from the repository root. On macOS you can also double-click `server-cardboard/start.command`:
 
 ```sh
 ./server-cardboard/start.command
@@ -97,8 +98,7 @@ Minecraft Launcher if needed. The server listens only on this computer and
 requires an authenticated Minecraft account.
 
 Your Minecraft EULA acceptance is recorded in the local server directory.
-The launcher uses the shared Apple Silicon Java 25 runtime in `server/runtime`.
-The server uses up to 2 GB of heap.
+The launchers use `JAVA_HOME` when set, otherwise a compatible local runtime or Java on `PATH`. Linux runtimes use `bin/java`; macOS app bundles use `Contents/Home/bin/java`. An explicit `JAVA_HOME` must point to the directory containing `bin/java`, and builds also need `bin/javac`. See the [Linux runtime instructions](linux.md#install-the-tools). The server uses up to 2 GB of heap.
 
 Type `stop` in the server console to save and shut down cleanly. Stop the
 server before adding mods or plugins, then restart it:

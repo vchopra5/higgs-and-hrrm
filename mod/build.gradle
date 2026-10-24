@@ -158,7 +158,27 @@ tasks.register('compileTradeReputationTest', JavaCompile) {
 }
 tasks.register('testTradeReputation', JavaExec) {
     dependsOn 'compileTradeReputationTest'
-    classpath = files(layout.buildDirectory.dir('trade-reputation-test')) + sourceSets.main.runtimeClasspath
+    classpath = files(layout.buildDirectory.dir('trade-reputation-test')) + sourceSets.main.compileClasspath
     mainClass = 'dev.higgs.TradeReputationTest'
 }
 tasks.named('check') { dependsOn 'testTradeReputation' }
+
+tasks.register('compileAudioDeviceTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/AudioDevices.java',
+        'src/client/java/dev/higgs/PcmAudioConverter.java',
+        'src/client/test/dev/higgs/AudioDevicesTest.java',
+        'src/client/test/dev/higgs/PcmAudioConverterTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('audio-device-test')
+}
+tasks.register('audioDeviceTest', JavaExec) {
+    dependsOn 'compileAudioDeviceTest'
+    classpath = files(layout.buildDirectory.dir('audio-device-test'))
+    mainClass = 'dev.higgs.AudioDevicesTest'
+}
+tasks.register('pcmAudioConverterTest', JavaExec) {
+    dependsOn 'compileAudioDeviceTest'
+    classpath = files(layout.buildDirectory.dir('audio-device-test'))
+    mainClass = 'dev.higgs.PcmAudioConverterTest'
+}
+tasks.named('check') { dependsOn 'audioDeviceTest', 'pcmAudioConverterTest' }

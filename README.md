@@ -103,7 +103,7 @@ We build the mod, audio capture and playback, local bridge, session handling, an
 
 You will need **Minecraft Java 26.1.2**, a matching **Fabric client**, **JDK 25**, **Node.js 22+**, and a **Boson API key**. Install the mod on both client and server. The bridge runs locally alongside the game server.
 
-**[Follow the complete setup guide →](docs/setup.md)**
+**[Follow the complete setup guide →](docs/setup.md)** · **[Linux / CachyOS from scratch →](docs/linux.md)**
 
 Already have the local installation configured? Start the bridge and server in separate terminals:
 

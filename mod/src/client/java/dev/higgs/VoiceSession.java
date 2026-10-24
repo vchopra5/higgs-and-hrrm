@@ -17,7 +17,6 @@ import javax.sound.sampled.*;
 
 /** PCM16 little-endian mono at 24 kHz. All device and network IO runs off the game thread. */
 final class VoiceSession implements AutoCloseable, WebSocket.Listener {
-    private static final AudioFormat FORMAT = new AudioFormat(24000, 16, 1, true, false);
     private final Consumer<String> status;
     final VoiceCaptions captions = new VoiceCaptions();
     private final Runnable ended;
@@ -43,6 +42,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private volatile long sentChunks, sentBytes, receivedChunks, receivedBytes;
     private volatile int playingBytes;
     private volatile String lastEvent = "connecting", lastError = "";
+    private volatile String inputDevice = "opening", outputDevice = "opening";
     private volatile JsonObject backendDiagnostics = new JsonObject();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final Thread sender;
@@ -107,15 +107,19 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
 
     private void captureLoop() {
         try {
-            TargetDataLine line = AudioSystem.getTargetDataLine(FORMAT);
+            AudioDevices.Opened<TargetDataLine> opened = AudioDevices.input();
+            TargetDataLine line = opened.line();
             microphone = line;
-            line.open(FORMAT, 9600);
+            inputDevice = opened.description();
+            AudioFormat format = line.getFormat();
+            PcmAudioConverter converter = new PcmAudioConverter((int) format.getSampleRate(), format.getChannels(), 24000, 1);
             if (closed.get()) { line.close(); return; }
-            byte[] frame = new byte[1920]; // 40 ms
+            byte[] frame = new byte[(int) format.getSampleRate() / 25 * format.getFrameSize()]; // 40 ms
             while (!closed.get()) {
                 if (muted) {
                     line.stop();
                     line.flush();
+                    converter.reset();
                     synchronized (this) {
                         while (muted && !closed.get()) wait();
                     }
@@ -127,15 +131,20 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                 int count = line.read(frame, 0, frame.length);
                 synchronized (this) {
                     if (!muted && !closed.get() && frameGeneration == microphoneGeneration && count > 0) {
-                        micDbfs = AudioLevels.dbfs(frame, count);
+                        byte[] pcm = converter.convert(frame, count);
+                        if (pcm.length == 0) continue;
+                        micDbfs = AudioLevels.dbfs(pcm, pcm.length);
                         lastMicFrame = System.currentTimeMillis();
-                        String audio = Base64.getEncoder().encodeToString(java.util.Arrays.copyOf(frame, count));
-                        enqueue("{\"type\":\"audio\",\"audio\":\"" + audio + "\"}", count);
-                    }
+                        String audio = Base64.getEncoder().encodeToString(pcm);
+                        enqueue("{\"type\":\"audio\",\"audio\":\"" + audio + "\"}", pcm.length);
+                    } else converter.reset();
                 }
             }
         } catch (Exception e) {
-            if (!closed.get()) fail("Microphone unavailable. Check device and microphone permission.");
+            if (!closed.get()) {
+                System.getLogger("higgs-villagers").log(System.Logger.Level.WARNING, "Microphone initialization/capture failed", e);
+                fail("Microphone unavailable. Check audio routing, microphone permission and -Dhiggs.audio.input; details in latest.log.");
+            }
         } finally {
             TargetDataLine line = microphone;
             if (line != null) line.close();
@@ -161,23 +170,36 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
 
     private void playLoop() {
         try {
-            SourceDataLine line = AudioSystem.getSourceDataLine(FORMAT);
+            AudioDevices.Opened<SourceDataLine> opened = AudioDevices.output();
+            SourceDataLine line = opened.line();
             speaker = line;
-            line.open(FORMAT, 9600);
+            outputDevice = opened.description();
+            AudioFormat format = line.getFormat();
+            PcmAudioConverter converter = new PcmAudioConverter(24000, 1, (int) format.getSampleRate(), format.getChannels());
+            long generation = playbackGeneration;
             if (closed.get()) { line.close(); return; }
             line.start();
             while (!closed.get()) {
                 AudioChunk chunk = playback.take();
-                byte[] frame = chunk.bytes();
+                if (chunk.generation() != playbackGeneration) continue;
+                if (generation != chunk.generation()) { converter.reset(); generation = chunk.generation(); }
+                byte[] frame = converter.convert(chunk.bytes(), chunk.bytes().length);
                 for (int offset = 0; offset < frame.length && !closed.get() && chunk.generation() == playbackGeneration;) {
-                    int count = Math.min(1920, frame.length - offset);
-                    playingBytes = frame.length - offset;
-                    offset += line.write(frame, offset, count);
+                    int count = Math.min((int) format.getSampleRate() / 25 * format.getFrameSize(), frame.length - offset);
+                    // Queue diagnostics are expressed in the 24 kHz mono wire format.
+                    playingBytes = (int) ((long) (frame.length - offset) * 48000 / ((int) format.getSampleRate() * format.getFrameSize()));
+                    int written = line.write(frame, offset, count);
+                    if (written <= 0 && !closed.get() && chunk.generation() == playbackGeneration)
+                        throw new IllegalStateException("Audio output stopped accepting frames");
+                    offset += written;
                 }
                 playingBytes = 0;
             }
         } catch (Exception e) {
-            if (!closed.get()) fail("Audio output unavailable. Check your sound device.");
+            if (!closed.get()) {
+                System.getLogger("higgs-villagers").log(System.Logger.Level.WARNING, "Audio output initialization/playback failed", e);
+                fail("Audio output unavailable. Check audio routing and -Dhiggs.audio.output; details in latest.log.");
+            }
         } finally {
             SourceDataLine line = speaker;
             if (line != null) line.close();
@@ -266,6 +288,8 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         return new String[] {
             "Higgs diagnostics [F8]  " + (closed.get() ? "ENDED" : ready ? "READY" : "CONNECTING"),
             String.format(java.util.Locale.ROOT, "Mic %.1f dBFS  frame %s  %s", microphoneDbfs(), age < 0 ? "none" : age + "ms ago", muted ? "MUTED" : isTransmitting() ? "LIVE" : "INACTIVE"),
+            "Input " + inputDevice,
+            "Output " + outputDevice,
             "Sent " + sentChunks + " chunks / " + sentBytes + " B  pending " + outgoing.size(),
             "Audio received " + receivedChunks + " / " + receivedBytes + " B  queued " + ((playback.queuedBytes() + playingBytes) / 48) + "ms",
             "Backend in/out " + field(remote, "inputBytes", "0") + "/" + field(remote, "outputBytes", "0") + " B  ready " + field(remote, "upstreamReady", "?"),
