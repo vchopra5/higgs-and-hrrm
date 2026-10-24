@@ -39,7 +39,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private long lastOverflowNotice;
     private volatile double micDbfs = -96;
     private volatile long lastMicFrame;
-    private volatile long sentChunks, sentBytes, receivedChunks, receivedBytes;
+    private volatile long sentChunks, sentBytes, droppedChunks, receivedChunks, receivedBytes;
     private volatile String lastEvent = "connecting", lastError = "";
     private volatile String inputDevice = "opening", outputDevice = "Minecraft positional audio / Friendly Creatures";
     private volatile JsonObject backendDiagnostics = new JsonObject();
@@ -123,7 +123,16 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                     }
                     continue;
                 }
-                if (!line.isRunning()) { line.flush(); line.start(); }
+                if (!line.isRunning()) {
+                    line.flush();
+                    line.start();
+                    // Some Linux mixers keep buffering while stopped; drop that backlog so it is not sent as one burst.
+                    for (int stale = line.available() / format.getFrameSize() * format.getFrameSize(); stale > 0;) {
+                        int count = line.read(frame, 0, Math.min(frame.length, stale));
+                        if (count <= 0) break;
+                        stale -= count;
+                    }
+                }
                 long frameGeneration;
                 synchronized (this) { frameGeneration = microphoneGeneration; }
                 int count = line.read(frame, 0, frame.length);
@@ -151,7 +160,14 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
 
     private void enqueue(String message) { enqueue(message, 0); }
     private void enqueue(String message, int audioBytes) {
-        if (!closed.get() && !outgoing.offer(new Outbound(message, audioBytes))) fail("Voice connection is too slow. Please reconnect.");
+        if (closed.get() || outgoing.offer(new Outbound(message, audioBytes))) return;
+        if (audioBytes == 0) { fail("Voice connection is too slow. Please reconnect."); return; }
+        // A dropped microphone frame is recoverable; keep the conversation alive.
+        droppedChunks++;
+        if (System.currentTimeMillis() - lastOverflowNotice > 10_000) {
+            lastOverflowNotice = System.currentTimeMillis();
+            status.accept("Voice upload is behind; dropping microphone audio.");
+        }
     }
 
     private void sendLoop() {
@@ -263,7 +279,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
             String.format(java.util.Locale.ROOT, "Mic %.1f dBFS  frame %s  %s", microphoneDbfs(), age < 0 ? "none" : age + "ms ago", muted ? "MUTED" : isTransmitting() ? "LIVE" : "INACTIVE"),
             "Input " + inputDevice,
             "Output " + outputDevice,
-            "Sent " + sentChunks + " chunks / " + sentBytes + " B  pending " + outgoing.size(),
+            "Sent " + sentChunks + " chunks / " + sentBytes + " B  pending " + outgoing.size() + "  dropped " + droppedChunks,
             "Audio received " + receivedChunks + " / " + receivedBytes + " B  queued " + ((playback == null ? 0 : playback.queuedBytes()) / 48) + "ms",
             "Voice " + field(remote, "voice", "?") + (field(remote, "voiceFallback", "false").equals("true") ? " (fallback)" : ""),
             "Backend in/out " + field(remote, "inputBytes", "0") + "/" + field(remote, "outputBytes", "0") + " B  ready " + field(remote, "upstreamReady", "?"),
