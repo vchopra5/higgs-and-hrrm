@@ -17,9 +17,10 @@ test('a chased villager screams in its own voice, heard through the listen chann
   const provider = new WebSocketServer({ port: 0, host: '127.0.0.1' });
   await once(provider, 'listening');
   const prompts = [];
+  const voices = [];
   provider.on('connection', socket => socket.on('message', data => {
     const event = JSON.parse(data);
-    if (event.type === 'session.update') socket.send(JSON.stringify({ type: 'session.updated', session: event.session }));
+    if (event.type === 'session.update') { voices.push(event.session.audio.output.voice); socket.send(JSON.stringify({ type: 'session.updated', session: event.session })); }
     if (event.type === 'conversation.item.create') prompts.push(event.item.content[0].text);
     if (event.type === 'response.create') {
       socket.send(JSON.stringify({ type: 'response.output_audio.delta', delta: 'QUFBSA==' }));
@@ -27,7 +28,7 @@ test('a chased villager screams in its own voice, heard through the listen chann
       socket.send(JSON.stringify({ type: 'response.done', response: { status: 'completed' } }));
     }
   }));
-  const bridge = createBridge({ token, apiKey: 'fake', upstreamUrl: `ws://127.0.0.1:${provider.address().port}`, log: () => {} });
+  const bridge = createBridge({ token, apiKey: 'fake', rapVoice: 'voice_rap_test', upstreamUrl: `ws://127.0.0.1:${provider.address().port}`, log: () => {} });
   bridge.server.listen(0, '127.0.0.1');
   await once(bridge.server, 'listening');
   t.after(async () => { await bridge.close(); for (const c of provider.clients) c.terminate(); await new Promise(r => provider.close(r)); });
@@ -46,6 +47,9 @@ test('a chased villager screams in its own voice, heard through the listen chann
   assert.equal(events[2].text, 'Aaah! Zombie! Help!');
   assert.equal(events.at(-1).reason, 'completed', 'not an interruption: the client plays it out');
   assert.match(prompts[0], /^\[A zombie is chasing you right now\] Scream for help/);
+  assert.equal(voices[0], 'oliver');
+  assert.equal((await post({ kind: 'rap', speaker })).status, 201);
+  await until(() => voices.includes('voice_rap_test'));
   // Shouts never use up the chatter scene slots.
   for (let i = 0; i < 3; i++) await post({ kind: 'zombie', speaker });
   const scene = await fetch(base + '/scenes', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -110,4 +114,19 @@ test('pet remarks carry the pet, validated; fireworks and calling children home 
   assert.throws(() => parseShout({ kind: 'fireworks', detail: 'extra', speaker }), 'stock cries take no detail');
   assert.equal(parseShout({ kind: 'fireworks', speaker }).kind, 'fireworks');
   assert.equal(parseShout({ kind: 'callhome', speaker }).kind, 'callhome');
+});
+
+
+test('rap voice defaults to personality and rejects invalid configured voices', () => {
+  const options = { voiceOverrides: {}, rapVoice: 'voice_rap_test' };
+  const named = { ...speaker, personality: { catalogueVersion: 1, archetypeId: 'mira', styleId: 'brisk' } };
+  assert.equal(new ShoutScene({ kind: 'rap', speaker: named }, {}).voice, 'chloe');
+  assert.equal(new ShoutScene({ kind: 'rap', speaker: named }, options).voice, 'voice_rap_test');
+  assert.equal(new ShoutScene({ kind: 'bell', speaker: named }, options).voice, 'chloe');
+  assert.equal(new ShoutScene({ kind: 'rap', speaker }, options).voice, 'voice_rap_test');
+  assert.equal(new ShoutScene({ kind: 'bell', speaker }, options).voice, 'oliver');
+  assert.equal(new ShoutScene({ kind: 'rap', speaker }, {}).voice, 'oliver');
+  for (const rapVoice of ['', 'Eminem', null, 123, 'voice_bad\n']) {
+    assert.throws(() => createBridge({ token, rapVoice }), /Invalid voice selection/);
+  }
 });

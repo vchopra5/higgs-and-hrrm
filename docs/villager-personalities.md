@@ -58,6 +58,8 @@ HIGGS_VOICE_THOUGHTFUL=oliver
 HIGGS_VOICE_STEADY=marcus
 ```
 
+For a separate jukebox rap voice, set `HIGGS_VOICE_RAP` to a preset or an account-owned custom `voice_<id>`. Leave it blank to use the villager's normal voice. This override applies only to raps; conversations and other reactions retain their personality voices.
+
 Restart the backend after changes. The bridge validates mappings and rejects arbitrary voice names or prompt text. For character sessions, **Ready** requires the provider to acknowledge both the compiled instructions and selected voice. It retries once with `default` only for a structured `invalid_request_error` whose `param` is `audio.output.voice` or `session.audio.output.voice`. Authentication, quota, transport and other setup failures retain their existing errors.
 
 Fallback keeps the character's directions and appears in status, backend logs and **F8** voice diagnostics. The error parameter adapter is covered with a fake provider; the actual rejection shape and audible presets still require verification with the target account. A provider error without the expected structured field fails setup rather than guessing from its message. See Boson's [server event schema](https://docs.boson.ai/api-reference/realtime/server-events).

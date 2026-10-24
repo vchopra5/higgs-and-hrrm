@@ -2,7 +2,7 @@ import { createServer } from 'node:http';
 import { timingSafeEqual } from 'node:crypto';
 import { WebSocket, WebSocketServer } from 'ws';
 import { LIMITS, readJsonBody, replyJson } from './protocol.js';
-import { validateVoiceOverrides } from './personalities.js';
+import { validateVoice, validateVoiceOverrides } from './personalities.js';
 import { BridgeSession } from './session.js';
 import { CHATTER_LIMITS, ChatterScene } from './chatter.js';
 import { SHOUT_LIMITS, ShoutCache, ShoutScene, parseShout } from './shout.js';
@@ -19,6 +19,7 @@ export function createBridge({
   upstreamUrl = 'wss://api.boson.ai/v1/realtime/',
   connect = (url, options) => new WebSocket(url, options),
   voiceOverrides = {},
+  rapVoice,
   now = Date.now,
   log = entry => console.info(JSON.stringify(entry)),
   consolidation = true,
@@ -29,6 +30,7 @@ export function createBridge({
     throw new Error('Set HIGGS_BRIDGE_TOKEN to a random secret of at least 32 characters.');
   }
   voiceOverrides = validateVoiceOverrides(voiceOverrides);
+  if (rapVoice !== undefined) rapVoice = validateVoice(rapVoice);
   const sessions = new Map();
   const recentConversations = new Map();
   // Finished conversations consolidated into long-term memory, waiting for the game server to collect.
@@ -101,7 +103,7 @@ export function createBridge({
     let body;
     try { body = await readJsonBody(request); parseShout(body); } catch { return replyJson(response, 400, { error: 'Invalid shout' }); }
     const generating = [...scenes.values()].filter(scene => scene instanceof ShoutScene && scene.generating).length;
-    const shout = new ShoutScene(body, { apiKey, upstreamUrl, connect, now, log, voiceOverrides, cache: shoutCache,
+    const shout = new ShoutScene(body, { apiKey, upstreamUrl, connect, now, log, voiceOverrides, rapVoice, cache: shoutCache,
       cachedOnly: generating >= SHOUT_LIMITS.generating, onClose: id => scenes.delete(id) });
     if (shout.cachedOnly && (shout.kind === 'rap' || !shoutCache.pick(shout.voice, shout.kind, true)))
       return replyJson(response, 429, { error: 'Shout limit reached' });
