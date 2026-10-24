@@ -438,3 +438,15 @@ tasks.register('testCompanionPresence', JavaExec) {
     mainClass = 'dev.higgs.CompanionPresenceTest'
 }
 tasks.named('check') { dependsOn 'testCompanionPresence' }
+
+tasks.register('compilePlaybackCompletionTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/PlaybackCompletion.java', 'src/client/test/dev/higgs/PlaybackCompletionTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('playback-completion-test')
+}
+tasks.register('testPlaybackCompletion', JavaExec) {
+    dependsOn 'compilePlaybackCompletionTest'
+    classpath = files(layout.buildDirectory.dir('playback-completion-test'))
+    mainClass = 'dev.higgs.PlaybackCompletionTest'
+}
+tasks.named('check') { dependsOn 'testPlaybackCompletion' }

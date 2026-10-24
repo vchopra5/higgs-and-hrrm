@@ -208,7 +208,10 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             }
             // Ordinary villagers connect on look; gossiping villagers require B.
             // Switch partners only on a fresh press, never halfway through an utterance.
-            if (held && !wasTalking && target != null && target.getId() != targetId && !pending) {
+            if (held && !wasTalking && target != null && voice != null && voice.isParticipant(target.getId()))
+                voice.selectAddressee(target.getId());
+            if (held && !wasTalking && target != null && target.getId() != targetId && !pending
+                && (voice == null || !voice.isParticipant(target.getId()))) {
                 switchTalkGate.switched();
                 stop(false); // The start request replaces the server session without an old end acknowledgement.
                 nextConnectAt = Math.max(System.currentTimeMillis(), requestTime + 1500);

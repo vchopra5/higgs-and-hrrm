@@ -32,6 +32,11 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private int companionPendingBytes;
     private long mainQuietSince = -1;
     private volatile long playbackGeneration;
+    private final PlaybackCompletion playbackCompletion = new PlaybackCompletion();
+    private int selectedAddressee = -1;
+
+    boolean isParticipant(int id) { return villager.getId() == id || companion != null && companion.getId() == id; }
+    void selectAddressee(int id) { if (isParticipant(id)) selectedAddressee = id; }
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean microphoneStarted = new AtomicBoolean();
     private final StringBuilder incoming = new StringBuilder();
@@ -105,7 +110,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         speaking = held;
         if (held) clearPlayback();
         // Serialized with captured frames: release commits only the preceding turn.
-        enqueue(held ? "{\"type\":\"interrupt\"}" : "{\"type\":\"commit\"}");
+        enqueue(held ? "{\"type\":\"interrupt\",\"addressee\":" + selectedAddressee + "}" : "{\"type\":\"commit\"}");
         notifyAll();
         status.accept(held ? "Speaking… release B to send." : "Sent. Hold B to speak again; ");
     }
@@ -196,6 +201,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private void clearPlayback() {
         playbackGeneration++;
         net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            playbackCompletion.clear();
             SpatialVoice previous = playback;
             playback = null;
             if (previous != null) previous.cancel();
@@ -234,7 +240,14 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     }
 
     /** Client tick: start held companion audio once the main villager has been quiet for a moment. */
-    void tick() { if (!closed.get()) pumpCompanion(); }
+    void tick() {
+        if (closed.get()) return;
+        pumpCompanion();
+        boolean busy = !companionPending.isEmpty() || playback != null && playback.queuedBytes() > 0
+            || companionPlayback != null && companionPlayback.queuedBytes() > 0;
+        long completed = playbackCompletion.poll(busy, System.nanoTime() / 1_000_000);
+        if (completed >= 0) enqueue("{\"type\":\"playback_done\",\"floorId\":" + completed + "}");
+    }
 
     private void pumpCompanion() {
         long now = System.currentTimeMillis();
@@ -307,6 +320,15 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                             if (companion != null && (!event.has("entityId") || companion.getId() == event.get("entityId").getAsInt())) playCompanion(bytes);
                         }
                         else if (bytes.length > 0) play(bytes);
+                    }
+                    case "playback_end" -> {
+                        long generation = playbackGeneration;
+                        long id = event.get("floorId").getAsLong();
+                        net.minecraft.client.Minecraft.getInstance().execute(() -> {
+                            if (generation == playbackGeneration && muted && !closed.get()) {
+                                playbackCompletion.end(id);
+                            }
+                        });
                     }
                     case "clear" -> clearPlayback();
                     case "companion_left" -> net.minecraft.client.Minecraft.getInstance().execute(() -> {

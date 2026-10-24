@@ -111,6 +111,7 @@ export function receiveToolCall(session, event) {
     args = null;
   }
   session.hasTools = true;
+  if (event.name === 'report_treatment' && args && typeof args === 'object' && !Array.isArray(args)) args.recipientEntityId = session.treatmentRecipient ?? null;
   session.noteToolCall?.(event.name);
   session.pending.set(event.call_id, {
     callId: event.call_id,

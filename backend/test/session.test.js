@@ -398,7 +398,8 @@ test('hit statistics guide reactions, coalesce and cannot execute trade tools or
   assert.equal(session.turnId, 0);
   session.environmentEvent(hit(1));
   clock += 11000;
-  f.emit({ type:'response.done', response:{id:'reaction1',status:'completed'} });
+  f.emit({ type:'response.created', response:{id:'reaction2'} });
+  f.emit({ type:'response.done', response:{id:'reaction2',status:'completed'} });
   await until(() => session.responseDone);
   session.sweep();
   assert.equal(session.pendingReaction, null);
@@ -1188,11 +1189,211 @@ test('language switches preserve captions and route translated recall and semant
     f.emit({ type: 'response.function_call_arguments.done', response_id: id, call_id: id, name, arguments: JSON.stringify(args) });
     await until(() => session.pending.has(id));
     assert.equal(session.pending.get(id).turnId, turn);
-    assert.deepEqual(session.pending.get(id).arguments, args);
+    assert.deepEqual(session.pending.get(id).arguments, name === 'report_treatment' ? { ...args, recipientEntityId: null } : args);
     await f.request(`/sessions/${f.sessionId}/tools/${id}/result`, 'POST', { result });
     await until(() => f.received.some(e => e.item?.call_id === id));
     assert.deepEqual(JSON.parse(f.received.find(e => e.item?.call_id === id).item.output), result);
     f.emit({ type: 'response.done', response: { id, status: 'completed' } });
     await until(() => !session.pending.has(id));
+  }
+});
+
+test('coordinated conversation hands off only after playback and only once per player turn', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', coordinated: true, autoGreeting: true },
+    companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.companion?.ready);
+  f.emitTo(0, { type: 'response.created', response: { id: 'main-1' } });
+  f.emitTo(0, { type: 'response.output_audio_transcript.done', response_id: 'main-1', transcript: 'Idris, what do you think?' });
+  f.emitTo(0, { type: 'response.output_audio.delta', response_id: 'main-1', delta: 'AAAA' });
+  f.emitTo(0, { type: 'response.done', response: { id: 'main-1', status: 'completed' } });
+  await until(() => f.events.some(e => e.type === 'playback_end'));
+  assert.equal(s.companion.speaking, false);
+  assert.equal(s.recentLines.length, 0);
+  const end = f.events.find(e => e.type === 'playback_end');
+  f.client.send(JSON.stringify({ type: 'playback_done', floorId: end.floorId }));
+  await until(() => s.companion.speaking);
+  assert.match(s.recentLines[0].text, /Idris/);
+  f.emitTo(1, { type: 'response.created', response: { id: 'comp-1' } });
+  f.emitTo(1, { type: 'response.output_audio_transcript.done', response_id: 'comp-1', transcript: 'Mira, would you agree?' });
+  f.emitTo(1, { type: 'response.output_audio.delta', response_id: 'comp-1', delta: 'AAAA' });
+  f.emitTo(1, { type: 'response.done', response: { id: 'comp-1', status: 'completed' } });
+  await until(() => f.events.filter(e => e.type === 'playback_end').length === 2);
+  const last = f.events.filter(e => e.type === 'playback_end').at(-1);
+  f.client.send(JSON.stringify({ type: 'playback_done', floorId: last.floorId }));
+  await until(() => !s.floor.active);
+  assert.equal(f.received.filter(e => e.type === 'response.create').length, 2);
+});
+
+test('B interrupts the whole group, rejects stale completion and keeps unheard words out of memory', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', coordinated: true, autoGreeting: true } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  f.emit({ type: 'response.created', response: { id: 'cut-off' } });
+  f.emit({ type: 'response.output_audio_transcript.done', response_id: 'cut-off', transcript: 'Unheard secret.' });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'cut-off', delta: 'AAAA' });
+  f.emit({ type: 'response.done', response: { id: 'cut-off', status: 'completed' } });
+  await until(() => f.events.some(e => e.type === 'playback_end'));
+  const old = s.floor.active.id;
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  await until(() => !s.floor.active);
+  assert.equal(s.transcriptLines.some(line => line.includes('Unheard secret')), false);
+  assert.match(s.transcriptLines.at(-1), /interrupted/);
+  assert.equal(s.awaitingCancellation, false); // Generation was already finished.
+  f.client.send(JSON.stringify({ type: 'playback_done', floorId: old }));
+  await delay(30);
+  assert.equal(s.floor.active, null);
+});
+
+test('gaze routes within the same group, explicit main address wins, and casual mentions do not force a handoff', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', coordinated: true },
+    companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.companion?.ready);
+  s.companion.random = () => 1;
+  s.selectedAddressee = 42;
+  s.lastTranscript = { text: 'How are you?', at: Date.now() };
+  s.queuedResponse = true;
+  s.flushPreparedResponse();
+  assert.equal(s.floor.active.owner, s.companion);
+  f.emitTo(1, { type: 'response.created', response: { id: 'gaze' } });
+  f.emitTo(1, { type: 'response.output_audio.delta', response_id: 'gaze', delta: 'AAAA' });
+  f.emitTo(1, { type: 'response.done', response: { id: 'gaze', status: 'completed' } });
+  await until(() => s.floor.active.ended);
+  s.floor.acknowledge(s.floor.active.id);
+  s.lastTranscript = { text: 'Mira, how are you?', at: Date.now() };
+  s.queuedResponse = true;
+  s.flushPreparedResponse();
+  assert.equal(s.floor.active.owner, 'main');
+  f.emitTo(0, { type: 'response.created', response: { id: 'main-address' } });
+  f.emitTo(0, { type: 'response.output_audio_transcript.done', response_id: 'main-address', transcript: 'I wonder what Idris thinks?' });
+  f.emitTo(0, { type: 'response.output_audio.delta', response_id: 'main-address', delta: 'AAAA' });
+  f.emitTo(0, { type: 'response.done', response: { id: 'main-address', status: 'completed' } });
+  await until(() => s.floor.active.ended);
+  s.floor.acknowledge(s.floor.active.id);
+  assert.equal(s.floor.active, null);
+});
+
+test('a cancelled completion cannot release the newly queued main response', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', coordinated: true, autoGreeting: true } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  f.emit({ type: 'response.created', response: { id: 'old-main' } });
+  await until(() => s.responseId === 'old-main');
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  await until(() => s.awaitingCancellation);
+  // Memory for the player's next turn is already ready when cancellation completes.
+  s.recording = false;
+  s.queuedResponse = true;
+  f.emit({ type: 'response.done', response: { id: 'old-main', status: 'cancelled' } });
+  await until(() => s.floor.active?.owner === 'main');
+  assert.equal(s.floor.active.ended, false);
+  assert.equal(s.responseDone, false);
+});
+
+test('departing companion releases the floor and recovers an unanswered routed turn once', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', coordinated: true },
+    companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.companion?.ready);
+  assert.equal(s.companion.answer(), true);
+  const companion = s.companion;
+  companion.close();
+  await until(() => s.companion === null);
+  assert.equal(s.floor.active.owner, 'main');
+  await until(() => f.received.filter(e => e.type === 'response.create').length === 2);
+  s.companionFailed(companion, s.turnId);
+  await delay(30);
+  assert.equal(f.received.filter(e => e.type === 'response.create').length, 2);
+});
+
+test('a main response queued behind companion playback receives the newly heard line before generation', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', coordinated: true },
+    companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.companion?.ready);
+  s.companion.answer();
+  f.emitTo(1, { type: 'response.created', response: { id: 'queued-companion' } });
+  f.emitTo(1, { type: 'response.output_audio_transcript.done', response_id: 'queued-companion', transcript: 'The well is flooded.' });
+  f.emitTo(1, { type: 'response.output_audio.delta', response_id: 'queued-companion', delta: 'AAAA' });
+  f.emitTo(1, { type: 'response.done', response: { id: 'queued-companion', status: 'completed' } });
+  await until(() => s.floor.active.ended);
+  s.createConversationResponse();
+  assert.equal(f.received.some(e => e.item?.content?.[0]?.text?.includes('The well is flooded.')), false);
+  s.floor.acknowledge(s.floor.active.id);
+  await until(() => f.received.some(e => e.item?.content?.[0]?.text?.includes('The well is flooded.')));
+  const contextAt = f.received.findIndex(e => e.item?.content?.[0]?.text?.includes('The well is flooded.'));
+  await until(() => f.received.slice(contextAt + 1).some(e => e.type === 'response.create'));
+  assert.equal(s.floor.active.owner, 'main');
+});
+
+test('listeners can chime in after playback without a named question, but never chain replies', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', coordinated: true, autoGreeting: true },
+    companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.companion?.ready);
+  s.companion.random = () => 0;
+  f.emitTo(0, { type: 'response.created', response: { id: 'news-main' } });
+  f.emitTo(0, { type: 'response.output_audio_transcript.done', response_id: 'news-main', transcript: 'The well is flooded.' });
+  f.emitTo(0, { type: 'response.output_audio.delta', response_id: 'news-main', delta: 'AAAA' });
+  f.emitTo(0, { type: 'response.done', response: { id: 'news-main', status: 'completed' } });
+  await until(() => s.floor.active?.ended);
+  assert.equal(s.companion.speaking, false);
+  s.floor.acknowledge(s.floor.active.id);
+  assert.equal(s.companion.speaking, true);
+  assert.equal(s.followupUsed, true);
+  await until(() => f.received.some(e => e.item?.content?.[0]?.text?.includes('Otherwise remain silent')));
+  // The model declines the optional comment: no audio, no phantom memory, no next speaker.
+  f.emitTo(1, { type: 'response.created', response: { id: 'silent-listener' } });
+  f.emitTo(1, { type: 'response.done', response: { id: 'silent-listener', status: 'completed' } });
+  await until(() => !s.floor.active);
+  assert.equal(s.recentLines.length, 1);
+});
+
+test('a newcomer who becomes ready during speech greets after playback exactly once', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', coordinated: true, autoGreeting: true } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  assert.equal(s.addCompanion({ entityId: 42, name: 'Idris', profession: 'librarian' }), 'joined');
+  await until(() => s.companion?.ready);
+  assert.equal(s.companion.greetingPending, true);
+  assert.equal(s.companion.speaking, false);
+  f.emitTo(0, { type: 'response.created', response: { id: 'welcome-main' } });
+  f.emitTo(0, { type: 'response.output_audio_transcript.done', response_id: 'welcome-main', transcript: 'Welcome to the village.' });
+  f.emitTo(0, { type: 'response.output_audio.delta', response_id: 'welcome-main', delta: 'AAAA' });
+  f.emitTo(0, { type: 'response.done', response: { id: 'welcome-main', status: 'completed' } });
+  await until(() => s.floor.active?.ended);
+  s.floor.acknowledge(s.floor.active.id);
+  assert.equal(s.companion.speaking, true);
+  assert.equal(s.companion.greetingPending, false);
+  assert.equal(s.companion.flushGreeting(), false);
+});
+
+test('compliment speech and treatment share a recipient and model tools cannot retarget it', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', coordinated: true },
+    companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.companion?.ready);
+  s.turnId = 1;
+  s.selectedAddressee = 42;
+  f.emitTo(0, { type: 'conversation.item.input_audio_transcription.completed', item_id: 'compliment', transcript: 'You have a really nice headband.' });
+  await until(() => [...s.pending.values()].some(p => p.name === 'report_treatment'));
+  const treatment = [...s.pending.values()].find(p => p.name === 'report_treatment');
+  assert.equal(treatment.arguments.recipientEntityId, 42);
+  s.queuedResponse = true;
+  s.flushPreparedResponse();
+  assert.equal(s.floor.active.owner, s.companion);
+  f.emitTo(0, { type: 'response.function_call_arguments.done', call_id: 'model-compliment', name: 'report_treatment',
+    arguments: JSON.stringify({ treatment: 'polite', recipientEntityId: 999 }) });
+  await until(() => s.pending.has('model-compliment'));
+  assert.equal(s.pending.get('model-compliment').arguments.recipientEntityId, 42);
+  s.turnId = 2;
+  s.reportTreatment('Mira, you are lovely.', 'explicit-main');
+  assert.equal(s.pending.get(`treatment-${s.id}-2`).arguments.recipientEntityId, null);
+  s.selectedAddressee = -1;
+  s.turnId = 3;
+  s.reportTreatment('Idris, you are lovely.', 'explicit-companion');
+  assert.equal(s.pending.get(`treatment-${s.id}-3`).arguments.recipientEntityId, 42);
+  for (const transcript of ['Mira, Das Kind spielt.', 'Idris, तुम stupid नहीं हो।']) {
+    s.turnId++;
+    s.reportTreatment(transcript, `foreign-${s.turnId}`);
+    assert.equal(s.pending.has(`treatment-${s.id}-${s.turnId}`), false);
   }
 });
