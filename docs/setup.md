@@ -106,8 +106,7 @@ live trade lookup, and audio-only purchases with one spoken confirmation.
    clone, copy `.env.example` to `.env` and generate a token with
    `openssl rand -hex 32`. Never commit `.env`.
 2. Install Node.js 22+ and run `npm --prefix backend ci`. To install the shared
-   villager and rap voices under your own Boson account, install current `yt-dlp`
-   and `ffmpeg` (macOS: `brew install yt-dlp ffmpeg`), then run
+   villager voice for conversations and raps under your own Boson account, run
    `npm --prefix backend run setup:voices`. This calls Boson and may incur usage.
    Start `npm --prefix backend start` in a terminal. Restart the backend after changing
    the key; restart the game server if you change the bridge token.

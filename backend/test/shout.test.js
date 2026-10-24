@@ -28,7 +28,7 @@ test('a chased villager screams in its own voice, heard through the listen chann
       socket.send(JSON.stringify({ type: 'response.done', response: { status: 'completed' } }));
     }
   }));
-  const bridge = createBridge({ token, apiKey: 'fake', rapVoice: 'voice_rap_test', upstreamUrl: `ws://127.0.0.1:${provider.address().port}`, log: () => {} });
+  const bridge = createBridge({ token, apiKey: 'fake', upstreamUrl: `ws://127.0.0.1:${provider.address().port}`, log: () => {} });
   bridge.server.listen(0, '127.0.0.1');
   await once(bridge.server, 'listening');
   t.after(async () => { await bridge.close(); for (const c of provider.clients) c.terminate(); await new Promise(r => provider.close(r)); });
@@ -49,7 +49,8 @@ test('a chased villager screams in its own voice, heard through the listen chann
   assert.match(prompts[0], /^\[A zombie is chasing you right now\] Scream for help/);
   assert.equal(voices[0], 'oliver');
   assert.equal((await post({ kind: 'rap', speaker })).status, 201);
-  await until(() => voices.includes('voice_rap_test'));
+  await until(() => voices.length >= 2);
+  assert.equal(voices[1], 'oliver');
   // Shouts never use up the chatter scene slots.
   for (let i = 0; i < 3; i++) await post({ kind: 'zombie', speaker });
   const scene = await fetch(base + '/scenes', { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
@@ -117,16 +118,10 @@ test('pet remarks carry the pet, validated; fireworks and calling children home 
 });
 
 
-test('rap voice defaults to personality and rejects invalid configured voices', () => {
-  const options = { voiceOverrides: {}, rapVoice: 'voice_rap_test' };
+test('raps use the same custom personality voice as other reactions', () => {
   const named = { ...speaker, personality: { catalogueVersion: 1, archetypeId: 'mira', styleId: 'brisk' } };
-  assert.equal(new ShoutScene({ kind: 'rap', speaker: named }, {}).voice, 'chloe');
-  assert.equal(new ShoutScene({ kind: 'rap', speaker: named }, options).voice, 'voice_rap_test');
-  assert.equal(new ShoutScene({ kind: 'bell', speaker: named }, options).voice, 'chloe');
-  assert.equal(new ShoutScene({ kind: 'rap', speaker }, options).voice, 'voice_rap_test');
-  assert.equal(new ShoutScene({ kind: 'bell', speaker }, options).voice, 'oliver');
+  const options = { voiceOverrides: { warm: 'voice_villager_test' }, rapVoice: 'voice_legacy_ignored' };
+  assert.equal(new ShoutScene({ kind: 'rap', speaker: named }, options).voice, 'voice_villager_test');
+  assert.equal(new ShoutScene({ kind: 'bell', speaker: named }, options).voice, 'voice_villager_test');
   assert.equal(new ShoutScene({ kind: 'rap', speaker }, {}).voice, 'oliver');
-  for (const rapVoice of ['', 'Eminem', null, 123, 'voice_bad\n']) {
-    assert.throws(() => createBridge({ token, rapVoice }), /Invalid voice selection/);
-  }
 });

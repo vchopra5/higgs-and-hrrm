@@ -37,13 +37,6 @@ export function parseCatalogue(document) {
 }
 const editions = parseCatalogue(JSON.parse(readFileSync(new URL('../../shared/personality-catalogue.json', import.meta.url), 'utf8')));
 
-export function validateVoice(voice) {
-  if (typeof voice !== 'string' || voice.trim() !== voice || (!presets.has(voice) && !/^voice_[a-zA-Z0-9_-]{1,128}$/.test(voice))) {
-    throw new Error('Invalid voice selection');
-  }
-  return voice;
-}
-
 export function validateVoiceOverrides(overrides = {}) {
   for (const [key, value] of Object.entries(overrides)) {
     if (!Object.hasOwn(defaults, key) || (value !== undefined && !presets.has(value) && !/^voice_[a-zA-Z0-9_-]{1,128}$/.test(value))) {

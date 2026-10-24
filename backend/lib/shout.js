@@ -66,7 +66,7 @@ export class ShoutCache {
 }
 
 export class ShoutScene {
-  constructor(body, { apiKey, upstreamUrl, connect, now, log, onClose, cache, voiceOverrides = {}, rapVoice, cachedOnly = false }) {
+  constructor(body, { apiKey, upstreamUrl, connect, now, log, onClose, cache, voiceOverrides = {}, cachedOnly = false }) {
     this.cachedOnly = cachedOnly;
     const { kind, speaker, detail } = parseShout(body);
     this.kind = kind;
@@ -82,7 +82,7 @@ export class ShoutScene {
     this.onClose = onClose;
     this.cache = cache;
     this.character = ambientCharacter(speaker.personality, voiceOverrides);
-    this.voice = (kind === 'rap' ? rapVoice : undefined) ?? this.character?.voice ?? 'oliver';
+    this.voice = this.character?.voice ?? 'oliver';
     this.listeners = new Set();
     this.replay = [];
     this.audio = [];

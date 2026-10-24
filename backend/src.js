@@ -21,7 +21,6 @@ function start() {
     upstreamUrl: process.env.HIGGS_REALTIME_URL,
     consolidation: process.env.HIGGS_CONSOLIDATION_ENABLED !== 'false',
     voiceOverrides: { warm: process.env.HIGGS_VOICE_WARM, thoughtful: process.env.HIGGS_VOICE_THOUGHTFUL, steady: process.env.HIGGS_VOICE_STEADY },
-    rapVoice: process.env.HIGGS_VOICE_RAP || undefined,
     dashboardToken: process.env.HIGGS_DASHBOARD_TOKEN,
   });
   const host = process.env.HIGGS_HOST || '127.0.0.1';

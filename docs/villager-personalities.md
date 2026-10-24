@@ -50,18 +50,14 @@ The voice model judges newsworthiness semantically. Personal interests add a sma
 
 ## Voice configuration
 
-To reproduce the shared voices, run `npm --prefix backend run setup:voices` after
-installing backend dependencies, setting your own `BOSON_API_KEY` in `.env`, and
-installing current `yt-dlp` and `ffmpeg`. It registers the Annoying Villiagers voice
-for all personalities and the song-based Eminem voice for raps, then updates only
-the four voice settings in `.env`. Restart the backend afterward. Players using
-the same bridge need no separate voice setup. Separate bridges must register the
-voices using their own key; copying another account's voice IDs is insufficient.
-
-The script downloads the rap reference locally and uses Boson transcription and
-voice registration. Those requests may incur usage. Both registrations must
-succeed before configuration changes. Re-running with identical audio reuses the
-provider's existing voice. See [reference sources](../shared/voices/README.md).
+To reproduce the shared villager voice, run `npm --prefix backend run setup:voices`
+after installing backend dependencies and setting your own `BOSON_API_KEY` in `.env`.
+It registers the bundled Annoying Villiagers reference for all personalities.
+Conversations, reactions, and raps use each villager's normal voice; separate rap
+voice overrides are no longer used. Restart the backend afterward. Players using
+the same bridge need no separate setup. Separate bridges must register the voice
+with their own account key. Setup may incur Boson usage and only changes voice
+settings after registration succeeds. See [reference sources](../shared/voices/README.md).
 
 Optional backend settings in the root `.env` select approved presets or account-owned custom IDs:
 
@@ -70,8 +66,6 @@ HIGGS_VOICE_WARM=chloe
 HIGGS_VOICE_THOUGHTFUL=oliver
 HIGGS_VOICE_STEADY=marcus
 ```
-
-For a separate jukebox rap voice, set `HIGGS_VOICE_RAP` to a preset or an account-owned custom `voice_<id>`. Leave it blank to use the villager's normal voice. This override applies only to raps; conversations and other reactions retain their personality voices.
 
 Restart the backend after changes. The bridge validates mappings and rejects arbitrary voice names or prompt text. For character sessions, **Ready** requires the provider to acknowledge both the compiled instructions and selected voice. It retries once with `default` only for a structured `invalid_request_error` whose `param` is `audio.output.voice` or `session.audio.output.voice`. Authentication, quota, transport and other setup failures retain their existing errors.
 
