@@ -12,3 +12,5 @@ with 250 ms gaps. Transcript generated with Higgs STT, not manually verified.
 The installer creates an account-owned voice ID. Credentials stay in the ignored
 `.env` file. No YouTube downloads or audio-conversion tools are needed.
 All villager voice features use Higgs Realtime 1.5 preview.
+
+See [the malware scan and file hash](SCAN.md) for the bundled WAV verification.
