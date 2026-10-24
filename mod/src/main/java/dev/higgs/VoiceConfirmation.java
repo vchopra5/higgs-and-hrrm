@@ -19,6 +19,14 @@ final class VoiceConfirmation {
         confirmations++;
         return Result.CONFIRMED;
     }
+    /** Re-arm only after a known pre-purchase failure and a repeated quote.
+     * The failed turn stays spent and the original expiry is unchanged.
+     */
+    void retryAfterFailure(int turn) {
+        if (confirmations != 1 || turn != lastTurn)
+            throw new IllegalStateException("No matching failed confirmation");
+        confirmations = 0;
+    }
     /** True when a yes in this turn would be stale, i.e. the player has not just heard the quote. */
     boolean stale(int turn) { return turn > lastTurn + 1; }
     /** The quote is read out again in this turn; only the next turn may accept it. */

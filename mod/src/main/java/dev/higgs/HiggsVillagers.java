@@ -538,6 +538,7 @@ public final class HiggsVillagers implements ModInitializer {
         s.villager.setTradingPlayer(s.player);
         MerchantMenu menu = null;
         MerchantOffer original = null;
+        boolean retryableFailure = false;
         try {
             if (p.index() >= s.villager.getOffers().size()) return outcome("unavailable", "Offer no longer exists.");
             var offer = s.villager.getOffers().get(p.index());
@@ -555,8 +556,11 @@ public final class HiggsVillagers implements ModInitializer {
             menu = new MerchantMenu(-1, s.player.getInventory(), s.villager);
             menu.setSelectionHint(p.index()); menu.tryMoveItems(p.index());
             if (!offer.satisfiedBy(menu.getSlot(0).getItem(), menu.getSlot(1).getItem())
-                || !ItemStack.matches(menu.getSlot(2).getItem(), p.result()))
-                return outcome("missing_items", "You do not have the required items. Nothing was purchased.");
+                || !ItemStack.matches(menu.getSlot(2).getItem(), p.result())) {
+                retryableFailure = true;
+                return quote(p, "missing_items", "You do not have the required items. Nothing was purchased. "
+                    + "Keep this proposalId. Repeat these exact costs and received quantity, then ask the player to get the items and say yes or another clear acceptance to retry. Do not confirm again in this turn.");
+            }
             int space = 0;
             for (int i = 3; i < 39; i++) {
                 var slot = menu.getSlot(i); ItemStack stack = slot.getItem();
@@ -564,7 +568,11 @@ public final class HiggsVillagers implements ModInitializer {
                 else if (ItemStack.isSameItemSameComponents(stack, p.result()))
                     space += Math.max(0, Math.min(slot.getMaxStackSize(p.result()), p.result().getMaxStackSize()) - stack.getCount());
             }
-            if (space < p.result().getCount()) return outcome("inventory_full", "Your inventory is full. Nothing was purchased.");
+            if (space < p.result().getCount()) {
+                retryableFailure = true;
+                return quote(p, "inventory_full", "Your inventory is full. Nothing was purchased. "
+                    + "Keep this proposalId. Repeat these exact costs and received quantity, then ask the player to make room and say yes or another clear acceptance to retry. Do not confirm again in this turn.");
+            }
             boolean purchased = !menu.quickMoveStack(s.player, 2).isEmpty();
             if (purchased) {
                 for (int use = 0; use < p.stockUses(); use++) original.increaseUses();
@@ -598,6 +606,12 @@ public final class HiggsVillagers implements ModInitializer {
                     s.villager.getOffers().set(p.index(), original);
                 }
                 s.player.inventoryMenu.broadcastChanges();
+            }
+            // Only known failures before quickMoveStack may retry, after returning payment items.
+            // Changed offers, ambiguous transaction failures and completed purchases stay consumed.
+            if (retryableFailure) {
+                p.confirmation().retryAfterFailure(turn);
+                s.proposal = p;
             }
         }
     }

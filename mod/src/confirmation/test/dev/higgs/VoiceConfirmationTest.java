@@ -25,6 +25,18 @@ public final class VoiceConfirmationTest {
         check(drifted.advance(9, 101) == VoiceConfirmation.Result.WAIT, "re-presented quote cannot be accepted in the same turn");
         check(drifted.advance(10, 102) == VoiceConfirmation.Result.CONFIRMED, "yes right after the re-presented quote purchases");
         check(!new VoiceConfirmation(6, 5000).stale(7), "the turn right after the quote is not stale");
+        VoiceConfirmation retry = new VoiceConfirmation(30, 5000);
+        check(retry.advance(31, 100) == VoiceConfirmation.Result.CONFIRMED, "first attempt authorized");
+        retry.retryAfterFailure(31);
+        check(retry.advance(31, 101) == VoiceConfirmation.Result.WAIT, "failed utterance cannot retry twice");
+        check(retry.advance(32, 102) == VoiceConfirmation.Result.CONFIRMED, "second yes retries a known failure");
+        retry.retryAfterFailure(32);
+        check(retry.advance(33, 103) == VoiceConfirmation.Result.CONFIRMED, "repeated failure permits another fresh yes");
+        check(retry.advance(34, 104) == VoiceConfirmation.Result.CONSUMED, "success stays consumed");
+        VoiceConfirmation expiringRetry = new VoiceConfirmation(40, 5000);
+        expiringRetry.advance(41, 4999);
+        expiringRetry.retryAfterFailure(41);
+        check(expiringRetry.advance(42, 5000) == VoiceConfirmation.Result.EXPIRED, "retry does not extend quote expiry");
         System.out.println("Voice confirmation regression checks passed");
     }
     private static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }
