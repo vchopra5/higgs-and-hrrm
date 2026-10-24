@@ -42,6 +42,7 @@ public final class HiggsVillagers implements ModInitializer {
     private VillagerAlarm alarm;
     private VillageMoments moments;
     private VillagerOuting outings;
+    private VillagerGossipVisit gossipVisit;
     private final Map<String, Long> bedtimeUntil = new HashMap<>();
     private static final long BEDTIME_MS = 90_000;
     /** The clock is authoritative: REST can be stale after a time command, especially with NoAI. */
@@ -455,7 +456,21 @@ public final class HiggsVillagers implements ModInitializer {
             public void send(ServerPlayer player, JsonObject message) { HiggsVillagers.this.send(player, message); }
             public boolean canSend(ServerPlayer player) { return ServerPlayNetworking.canSend(player, ControlPayload.TYPE); }
         }, personalities, publicBackend);
-        moments = new VillageMoments(alarm, villager -> sessions.values().stream().anyMatch(s -> s.villager == villager || s.companion == villager),
+        gossipVisit = new VillagerGossipVisit(chatter, villager ->
+            sessions.values().stream().anyMatch(s -> s.villager == villager || s.companion == villager)
+                || (outings != null && outings.walking(villager)), !token.isBlank(), (villager, busy) -> {
+            JsonObject message = new JsonObject();
+            message.addProperty("type", "gossip_activity");
+            message.addProperty("villagerId", villager.getUUID().toString());
+            message.addProperty("busy", busy);
+            for (ServerPlayer player : villager.level().getServer().getPlayerList().getPlayers())
+                if (player.level() == villager.level() && player.distanceToSqr(villager) <= 32 * 32
+                        && ServerPlayNetworking.canSend(player, ControlPayload.TYPE)) send(player, message);
+        });
+        memory.gossipPresentation(gossipVisit);
+        chatter.reservations(gossipVisit::busy);
+        moments = new VillageMoments(alarm, villager -> gossipVisit.busy(villager)
+                || sessions.values().stream().anyMatch(s -> s.villager == villager || s.companion == villager),
             (player, villager) -> relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral()).score());
         outings = new VillagerOuting(new VillagerOuting.Host() {
             public void event(ServerPlayer player, JsonObject event) {
@@ -513,6 +528,7 @@ public final class HiggsVillagers implements ModInitializer {
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             memory.tick(server, ++ticks);
+            gossipVisit.tick(ticks);
             if (!token.isBlank()) chatter.tick(server, ticks);
             if (!token.isBlank()) alarm.tick(server, ticks);
             if (!token.isBlank()) moments.tick(server, ticks);
@@ -611,6 +627,7 @@ public final class HiggsVillagers implements ModInitializer {
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             for (Session s : List.copyOf(sessions.values())) end(s.player, false);
             lastStart.clear();
+            gossipVisit.clear();
             memory.stop();
             personalities.stop();
             chatter.clear();

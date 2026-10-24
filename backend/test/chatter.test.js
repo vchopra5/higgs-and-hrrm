@@ -145,6 +145,34 @@ test('scene validation and speaker personas', () => {
   assert.equal(config.tools, undefined, 'chatter can never call trade or memory tools');
 });
 
+test('whisper visits use the literal style tag only in Realtime instructions and expose bounded playback progress', async t => {
+  const f = await fixture(t);
+  const body = scene({ topic: 'rumour', delivery: 'whisper', lines: 2,
+    shared: { story: { summary: 'Alex found a library under the well', toldByPlayer: 'Alex', heardFrom: 'Bram' } } });
+  assert.throws(() => parseScene({ ...body, delivery: '<|style:shouting|>' }));
+  assert.throws(() => parseScene({ ...body, lines: 7 }));
+  assert.throws(() => parseScene({ ...body, topic: 'player' }));
+  assert.doesNotMatch(chatterConfig(parseScene(scene()), 0).session.instructions, /<\|style:whispering\|>/);
+  const { sceneId, token: sceneToken } = await (await f.request('/scenes', 'POST', body)).json();
+  assert.equal((await fetch(`${f.base}/scenes/${sceneId}`)).status, 401, 'progress stays on authenticated server API');
+  const { events } = f.listen(sceneId, sceneToken);
+  await until(() => events.some(e => e.type === 'end'));
+  const status = await (await f.request(`/scenes/${sceneId}`)).json();
+  assert.equal(status.finished, true);
+  assert.equal(status.lines, 2);
+  assert.ok(status.playbackRemainingMs > 0, 'generation finishing must not release villagers before audio plays');
+  for (const update of f.received.filter(e => e.type === 'session.update')) {
+    assert.equal(update.session.model, 'higgs-realtime');
+    assert.match(update.session.instructions, /<\|style:whispering\|>$/);
+    assert.match(update.session.instructions, /Discuss only shared.story/);
+    assert.equal(update.session.tools, undefined);
+  }
+  for (const item of f.received.filter(e => e.type === 'conversation.item.create'))
+    assert.doesNotMatch(item.item.content[0].text, /<\|style:/, 'style belongs in instructions, not spoken input');
+  await delay(status.playbackRemainingMs + 20);
+  assert.equal((await (await f.request(`/scenes/${sceneId}`)).json()).playbackRemainingMs, 0);
+});
+
 test('villagers connect one at a time, and a rate-limited voice check is retried', async t => {
   const f = await fixture(t, { rateLimit: 1 });
   const { sceneId, token: sceneToken } = await (await f.request('/scenes', 'POST', scene({ lines: 2 }))).json();

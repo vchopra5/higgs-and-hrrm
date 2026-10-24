@@ -80,6 +80,18 @@ tasks.register('testMemory', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testMemory' }
 
+tasks.register('compileGossipEncounterTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/GossipEncounter.java', 'src/test/dev/higgs/GossipEncounterTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('gossip-encounter-test')
+}
+tasks.register('testGossipEncounter', JavaExec) {
+    dependsOn 'compileGossipEncounterTest'
+    classpath = files(layout.buildDirectory.dir('gossip-encounter-test'))
+    mainClass = 'dev.higgs.GossipEncounterTest'
+}
+tasks.named('check') { dependsOn 'testGossipEncounter' }
+
 tasks.register('compileTextTermsTest', JavaCompile) {
     source = files('src/main/java/dev/higgs/TextTerms.java', 'src/test/dev/higgs/TextTermsTest.java')
     classpath = files()

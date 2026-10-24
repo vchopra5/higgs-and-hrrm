@@ -35,7 +35,10 @@ final class VillagerChatter {
         void influenced(ServerPlayer player, Villager speaker, Villager listener, int standing);
         String villageName(Villager villager);
     }
-    private record Scene(MinecraftServer server, String id, List<Villager> members, String url, long until, Set<UUID> invited) {}
+    private record Scene(MinecraftServer server, String id, List<Villager> members, String url, long until, Set<UUID> invited,
+                         CompletableFuture<Boolean> completion) {
+        boolean whisper() { return completion != null; }
+    }
     private static final double PAIR_DISTANCE_SQUARED = 6 * 6;
     private static final long SCENE_MS = 60_000;
     private static final long RECENT_HIT_MS = 10 * 60_000;
@@ -53,6 +56,14 @@ final class VillagerChatter {
     private final Map<UUID, Long> lastChat = new HashMap<>();
     private Scene active;
     private boolean starting;
+    private boolean polling;
+    private long generation;
+    private List<Villager> pendingWhisper = List.of();
+    private CompletableFuture<Boolean> pendingCompletion;
+    private java.util.function.Predicate<Villager> reserved = villager -> false;
+
+    void reservations(java.util.function.Predicate<Villager> reserved) { this.reserved = reserved; }
+    boolean availableForGossip() { return !starting && active == null; }
 
     VillagerChatter(Map<String, String> config, Host host, VillagerPersonalityService personalities,
                     VillagerMemoryService memory, String publicBackend) {
@@ -76,9 +87,12 @@ final class VillagerChatter {
         if (!enabled) return;
         long now = System.currentTimeMillis();
         if (active != null) {
-            if (now > active.until()) active = null; // Finished long ago; let any remaining playback end naturally.
-            else if (!active.members().stream().allMatch(this::idle)) stop(true);
-            else if (ticks % 20 == 0) invite(server, active);
+            if (now > active.until()) stop(true);
+            else if (!active.members().stream().allMatch(v -> active.whisper() ? free(v) : idle(v))) stop(true);
+            else if (ticks % 20 == 0) {
+                invite(server, active);
+                if (active.whisper()) poll(server, active);
+            }
             return;
         }
         if (starting || ticks % intervalTicks != 0 || random.nextDouble() >= chance) return;
@@ -113,14 +127,20 @@ final class VillagerChatter {
 
     /** Idle and awake: no chatter once villagers wind down for the night. */
     private boolean idle(Villager villager) {
+        return free(villager) && !reserved.test(villager);
+    }
+
+    private boolean free(Villager villager) {
         return villager.isAlive() && !villager.isBaby() && !villager.isSleeping() && !villager.isTrading() && !host.talking(villager)
-            && !HiggsVillagers.bedtime(villager);
+            && !HiggsVillagers.bedtime(villager) && !VillagerAlarm.chased(villager);
     }
 
     private void start(MinecraftServer server, ServerPlayer player, List<Villager> group) {
         starting = true;
+        long version = ++generation;
         List<CompletableFuture<VillagerPersonalityService.Prepared>> preparing = group.stream().map(personalities::prepare).toList();
         CompletableFuture.allOf(preparing.toArray(CompletableFuture[]::new)).whenComplete((ignored, failure) -> server.execute(() -> {
+            if (version != generation) return;
             if (failure != null || server.isStopped() || !group.stream().allMatch(this::idle) || !player.isAlive()) { starting = false; return; }
             List<VillagerPersonalityStore.Profile> profiles = new ArrayList<>();
             for (int i = 0; i < group.size(); i++) {
@@ -130,24 +150,102 @@ final class VillagerChatter {
             }
             JsonObject body = scene(player, group, profiles);
             host.request("POST", "/scenes", body).whenComplete((reply, error) -> server.execute(() -> {
-                starting = false;
+                if (version == generation) starting = false;
                 if (error != null) {
                     org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Villager chatter unavailable: {}", error.getMessage());
                     return;
                 }
                 JsonObject created = reply.getAsJsonObject();
                 String id = created.get("sceneId").getAsString();
-                if (!group.stream().allMatch(this::idle)) { host.request("DELETE", "/scenes/" + id, null).exceptionally(none -> null); return; }
+                if (version != generation || server.isStopped() || !group.stream().allMatch(this::idle)) {
+                    host.request("DELETE", "/scenes/" + id, null).exceptionally(none -> null); return;
+                }
                 long now = System.currentTimeMillis();
                 for (Villager member : group) lastChat.put(member.getUUID(), now);
                 String url = publicBackend.replaceFirst("^http", "ws") + "/chatter?scene=" + URLEncoder.encode(id, StandardCharsets.UTF_8)
                     + "&token=" + URLEncoder.encode(created.get("token").getAsString(), StandardCharsets.UTF_8);
-                active = new Scene(server, id, List.copyOf(group), url, now + SCENE_MS, new HashSet<>());
+                active = new Scene(server, id, List.copyOf(group), url, now + SCENE_MS, new HashSet<>(), null);
                 org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Villager chatter scene={} topic={} between {}",
                     id, body.get("topic").getAsString(), group.stream().map(v -> v.getName().getString()).toList());
                 invite(server, active);
                 if (body.get("topic").getAsString().equals("player")) gossip(player, group);
             }));
+        }));
+    }
+
+    /** A directed two-line exchange of one specific public story, using the existing Realtime scenes. */
+    CompletableFuture<Boolean> whisper(MinecraftServer server, Villager source, Villager target, VillagerMemoryStore.Memory story) {
+        if (!enabled || !availableForGossip() || !free(source) || !free(target) || story.privateMemory())
+            return CompletableFuture.completedFuture(false);
+        ServerPlayer listener = server.getPlayerList().getPlayers().stream()
+            .filter(p -> p.level() == source.level() && host.canSend(p) && !host.talking(p)
+                && Math.min(p.distanceToSqr(source), p.distanceToSqr(target)) <= hearingSquared)
+            .findFirst().orElse(null);
+        if (listener == null) return CompletableFuture.completedFuture(false);
+        starting = true;
+        long version = ++generation;
+        CompletableFuture<Boolean> result = new CompletableFuture<>();
+        List<Villager> group = List.of(source, target);
+        pendingWhisper = group; pendingCompletion = result;
+        result.whenComplete((ok, error) -> {
+            if (pendingCompletion == result) { pendingWhisper = List.of(); pendingCompletion = null; }
+        });
+        var preparing = group.stream().map(personalities::prepare).toList();
+        CompletableFuture.allOf(preparing.toArray(CompletableFuture[]::new)).whenComplete((ignored, failure) -> server.execute(() -> {
+            if (version != generation) { result.complete(false); return; }
+            if (failure != null || server.isStopped() || !group.stream().allMatch(this::free)) {
+                starting = false; result.complete(false); return;
+            }
+            JsonObject body = new JsonObject();
+            body.addProperty("topic", "rumour"); body.addProperty("delivery", "whisper"); body.addProperty("lines", 2);
+            JsonObject shared = new JsonObject(), news = new JsonObject();
+            news.addProperty("summary", story.summary());
+            news.addProperty("toldByPlayer", story.playerName());
+            news.addProperty("originVillager", story.originName());
+            news.addProperty("heardFrom", source.getName().getString());
+            shared.add("story", news); body.add("shared", shared);
+            JsonArray speakers = new JsonArray();
+            for (int i = 0; i < group.size(); i++) {
+                var prepared = preparing.get(i).join();
+                personalities.applyName(group.get(i), prepared);
+                JsonObject speaker = speaker(listener, group.get(i), prepared.profile(), List.of(group.get(1 - i)));
+                // Keep unrelated memories and opinions out of this exact-story exchange.
+                JsonObject facts = new JsonObject();
+                facts.addProperty("role", i == 0 ? "Tell your neighbour the supplied story, crediting its source"
+                    : "React briefly to the story your neighbour just told you");
+                speaker.add("facts", facts); speakers.add(speaker);
+            }
+            body.add("speakers", speakers);
+            host.request("POST", "/scenes", body).whenComplete((reply, error) -> server.execute(() -> {
+                if (version == generation) starting = false;
+                if (error != null) { result.complete(false); return; }
+                JsonObject created = reply.getAsJsonObject();
+                String id = created.get("sceneId").getAsString();
+                if (version != generation || server.isStopped() || !group.stream().allMatch(this::free)) {
+                    host.request("DELETE", "/scenes/" + id, null).exceptionally(none -> null);
+                    result.complete(false); return;
+                }
+                String url = publicBackend.replaceFirst("^http", "ws") + "/chatter?scene=" + URLEncoder.encode(id, StandardCharsets.UTF_8)
+                    + "&token=" + URLEncoder.encode(created.get("token").getAsString(), StandardCharsets.UTF_8);
+                active = new Scene(server, id, group, url, System.currentTimeMillis() + SCENE_MS, new HashSet<>(), result);
+                for (Villager member : group) lastChat.put(member.getUUID(), System.currentTimeMillis());
+                invite(server, active);
+            }));
+        }));
+        return result;
+    }
+
+    private void poll(MinecraftServer server, Scene scene) {
+        if (polling) return;
+        polling = true;
+        host.request("GET", "/scenes/" + scene.id(), null).whenComplete((reply, error) -> server.execute(() -> {
+            polling = false;
+            if (active != scene) return;
+            if (error != null) { stop(true); return; }
+            JsonObject status = reply.getAsJsonObject();
+            if (!status.get("finished").getAsBoolean() || status.get("playbackRemainingMs").getAsLong() > 0) return;
+            active = null;
+            scene.completion().complete(status.get("lines").getAsInt() > 0);
         }));
     }
 
@@ -276,12 +374,14 @@ final class VillagerChatter {
         for (ServerPlayer player : server.getPlayerList().getPlayers()) {
             if (scene.invited().contains(player.getUUID()) || player.level() != scene.members().getFirst().level()
                 || !host.canSend(player) || host.talking(player)
-                || scene.members().stream().mapToDouble(player::distanceToSqr).min().orElse(Double.MAX_VALUE) > hearingSquared) continue;
+                || scene.members().stream().mapToDouble(player::distanceToSqr).min().orElse(Double.MAX_VALUE)
+                    > (scene.whisper() ? 25 : hearingSquared)) continue;
             scene.invited().add(player.getUUID());
             JsonObject message = new JsonObject();
             message.addProperty("type", "chatter");
             message.addProperty("sceneId", scene.id());
             message.addProperty("url", scene.url());
+            message.addProperty("whisper", scene.whisper());
             host.send(player, message);
         }
     }
@@ -289,12 +389,23 @@ final class VillagerChatter {
     /** A player started talking to one of the chatting villagers: the scene yields to the conversation. */
     void villagerBusy(Villager villager) {
         if (active != null && active.members().contains(villager)) stop(true);
+        else if (pendingWhisper.contains(villager)) stop(true);
+    }
+
+    void cancelWhisper(Villager source, Villager target) {
+        if (pendingWhisper.contains(source) || pendingWhisper.contains(target)
+                || (active != null && active.whisper() && (active.members().contains(source) || active.members().contains(target))))
+            stop(true);
     }
 
     void stop(boolean notifyBackend) {
+        generation++;
+        starting = false;
+        if (pendingCompletion != null) pendingCompletion.complete(false);
         Scene scene = active;
         active = null;
         if (scene == null) return;
+        if (scene.completion() != null) scene.completion().complete(false);
         if (notifyBackend) host.request("DELETE", "/scenes/" + scene.id(), null).exceptionally(ignored -> null);
         // Clients may hold lines already generated; tell them to stop rather than finish the scene.
         JsonObject message = new JsonObject();

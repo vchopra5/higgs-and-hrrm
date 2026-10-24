@@ -183,12 +183,16 @@ public final class VillagerMemoryStore implements AutoCloseable {
         return snapshot;
     }
 
-    public synchronized boolean receive(Memory memory, UUID source, String sourceName, UUID recipient, long now) {
+    public synchronized boolean canReceive(Memory memory, UUID source, UUID recipient, long now) {
         if (closed || memory.privateMemory || memory.interest.score < GOSSIP_THRESHOLD || memory.hops >= limits.maxHops || memory.expiresAt <= now
             || memory.revision > persistedRevision || !memory.ownerId.equals(source)
             || !has(source, memory.rootId) || has(recipient, memory.rootId) || source.equals(recipient)) return false;
         Memory current = memories.get(source).get(memory.rootId);
-        if (current.privateMemory || !current.equals(memory)) return false;
+        return !current.privateMemory && current.equals(memory);
+    }
+
+    public synchronized boolean receive(Memory memory, UUID source, String sourceName, UUID recipient, long now) {
+        if (!canReceive(memory, source, recipient, now)) return false;
         insert(new Memory(memory.rootId, recipient, memory.playerId, memory.playerName,
             memory.originId, memory.originName, source, label(sourceName), memory.summary,
             false, memory.createdAt, memory.expiresAt, memory.hops + 1, ++revision, memory.interest, Math.max(now, memory.createdAt)));

@@ -24,13 +24,18 @@ public final class SpatialVoice extends AbstractTickableSoundInstance implements
     private final VoicePcmBuffer pcm = new VoicePcmBuffer();
 
     SpatialVoice(Entity villager) {
+        this(villager, false);
+    }
+
+    SpatialVoice(Entity villager, boolean whisper) {
         super(SoundEvent.createVariableRangeEvent(Identifier.fromNamespaceAndPath("higgs_villagers", "voice/" + UUID.randomUUID())),
             SoundSource.NEUTRAL, RandomSource.create());
         this.villager = villager;
-        sound = new Sound(identifier, ConstantFloat.of(1), ConstantFloat.of(1), 1, Sound.Type.FILE, true, false, 16);
+        sound = new Sound(identifier, ConstantFloat.of(1), ConstantFloat.of(1), 1, Sound.Type.FILE, true, false, whisper ? 5 : 16);
         attenuation = Attenuation.LINEAR;
         relative = false;
-        volume = pitch = 1;
+        volume = whisper ? 0.65f : 1;
+        pitch = 1;
         updatePosition();
         STREAMS.put(sound.getPath(), this);
     }

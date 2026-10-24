@@ -25,6 +25,15 @@ public final class VillagerMemoryService {
     private VillagerJournal journal;
     private int cursor;
     private volatile boolean stopping;
+    private GossipPresentation gossipPresentation;
+
+    interface GossipPresentation {
+        boolean offer(MinecraftServer server, Villager source, Villager target, VillagerMemoryStore.Memory story,
+                      java.util.function.BooleanSupplier valid,
+                      java.util.function.Supplier<CompletableFuture<Boolean>> deliver);
+    }
+
+    void gossipPresentation(GossipPresentation presentation) { gossipPresentation = presentation; }
     private Bonds bonds = new Bonds() {
         public int standing(Villager villager, ServerPlayer player) { return 0; }
         public void reached(Villager villager, ServerPlayer player, RelationshipStage stage) {}
@@ -358,9 +367,29 @@ public final class VillagerMemoryService {
                 if (sourcePolicy == null) break;
                 var neighbours = level.getEntitiesOfClass(Villager.class, source.getBoundingBox().inflate(radius),
                     target -> !target.getUUID().equals(id) && eligible(target));
+                // Bound the work before ranking: prefer a listener whose profession fits the news.
+                if (gossipPresentation != null) {
+                    neighbours = new ArrayList<>(neighbours.subList(0, Math.min(16, neighbours.size())));
+                    neighbours.sort(Comparator.comparingLong((Villager target) -> {
+                        var story = gossip.select(contact(source), contact(target), snapshot.get(id), store, now,
+                            sourcePolicy, personalities.policy(target));
+                        return story == null ? Long.MIN_VALUE : VillagerMemoryStore.priority(story, profession(target), null, now);
+                    }).reversed());
+                }
                 int checked = 0;
                 for (Villager target : neighbours) {
                     if (++checked > 16 || delivered.size() >= 64) break;
+                    if (gossipPresentation != null) {
+                        var story = gossip.select(contact(source), contact(target), snapshot.get(id), store, now,
+                            sourcePolicy, personalities.policy(target));
+                        if (story != null && gossipPresentation.offer(server, source, target, story,
+                                () -> shareable(source, target, story), () -> deliver(server, source, target, story))) {
+                            cursor = Math.floorMod(cursor + i + 1, owners.size());
+                            personalities.flush();
+                            return;
+                        }
+                        continue;
+                    }
                     if (gossip.spread(contact(source), contact(target), snapshot.get(id), store, now, sourcePolicy, personalities.policy(target)))
                         delivered.add(new Villager[]{source, target});
                 }
@@ -385,6 +414,24 @@ public final class VillagerMemoryService {
                     }
                 }
             });
+        });
+    }
+
+    private boolean shareable(Villager source, Villager target, VillagerMemoryStore.Memory story) {
+        return !stopping && store != null && source.level() == target.level()
+            && gossip.select(contact(source), contact(target), List.of(story), store, System.currentTimeMillis(),
+                personalities.policy(source), personalities.policy(target)) != null;
+    }
+
+    /** Recheck the exact story on arrival; no replacement story may silently be delivered instead. */
+    private CompletableFuture<Boolean> deliver(MinecraftServer server, Villager source, Villager target,
+                                               VillagerMemoryStore.Memory story) {
+        if (!shareable(source, target, story) || !gossip.spread(contact(source), contact(target), List.of(story), store,
+                System.currentTimeMillis(), personalities.policy(source), personalities.policy(target)))
+            return CompletableFuture.completedFuture(false);
+        return store.flush().handle((ignored, failure) -> {
+            if (failure != null) LOG.error("Could not save a gossip exchange", failure);
+            return failure == null;
         });
     }
 }

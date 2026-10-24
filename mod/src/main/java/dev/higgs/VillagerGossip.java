@@ -36,23 +36,29 @@ public final class VillagerGossip {
     }
     public boolean spread(Contact source, Contact target, List<VillagerMemoryStore.Memory> snapshot,
                           VillagerMemoryStore store, long now, Policy sourcePolicy, Policy targetPolicy) {
-        if (sourcePolicy == null || targetPolicy == null) return false;
+        var memory = select(source, target, snapshot, store, now, sourcePolicy, targetPolicy);
+        if (memory == null || !store.receive(memory, source.id, source.name, target.id, now)) return false;
+        cooldowns.put(Pair.of(source.id, target.id), now + cooldownMs * sourcePolicy.cooldownPercent / 100);
+        return true;
+    }
+
+    /** Pick a story without delivering it or consuming the cooldown: a villager still has to reach its neighbour. */
+    public VillagerMemoryStore.Memory select(Contact source, Contact target, List<VillagerMemoryStore.Memory> snapshot,
+                          VillagerMemoryStore store, long now, Policy sourcePolicy, Policy targetPolicy) {
+        if (sourcePolicy == null || targetPolicy == null) return null;
         if (!source.eligible || !target.eligible || source.id.equals(target.id)
-            || !source.dimension.equals(target.dimension)) return false;
+            || !source.dimension.equals(target.dimension)) return null;
         double dx = source.x - target.x, dy = source.y - target.y, dz = source.z - target.z;
-        if (dx * dx + dy * dy + dz * dz > radiusSquared) return false;
+        if (dx * dx + dy * dy + dz * dz > radiusSquared) return null;
         cooldowns.entrySet().removeIf(entry -> entry.getValue() <= now);
         Pair pair = Pair.of(source.id, target.id);
-        if (cooldowns.containsKey(pair) || cooldowns.size() >= 4096) return false;
+        if (cooldowns.containsKey(pair) || cooldowns.size() >= 4096) return null;
         for (var memory : snapshot.stream()
             .filter(memory -> memory.interest().score() >= sourcePolicy.threshold && now - memory.learnedAt() >= sourcePolicy.delayMs)
             .sorted(order(target.profession, null, now, targetPolicy.interests)).toList()) {
-            if (store.receive(memory, source.id, source.name, target.id, now)) {
-                cooldowns.put(pair, now + cooldownMs * sourcePolicy.cooldownPercent / 100);
-                return true;
-            }
+            if (store.canReceive(memory, source.id, target.id, now)) return memory;
         }
-        return false;
+        return null;
     }
     public static Comparator<VillagerMemoryStore.Memory> order(String profession, UUID player, long now, List<String> interests) {
         return Comparator.<VillagerMemoryStore.Memory>comparingLong(memory ->
