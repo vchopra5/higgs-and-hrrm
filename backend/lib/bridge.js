@@ -7,6 +7,8 @@ import { BridgeSession } from './session.js';
 import { CHATTER_LIMITS, ChatterScene } from './chatter.js';
 import { submitToolResult } from './tools.js';
 
+const CONTINUE_MS = 2 * 60_000;
+
 export function createBridge({
   apiKey,
   token,
@@ -21,11 +23,17 @@ export function createBridge({
   }
   voiceOverrides = validateVoiceOverrides(voiceOverrides);
   const sessions = new Map();
+  const recentConversations = new Map();
   const scenes = new Map();
   const expectedAuth = Buffer.from(`Bearer ${token}`);
   const sessionOptions = {
     apiKey, upstreamUrl, connect, now, log, voiceOverrides,
-    onClose: id => sessions.delete(id),
+    onClose: id => {
+      // Keep the last lines briefly: switching to another villager in the same conversation carries them over.
+      const closing = sessions.get(id);
+      if (closing?.recentLines?.length) recentConversations.set(closing.playerId, { lines: closing.recentLines.slice(-8), at: now() });
+      sessions.delete(id);
+    },
   };
 
   function authorized(request) {
@@ -43,6 +51,12 @@ export function createBridge({
     const replacing = [...sessions.values()].some(session => session.playerId === body.playerId);
     if (!replacing && sessions.size >= LIMITS.sessions) {
       return replyJson(response, 429, { error: 'Session limit reached' });
+    }
+    // The game server marks a switch to someone already in the conversation; they pick up where it left off.
+    const recent = recentConversations.get(body.playerId);
+    recentConversations.delete(body.playerId);
+    if (body.context.continuing && recent && now() - recent.at <= CONTINUE_MS) {
+      body.context.recentConversation = recent.lines.map(line => `${line.speaker}: ${line.text}`);
     }
     const session = new BridgeSession(body, sessionOptions);
     for (const session of sessions.values()) {

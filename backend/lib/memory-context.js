@@ -2,6 +2,7 @@
 // examines, rewrites, or filters what the villager says.
 const MAX_TRACKED_ITEMS = 64;
 const MAX_MEMORIES = 32;
+const MAX_EPISODES = 8;
 
 export class MemoryContext {
   constructor(session, { transcriptionMs = 3500, recallMs = 2500 } = {}) {
@@ -102,7 +103,7 @@ export class MemoryContext {
     if (this.closed || !this.active || !tool?.memoryContext
         || tool.callId !== this.active.callId || tool.turnId !== this.active.turnId) return false;
     if (result && !result.error && Array.isArray(result.memories)) {
-      this.finish('ready', result.memories);
+      this.finish('ready', result.memories, result.episodes);
     } else this.finish('unavailable');
     return true;
   }
@@ -122,7 +123,7 @@ export class MemoryContext {
     current.timer.unref?.();
   }
 
-  finish(status, memories) {
+  finish(status, memories, episodes) {
     if (!this.active || this.closed) return;
     this.cancel();
     if (this.session.closed) return;
@@ -132,6 +133,8 @@ export class MemoryContext {
       status,
       asOf: this.session.now(),
     };
+    // Observed events (trades, gifts, quests…) the villager saw, matched to this turn.
+    if (Array.isArray(episodes) && episodes.length) this.session.preparedMemory.episodes = episodes.slice(0, MAX_EPISODES);
     this.session.flushPreparedResponse();
   }
 

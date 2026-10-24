@@ -182,3 +182,22 @@ test('close cancels timers and reads and never resumes a response', t => {
   assert.equal(session.flushed, 0);
   assert.equal(memory.commits.length, 0);
 });
+
+test('observed episodes matched to the turn reach the model beside memories', async () => {
+  const sent = [];
+  const session = { id: 's', closed: false, pending: new Map(), now: () => 5, context: { memories: [] },
+    flushPreparedResponse() {}, sendProvider: event => sent.push(event) };
+  const memory = new MemoryContext(session);
+  memory.beginTurn(1);
+  memory.committed('turn-1');
+  memory.transcript('turn-1', 'What did I buy from you last time?');
+  const call = [...session.pending.values()][0];
+  const episodes = [{ when: '2 days ago', what: 'Steve bought 2 × Iron Axe from me for 5 × Emerald' }];
+  memory.acceptResult(call, { memories: [], episodes });
+  assert.deepEqual(session.preparedMemory.episodes, episodes);
+  memory.beginTurn(2);
+  memory.committed('turn-2');
+  memory.transcript('turn-2', 'Hello');
+  memory.acceptResult([...session.pending.values()][0], { memories: [] });
+  assert.equal('episodes' in session.preparedMemory, false, 'no episodes, no key');
+});

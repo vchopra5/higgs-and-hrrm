@@ -175,6 +175,17 @@ Each finished turn from you and the villager is added to Minecraft chat, so the 
 
 Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
 
+## Long-term memory
+
+Villagers remember what actually happened between you, not only what you told them:
+trades (with what you paid), gifts and refused gifts, quests set and finished, errands,
+hits, kind or rude words, and the day you first met. Villagers nearby who saw you hit,
+gift or trade with a neighbour remember that too. Each conversation starts with this
+history, and a villager may bring up one shared moment naturally (“still happy with
+those axes?”); asking “what did I buy last time?” finds it. Routine events fade after 30
+real days, important ones (quests, first meetings) last up to four times longer, and
+things you told villagers now last 30 days. Saved in `data/higgs-journal.json`.
+
 ## Gifts
 
 Hand a villager a gift by voice (“I brought you a diamond… here you go”) or by sneaking

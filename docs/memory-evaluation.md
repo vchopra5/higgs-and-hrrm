@@ -92,3 +92,22 @@ node backend/bench/production-memory-ptt.mjs --live --greet --follow-up
 ```
 
 Live commands use the configured Boson API key and incur ordinary provider usage; only synthetic fixture content is sent. The default dialogue command without `--live` prints the fixture manifest without network calls. Build checks run `benchmarkMemory` and write `mod/build/reports/memory-benchmark.json`.
+
+## Observed episodes and long-term relationships
+
+The comparison above left "server-observed episodes as a separate evidence type" as future work. `VillagerJournal` adds it: the game server writes short first-person lines for what a villager actually saw happen with a player, never inferred from dialogue.
+
+| Episode | Recorded when | Salience |
+| --- | --- | ---: |
+| `first_met` | the first conversation with that player | 5 |
+| `trade` | a voice purchase completes (quest deals noted) | 3–4 |
+| `gift`, `gift_refused` | a gift is given, or refused and handed back | 2–4 |
+| `quest_set`, `quest_done` | a quest is set; its items are delivered | 4, 5 |
+| `errand_given`, `errand_done`, `errand_received` | an errand is set; delivered (giver and recipient) | 3–4 |
+| `hit` (merged per 30 s), `insult`, `kindness` (merged per 10 min) | physical hits and assessed treatment | 2–4 |
+| `shunned`, `chatter_heard` | the villager refused to talk; a neighbour praised or badmouthed the player | 2 |
+| `witnessed` | another villager within 8 blocks with line of sight saw a hit, gift or trade | 2 |
+
+Episodes are kept per villager and player (48 per pair, 20,000 total), evicting the least important and oldest first. They fade after `HIGGS_MEMORY_EPISODE_DAYS` (default 30); salience 4 lasts twice as long, salience 5 four times. A per-pair relationship summary never expires (written by consolidation in a later phase). Player-claim memories now default to 30 days (`HIGGS_MEMORY_TTL_HOURS=720`).
+
+Each conversation starts with `context.relationship`: the summary, six recent episodes (favouring the most important, in chronological order, with in-game relative times), and counts by type. The PTT recall step also searches episode text with the same lexical analysis (`TextTerms`) and adds matches to the recollection item as `episodes`, beside `memories`. The prompt distinguishes the two: episodes are things the villager saw; memories are things the player said. It asks for at most one natural callback per conversation and no invented history. Covered by `VillagerJournalTest` (merge, caps, salience eviction, expiry tiers, search, restart, schema rejection) and backend tests for episode delivery.

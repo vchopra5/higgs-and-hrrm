@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { WebSocket, WebSocketServer } from 'ws';
-import { createBridge } from '../src.js';
+import { createBridge, sessionConfig } from '../src.js';
 
 const token = 'b'.repeat(64);
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -794,8 +794,11 @@ test('a companion answers when named, hears every line, and its lines reach the 
   assert.ok(f.logs.some(e => e.stage === 'companion_answer'));
   assert.equal(session.responseDone, true, 'the main villager stays quiet this turn');
   const items = () => f.received.filter(e => e.type === 'conversation.item.create').map(e => e.item.content[0].text);
-  assert.ok(items().includes('[Steve said] Bram, what do you make of her prices?'), 'the companion heard the player');
-  assert.ok(items().includes('[The player Steve is speaking to you] Answer what they just said, briefly.'));
+  // One cue per reply, with the conversation quoted inside it: separate text items get read aloud.
+  const cue = items().find(text => text.includes('[The player Steve is speaking to you] Answer what they just said, briefly.'));
+  assert.ok(cue.startsWith('[Conversation so far. Context only: never read it out'), 'context is marked as not to be repeated');
+  assert.ok(cue.includes('Steve: Bram, what do you make of her prices?'), 'the companion heard the player');
+  assert.equal(items().some(text => text.startsWith('[Steve said]')), false, 'no standalone overheard lines');
   // Bram replies: the client gets companion audio and a caption, and Iris hears it as context.
   f.emitTo(1, { type: 'response.created', response: { id: 'bram-1' } });
   f.emitTo(1, { type: 'response.output_audio.delta', response_id: 'bram-1', delta: 'QlJBTQ==' });
@@ -803,7 +806,12 @@ test('a companion answers when named, hears every line, and its lines reach the 
   f.emitTo(1, { type: 'response.done', response: { id: 'bram-1', status: 'completed' } });
   await until(() => f.events.some(e => e.type === 'transcript' && e.speaker === 'companion'));
   assert.ok(f.events.some(e => e.type === 'audio' && e.speaker === 'companion' && e.audio === 'QlJBTQ=='));
-  await until(() => items().includes('[Bram 2, your neighbour, said] Fair enough, for a librarian.'));
+  await until(() => session.companionLines.includes('Bram 2: Fair enough, for a librarian.'));
+  assert.equal(items().some(text => text.includes('Fair enough, for a librarian')), false, 'held until Iris next replies');
+  session.createConversationResponse();
+  await until(() => items().some(text => text.startsWith('[What your neighbour said since you last spoke. Context only')
+    && text.endsWith('Bram 2: Fair enough, for a librarian.')));
+  assert.deepEqual(session.companionLines, [], 'delivered once');
   assert.equal(session.companion.speaking, false);
 });
 
@@ -850,13 +858,14 @@ test('a neighbour joins mid-conversation, catches up, and leaves when a friend a
   assert.equal((await f.request(`/sessions/${f.sessionId}/companion`, 'POST', { entityId: 10, name: 'Dot', profession: 'mason' })).status, 409, 'one companion at a time');
   await until(() => session.companion?.ready);
   const items = () => f.received.filter(e => e.type === 'conversation.item.create').map(e => e.item.content[0].text);
-  await until(() => items().some(text => text.startsWith('[You just walked up and joined]')));
-  assert.ok(items().includes('[Steve said] Any news from the mine?') && items().includes('[Iris said] They found silver, I hear.'), 'caught up on recent lines');
+  await until(() => items().some(text => text.includes('[You just walked up and joined]')));
+  const hello = items().find(text => text.includes('[You just walked up and joined]'));
+  assert.ok(hello.includes('Steve: Any news from the mine?') && hello.includes('Iris: They found silver, I hear.'), 'caught up on recent lines');
   f.emitTo(1, { type: 'response.done', response: { id: 'hello', status: 'completed' } });
   await until(() => !session.companion.speaking);
   // A friendly companion always obliges.
   await spokenTurn(f, session, 'turn-2', 'Bram, could you give us a moment?');
-  await until(() => items().some(text => text.startsWith('[The player asked you to leave them and Iris to talk] You oblige')));
+  await until(() => items().some(text => text.includes('[The player asked you to leave them and Iris to talk] You oblige')));
   assert.equal(session.responseDone, true, 'Iris stays quiet while Bram answers');
   const bram = session.companion;
   f.emitTo(1, { type: 'response.created', response: { id: 'bye' } });
@@ -883,4 +892,37 @@ test('a companion who does not like the player may stay to listen', async t => {
   await delay(50);
   assert.ok(session.companion, 'still there');
   assert.equal(f.events.some(e => e.type === 'companion_left'), false);
+});
+
+test('switching to someone already in the conversation carries it over without a fresh greeting', async t => {
+  const f = await fixture(t, { context: { name: 'Nell', profession: 'cleric', playerName: 'Steve' } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  session.remember('Steve', 'How is it going?');
+  session.remember('Nell', 'Quiet today; good for mending tools.');
+  assert.equal((await f.request(`/sessions/${f.sessionId}`, 'DELETE')).status, 200);
+  const switched = await f.request('/sessions', 'POST', { playerId: 'player', villagerId: 'orin',
+    context: { name: 'Orin', profession: 'farmer', playerName: 'Steve', autoGreeting: false, continuing: { previous: 'Nell' } },
+    companion: { entityId: 3, name: 'Nell', profession: 'cleric' } });
+  assert.equal(switched.status, 201);
+  const { sessionId } = await switched.json();
+  const orin = f.bridge.sessions.get(sessionId);
+  assert.deepEqual(orin.context.recentConversation, ['Steve: How is it going?', 'Nell: Quiet today; good for mending tools.']);
+  assert.match(orin.companionSpec.name, /Nell/);
+  const config = sessionConfig(orin.context, 'ptt').session;
+  assert.match(config.instructions, /If context.continuing is set, you were already part of this conversation a moment ago/);
+  assert.match(config.instructions, /Steve: How is it going\?/);
+  // Without the continuing flag (or after two minutes) nothing carries over.
+  const fresh = await f.request('/sessions', 'POST', { playerId: 'player', villagerId: 'bram', context: { name: 'Bram' } });
+  assert.equal(f.bridge.sessions.get((await fresh.json()).sessionId).context.recentConversation, undefined);
+});
+
+test('a companion present from the start knows the carried-over lines but does not greet', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { name: 'Orin', profession: 'farmer', playerName: 'Steve',
+    continuing: { previous: 'Nell' }, recentConversation: ['Nell: Quiet today.'] },
+    companion: { entityId: 3, name: 'Nell', profession: 'cleric' } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  await until(() => session.companion?.ready);
+  await delay(50);
+  assert.equal(session.companion.speaking, false, 'no hello from a companion who never left');
+  assert.deepEqual(session.companion.transcript, [{ speaker: 'Nell', text: 'Quiet today.' }]);
 });

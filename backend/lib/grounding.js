@@ -16,7 +16,8 @@ const TRADE_FIX = ' Nothing was agreed or purchased. Briefly correct yourself, t
   + 'and say only the exact terms it returns, then ask Confirm trade? Never say a trade is done unless confirm_trade returns purchased.';
 const GIFT_FIX = ' Nothing was handed over yet. If the player is clearly giving you something, call receive_gift with the item they named; '
   + 'otherwise ask what they would like to give. Thank them only after receive_gift reports it.';
-const COMPLETED = /\b(?:done,? thanks|it'?s done|trade (?:is )?(?:done|complete)|here you (?:go|are)|pleasure doing business|enjoy your new)\b/i;
+// "I'll be grateful when it's done" is a promise, not a finished trade.
+const COMPLETED = /\b(?:done,? thanks|(?<!\b(?:when|once|until|till|after|if|before) )it'?s done|trade (?:is )?(?:done|complete)|here you (?:go|are)|pleasure doing business|enjoy your new)\b/i;
 
 function spoken(count) {
   if (count < 20) return ONES[count];

@@ -93,6 +93,8 @@ test('trade schema opens at normal prices and lets reputation decide haggling', 
   assert.match(instructions, /When the player says they brought the quest items, call complete_quest/);
   assert.match(instructions, /you may call offer_errand/);
   assert.match(instructions, /call deliver_errand/);
+  assert.match(instructions, /context.relationship is your own long-term history with this player/);
+  assert.match(instructions, /Never invent history beyond it/);
   assert.deepEqual(tools.find(t => t.name === 'offer_quest').parameters.required, ['item']);
   assert.deepEqual(Object.keys(tools.find(t => t.name === 'complete_quest').parameters.properties), []);
   assert.match(instructions, /Never repeat a price from earlier in the conversation or from memory/);

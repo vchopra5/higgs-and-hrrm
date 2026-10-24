@@ -53,6 +53,9 @@ public final class HiggsVillagers implements ModInitializer {
         // At most one attack per server tick; retain rapid attacks in the statistics.
         if (history.latest() != Long.MIN_VALUE && now - history.latest() < 50) return;
         RecentHits.Stats stats = history.record(now);
+        String hitter = player.getName().getString();
+        memory.observe(villager, player, "hit", hitter + (stats.count() > 1 ? " hit me " + stats.count() + " times" : " hit me"), 4, RecentHits.WINDOW_MS);
+        memory.witnesses(villager, player, "I saw " + hitter + " hit " + villager.getName().getString(), RecentHits.WINDOW_MS);
         // Invulnerable demo villagers skip vanilla damage feedback. Reproduce only
         // its visual animation; health, invulnerability, and position are unchanged.
         if (villager.isInvulnerable() && villager.hurtTime == 0) {
@@ -260,6 +263,9 @@ public final class HiggsVillagers implements ModInitializer {
             tradeStatus(s, outcome("cancelled", "Reputation changed; ask again for the new price."));
         }
         Negotiation.Band limits = band(s);
+        if (!tone.equals("neutral")) memory.observe(s.villager, s.player, tone.equals("polite") ? "kindness" : "insult",
+            s.player.getName().getString() + (tone.equals("polite") ? " said something kind to me" : " insulted me"),
+            tone.equals("polite") ? 2 : 3, 10 * 60_000L);
         org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Treatment turn={} tone={} relationship={} band={}",
             turn, tone, next.score(), limits.name());
         if (tone.equals("rude") && Negotiation.hostile(next.score())) rallyGolems(s.player, s.villager);
@@ -407,6 +413,8 @@ public final class HiggsVillagers implements ModInitializer {
             public void influenced(ServerPlayer player, Villager speaker, Villager listener, int standing) {
                 String key = player.getUUID() + ":" + listener.getUUID();
                 TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
+                memory.observe(listener, player, "chatter_heard", speaker.getName().getString()
+                    + (standing > previous.score() ? " spoke well of " : " badmouthed ") + player.getName().getString() + " to me", 2, 0);
                 relationships.put(key, new TradeReputation(standing, System.currentTimeMillis(), previous.lastHit()));
                 saveTradeReputations();
                 boolean praise = standing > previous.score();
@@ -601,7 +609,18 @@ public final class HiggsVillagers implements ModInitializer {
             });
         } catch (RuntimeException ex) { error(player, "Invalid villager request."); }
     }
+    private record RecentConversation(Set<UUID> villagers, String previous, long until) {}
+    private static final long CONTINUE_MS = 2 * 60_000;
+    private final Map<UUID, RecentConversation> recentConversations = new HashMap<>();
+    /** The villager was speaking or listening in this player's conversation moments ago. */
+    private RecentConversation continuing(ServerPlayer player, Villager villager) {
+        RecentConversation recent = recentConversations.get(player.getUUID());
+        if (recent == null || System.currentTimeMillis() > recent.until()) { recentConversations.remove(player.getUUID()); return null; }
+        return recent.villagers().contains(villager.getUUID()) ? recent : null;
+    }
     private void startVoice(MinecraftServer server, Session s, boolean autoGreeting) {
+        RecentConversation continued = continuing(s.player, s.villager);
+        if (continued != null) autoGreeting = false; // Already greeted: no hello again after switching.
         try {
             ServerPlayer player = s.player;
             Villager villager = s.villager;
@@ -617,6 +636,10 @@ public final class HiggsVillagers implements ModInitializer {
             JsonObject village = villages.context(player, villager);
             if (village != null) context.add("village", village);
             context.add("gifts", giftContext(player, villager));
+            context.add("relationship", memory.relationshipContext(villager, player));
+            VillagerJournal journal = memory.journal();
+            if (journal != null && journal.all(villager.getUUID(), player.getUUID(), System.currentTimeMillis()).stream().noneMatch(e -> !e.witnessed()))
+                memory.observe(villager, player, "first_met", "I met " + player.getName().getString() + " for the first time", 5, 0);
             if (s.companion != null) {
                 JsonObject neighbour = new JsonObject();
                 neighbour.addProperty("name", s.companion.getName().getString());
@@ -629,6 +652,11 @@ public final class HiggsVillagers implements ModInitializer {
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
+            if (continued != null) {
+                JsonObject carry = new JsonObject();
+                carry.addProperty("previous", continued.previous());
+                context.add("continuing", carry);
+            }
             JsonObject trade = tradeContext(s);
             context.add("trade", trade);
             if (trade.get("canTrade").getAsBoolean()) context.add("offers", offers(s));
@@ -865,6 +893,10 @@ public final class HiggsVillagers implements ModInitializer {
         String query = arguments.get("item").getAsString();
         int count = arguments.has("count") ? arguments.get("count").getAsInt() : 1;
         ItemStack found = findGift(s.player, query);
+        // Handing over an errand package is a delivery, not a gift.
+        Errand open = errand(s.player);
+        if (found != null && open != null && open.kind().equals("item") && open.targetId().equals(s.villager.getUUID().toString())
+            && id(found).equals(open.item())) return deliverErrand(s, "");
         if (found == null) return outcome("not_found", "The player has no " + query + " to give. Say so kindly; nothing was given. "
             + "Never say you received it.");
         return giveGift(s.player, s.villager, found, count, true);
@@ -950,6 +982,16 @@ public final class HiggsVillagers implements ModInitializer {
         villager.playSound(verdict == GiftCatalogue.Verdict.DISLIKED ? SoundEvents.VILLAGER_NO
             : verdict == GiftCatalogue.Verdict.JUNK ? SoundEvents.VILLAGER_AMBIENT : SoundEvents.VILLAGER_YES);
         if (verdict != GiftCatalogue.Verdict.JUNK) moodParticles(player, villager, verdict != GiftCatalogue.Verdict.DISLIKED);
+        String giver = player.getName().getString();
+        memory.observe(villager, player, verdict == GiftCatalogue.Verdict.DISLIKED ? "gift_refused" : "gift", switch (verdict) {
+            case LOVED -> giver + " gave me " + gift + ", one of my favourite things";
+            case PRECIOUS -> giver + " gave me " + gift + "; a generous gift";
+            case LIKED -> giver + " gave me " + gift;
+            case JUNK -> giver + " gave me " + gift + ", which was of little use";
+            case DISLIKED -> giver + " offered me " + name + (refusedBefore ? " again, though I had refused it before" : "; I refused it");
+        }, switch (verdict) { case LOVED, PRECIOUS -> 4; case DISLIKED, LIKED -> 3; default -> 2; }, 0);
+        if (verdict != GiftCatalogue.Verdict.DISLIKED)
+            memory.witnesses(villager, player, "I saw " + giver + " give " + villagerName + " a gift", 0);
         org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Gift {} -> {}: {} x{} verdict={} spoken={} standing {} -> {}",
             player.getName().getString(), villagerName, item, given, verdict, spoken, previous.score(), next);
         String status = "gift_" + verdict.name().toLowerCase(java.util.Locale.ROOT);
@@ -1024,8 +1066,14 @@ public final class HiggsVillagers implements ModInitializer {
     private CompletableFuture<JsonObject> offerErrand(MinecraftServer server, Session s, JsonObject arguments) {
         if (Negotiation.hostile(standing(s))) return CompletableFuture.completedFuture(refused());
         Errand open = errand(s.player);
+        // The model sometimes reaches for a new errand when the player is delivering one to this very villager.
+        if (open != null && open.targetId().equals(s.villager.getUUID().toString())) {
+            if (open.kind().equals("item")) return CompletableFuture.completedFuture(deliverErrand(s, ""));
+            return CompletableFuture.completedFuture(outcome("errand_for_you", "The player has come to pass something on to you from "
+                + "a neighbour. Ask what they were asked to tell you, then call deliver_errand with their words. Do not offer an errand."));
+        }
         if (open != null) return CompletableFuture.completedFuture(outcome("errand_open",
-            "The player already has an errand from " + open.giverName() + ": " + open.describe() + ". Remind them of it instead."));
+            "The player is already on an errand for " + open.giverName() + "; they can only carry one at a time. Say so; do not offer another."));
         String kind = arguments.get("kind").getAsString();
         String message = arguments.has("message") ? arguments.get("message").getAsString().trim() : "";
         if (kind.equals("message") && (message.isEmpty() || message.length() > Errands.MESSAGE_LIMIT))
@@ -1064,6 +1112,7 @@ public final class HiggsVillagers implements ModInitializer {
                     carried.isEmpty() ? "" : carried.getHoverName().getString(), System.currentTimeMillis());
                 errands.put(s.player.getUUID().toString(), errand);
                 saveErrands();
+                memory.observe(giver, s.player, "errand_given", "I sent " + s.player.getName().getString() + " to " + errand.describe(), 3, 0);
                 target.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.GLOWING, 20 * 120));
                 s.player.inventoryMenu.broadcastChanges();
                 String where = where(s.player, target);
@@ -1107,6 +1156,16 @@ public final class HiggsVillagers implements ModInitializer {
                 return outcome("errand_missing", "The player does not have the " + errand.itemName() + " from " + errand.giverName()
                     + " with them. Nothing was delivered; tell them kindly.");
             s.player.inventoryMenu.broadcastChanges();
+        }
+        VillagerJournal journal = memory.journal();
+        if (journal != null) {
+            long day = VillagerMemoryService.gameDay(s.villager), at = System.currentTimeMillis();
+            String runner = s.player.getName().getString();
+            journal.record(UUID.fromString(errand.giverId()), s.player.getUUID(), "errand_done",
+                runner + " did my errand: " + errand.describe(), day, at, 4, false, 0);
+            journal.record(s.villager.getUUID(), s.player.getUUID(), "errand_received", runner + " brought me "
+                + (errand.kind().equals("message") ? "word from " + errand.giverName() + ": \"" + conveyed.trim() + "\""
+                    : "the " + errand.itemName() + " from " + errand.giverName()), day, at, 4, false, 0);
         }
         String key = s.player.getUUID().toString();
         errands.remove(key);
@@ -1205,6 +1264,7 @@ public final class HiggsVillagers implements ModInitializer {
         shunnedUntil.values().removeIf(until -> until < now);
         if (java.util.concurrent.ThreadLocalRandom.current().nextDouble() >= Errands.shunChance(standing(new Session(player, villager)))) return false;
         shunnedUntil.put(key, now + SHUN_MS);
+        memory.observe(villager, player, "shunned", "I refused to talk to " + player.getName().getString(), 2, 10 * 60_000L);
         walkAway(player, villager);
         return true;
     }
@@ -1288,6 +1348,8 @@ public final class HiggsVillagers implements ModInitializer {
         result.addProperty("quest", quest.ask());
         result.add("deal", terms);
         questStatus(s, quest, "quest", "");
+        memory.observe(s.villager, s.player, "quest_set", "I asked " + s.player.getName().getString() + " to bring me " + quest.ask()
+            + " before I would trade at their price", 4, 0);
         String giver = s.villager.getName().getString();
         String pay = stackText(terms.getAsJsonObject("costA")), extra = stackText(terms.getAsJsonObject("costB"));
         giveNote(s.player, "Quest: " + giver, List.of(
@@ -1322,6 +1384,8 @@ public final class HiggsVillagers implements ModInitializer {
             quests.put(key, quest);
             saveQuests();
             moodParticles(s.player, s.villager, true);
+            memory.observe(s.villager, s.player, "quest_done", s.player.getName().getString() + " brought me the " + quest.ask()
+                + " I asked for, as promised", 5, 0);
             justDelivered = true;
         }
         String thanks = justDelivered ? "The player just handed over " + quest.ask() + " for your quest; thank them warmly. "
@@ -1510,6 +1574,14 @@ public final class HiggsVillagers implements ModInitializer {
             JsonObject receipt = outcome(purchased ? "purchased" : "unavailable", purchased
                 ? p.result().getCount() + " × " + p.result().getHoverName().getString() + " added to your inventory. Trade is FINISHED. Briefly confirm success; do not ask for confirmation or propose it again."
                 : "Nothing was purchased. Ask for a fresh proposal.");
+            if (purchased) {
+                String pay = p.costA().getCount() + " × " + p.costA().getHoverName().getString()
+                    + (p.costB().isEmpty() ? "" : " and " + p.costB().getCount() + " × " + p.costB().getHoverName().getString());
+                String got = p.result().getCount() + " × " + p.result().getHoverName().getString();
+                memory.observe(s.villager, s.player, "trade", s.player.getName().getString() + " bought " + got + " from me for " + pay
+                    + (p.questId() != null ? ", the deal I promised for their quest" : ""), p.questId() != null ? 4 : 3, 0);
+                memory.witnesses(s.villager, s.player, "I saw " + s.player.getName().getString() + " trade with " + s.villager.getName().getString(), 0);
+            }
             if (purchased && p.questId() != null) {
                 Quest quest = quests.get(relationshipKey(s));
                 if (quest != null && quest.id().equals(p.questId())) { quests.remove(relationshipKey(s)); saveQuests(); }
@@ -1573,6 +1645,11 @@ public final class HiggsVillagers implements ModInitializer {
     }
     private void end(ServerPlayer player, boolean notify, String reason) {
         Session s = sessions.remove(player.getUUID()); if (s == null) return;
+        // Who was in this conversation: switching to one of them shortly after continues it rather than starting afresh.
+        Set<UUID> present = new HashSet<>(Set.of(s.villager.getUUID()));
+        if (s.companion != null) present.add(s.companion.getUUID());
+        recentConversations.put(player.getUUID(), new RecentConversation(present, s.villager.getName().getString(),
+            System.currentTimeMillis() + CONTINUE_MS));
         if (s.id != null) delete(s.id);
         if (notify) { JsonObject message = new JsonObject(); message.addProperty("type", "end"); message.addProperty("message", reason); send(player, message); }
     }

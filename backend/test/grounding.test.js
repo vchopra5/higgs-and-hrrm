@@ -35,5 +35,9 @@ test('grounded trade speech passes', () => {
   assert.equal(ungroundedTrade('Iron axes are three emeralds each.', { tools: new Set(['get_trades']) }), null);
   assert.equal(ungroundedTrade('Bring me a pillager banner and I will take two emeralds for the axe.', { tools: new Set(['offer_quest']) }), null);
   assert.equal(ungroundedTrade('Lovely weather today, traveller.'), null);
+  // The reported errand offer: a future promise is not a finished trade.
+  assert.equal(ungroundedTrade("Take this bread to Reed, the weaponsmith. I'll be grateful when it's done.", { tools: new Set(['offer_errand']) }), null);
+  assert.equal(ungroundedTrade('Come back once it is done, or once it\'s done.'), null);
+  assert.match(ungroundedTrade("There, it's done."), /nothing was purchased/);
   assert.equal(ungroundedTrade(''), null);
 });

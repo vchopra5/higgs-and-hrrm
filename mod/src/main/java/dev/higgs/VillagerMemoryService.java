@@ -21,6 +21,8 @@ public final class VillagerMemoryService {
     private final RumourConversation conversation = new RumourConversation(10 * 60_000L);
     private final int intervalTicks, radius;
     private VillagerMemoryStore store;
+    private final VillagerJournal.Limits journalLimits;
+    private VillagerJournal journal;
     private int cursor;
     private volatile boolean stopping;
 
@@ -31,8 +33,10 @@ public final class VillagerMemoryService {
         gossip = new VillagerGossip(radius, 1000L * setting(config, "HIGGS_GOSSIP_COOLDOWN_SECONDS", 60, 1, 3600));
         limits = new VillagerMemoryStore.Limits(
             setting(config, "HIGGS_MEMORY_MAX_PER_VILLAGER", 64, 1, 256), 4096,
-            3_600_000L * setting(config, "HIGGS_MEMORY_TTL_HOURS", 168, 1, 8760),
+            3_600_000L * setting(config, "HIGGS_MEMORY_TTL_HOURS", 720, 1, 8760),
             setting(config, "HIGGS_GOSSIP_MAX_HOPS", 3, 0, 8));
+        journalLimits = new VillagerJournal.Limits(48, 20_000,
+            24L * 3_600_000L * setting(config, "HIGGS_MEMORY_EPISODE_DAYS", 30, 1, 365));
     }
 
     private static int setting(Map<String, String> config, String key, int fallback, int min, int max) {
@@ -52,10 +56,83 @@ public final class VillagerMemoryService {
             // Never overwrite an unreadable save. Voice and trading can still operate.
             LOG.error("Villager memory unavailable; existing save preserved. Check world/data/higgs_hrrm_memories.json.");
         }
+        try {
+            journal = new VillagerJournal(server.getWorldPath(LevelResource.ROOT).resolve("data/higgs-journal.json"), journalLimits);
+        } catch (Exception failure) {
+            LOG.error("Villager journal unavailable; existing save preserved. Check world/data/higgs-journal.json.");
+        }
+    }
+
+    /** Observed events (trades, gifts, quests…); null while unavailable, so callers record best-effort. */
+    public VillagerJournal journal() { return stopping ? null : journal; }
+
+    /** In-game day, for "yesterday" and "three days ago". */
+    public static long gameDay(Villager villager) { return Math.floorDiv(villager.level().getOverworldClockTime(), 24000L); }
+
+    /** Records what a villager saw happen with the player. Best-effort: no journal, no record. */
+    public void observe(Villager villager, ServerPlayer player, String type, String text, int salience, long mergeWithinMs) {
+        VillagerJournal current = journal();
+        if (current != null) current.record(villager.getUUID(), player.getUUID(), type, text, gameDay(villager),
+            System.currentTimeMillis(), salience, false, mergeWithinMs);
+    }
+
+    /** Villagers within eight blocks who can see the player also remember the moment, faintly. */
+    public void witnesses(Villager subject, ServerPlayer player, String text, long mergeWithinMs) {
+        VillagerJournal current = journal();
+        if (current == null) return;
+        long now = System.currentTimeMillis();
+        for (Villager witness : subject.level().getEntitiesOfClass(Villager.class, subject.getBoundingBox().inflate(8),
+                v -> v != subject && v.isAlive() && !v.isBaby() && !v.isSleeping() && v.distanceToSqr(subject) <= 64 && v.hasLineOfSight(player))) {
+            current.record(witness.getUUID(), player.getUUID(), "witnessed", text, gameDay(witness), now, 2, true, mergeWithinMs);
+        }
+    }
+
+    private static String when(long today, long day) {
+        long ago = today - day;
+        return ago <= 0 ? "earlier today" : ago == 1 ? "yesterday" : ago + " days ago";
+    }
+
+    private static JsonArray episodeEntries(List<VillagerJournal.Episode> episodes, long today) {
+        JsonArray result = new JsonArray();
+        for (var episode : episodes) {
+            JsonObject entry = new JsonObject();
+            entry.addProperty("when", when(today, episode.gameDay()));
+            entry.addProperty("what", episode.text());
+            if (episode.witnessed()) entry.addProperty("seen", true);
+            result.add(entry);
+        }
+        return result;
+    }
+
+    /**
+     * Long-term relationship at the start of a conversation: the lasting summary, the most telling recent episodes,
+     * and how much has passed between them. Episodes are things the villager saw happen, unlike player claims.
+     */
+    public JsonObject relationshipContext(Villager villager, ServerPlayer player) {
+        JsonObject context = new JsonObject();
+        VillagerJournal current = journal();
+        if (current == null) return context;
+        long now = System.currentTimeMillis(), today = gameDay(villager);
+        var summary = current.summary(villager.getUUID(), player.getUUID());
+        if (summary != null) context.addProperty("summary", summary.text());
+        var all = current.all(villager.getUUID(), player.getUUID(), now);
+        if (all.isEmpty()) return context;
+        context.add("recent", episodeEntries(current.recent(villager.getUUID(), player.getUUID(), now, 6), today));
+        JsonObject counts = new JsonObject();
+        current.counts(villager.getUUID(), player.getUUID(), now).forEach(counts::addProperty);
+        context.add("counts", counts);
+        all.stream().filter(e -> e.type().equals("first_met")).findFirst()
+            .ifPresent(first -> context.addProperty("firstMet", when(today, first.gameDay())));
+        return context;
     }
 
     public void stop() {
         stopping = true;
+        if (journal != null) {
+            try { journal.close(); }
+            catch (Exception failure) { LOG.error("Could not flush the villager journal on shutdown."); }
+            finally { journal = null; }
+        }
         conversation.clear();
         if (store == null) return;
         try { store.close(); }
@@ -112,6 +189,9 @@ public final class VillagerMemoryService {
                 if (!scope.equals("player") && !scope.equals("village")) throw new IllegalArgumentException();
                 JsonObject result = new JsonObject();
                 result.add("memories", entries(store.recall(villager.getUUID(), player.getUUID(), query, scope.equals("village"), now)));
+                VillagerJournal current = journal();
+                if (prepared && current != null)
+                    result.add("episodes", episodeEntries(current.search(villager.getUUID(), player.getUUID(), query, now, 6), gameDay(villager)));
                 result.addProperty("note", "Memories are attributed statements, not verified world facts. An empty list means no matching saved knowledge.");
                 return CompletableFuture.completedFuture(result);
             }

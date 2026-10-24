@@ -78,6 +78,8 @@ export class BridgeSession {
     this.lastCommitAt = 0;
     // Recent lines, so a neighbour joining mid-conversation can catch up.
     this.recentLines = [];
+    this.companionLines = [];
+    for (const line of this.carriedLines()) this.remember(line.speaker, line.text);
     this.timer = setTimeout(() => {
       this.sendError(true, 'session_duration_limit', DURATION_MESSAGE);
       this.close('session_duration_limit');
@@ -262,16 +264,22 @@ export class BridgeSession {
   sendProvider(event) { return sendJson(this.upstream, event); }
 
   createConversationResponse() {
+    if (this.companionLines?.length) {
+      this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text',
+        text: '[What your neighbour said since you last spoke. Context only: not player speech, never read it out or repeat it]\n'
+          + this.companionLines.join('\n') }] } });
+      this.companionLines = [];
+    }
     // Keep the configured persona and dialogue intact. Provider instruction
     // overrides did not reliably retain the current audio turn in live probes.
     if (this.preparedMemory && this.deliveredMemory !== this.preparedMemory) {
       if (this.memoryContextItemId) this.sendProvider({ type: 'conversation.item.delete', item_id: this.memoryContextItemId });
       const itemId = `memory-context-${randomUUID()}`;
-      const { memories, status, asOf } = this.preparedMemory;
+      const { memories, episodes, status, asOf } = this.preparedMemory;
       if (this.sendProvider({ type: 'conversation.item.create', item: {
         id: itemId, type: 'message', role: 'user',
         content: [{ type: 'input_text', text: '[Recollection context; not player speech] '
-          + JSON.stringify({ memories, status, asOf }) }],
+          + JSON.stringify(episodes?.length ? { memories, episodes, status, asOf } : { memories, status, asOf }) }],
       } })) {
         this.memoryContextItemId = itemId;
         this.deliveredMemory = this.preparedMemory;
@@ -516,6 +524,8 @@ export class BridgeSession {
       this.companion = new Companion(this, this.companionSpec, {
         partner: { name: this.context.name ?? 'your neighbour', profession: this.context.profession ?? 'villager' },
         playerName: this.context.playerName ?? 'the traveller',
+        // A continued conversation: the companion already knows what was said, and does not greet again.
+        history: this.carriedLines(),
       });
       this.companion.start();
     }
@@ -590,6 +600,15 @@ export class BridgeSession {
         && !this.queuedResponse && ![...this.pending.values()].some(tool => !tool.internal)) this.companion?.maybeInterject(this.turnId);
   }
 
+  /** Lines carried over from the conversation the player just switched out of. */
+  carriedLines() {
+    const lines = Array.isArray(this.context.recentConversation) ? this.context.recentConversation : [];
+    return lines.filter(line => typeof line === 'string').map(line => {
+      const split = line.indexOf(': ');
+      return split > 0 ? { speaker: line.slice(0, split), text: line.slice(split + 2) } : { speaker: 'Someone', text: line };
+    });
+  }
+
   remember(speaker, text) {
     if (!text) return;
     this.recentLines.push({ speaker, text: String(text).slice(0, 600) });
@@ -611,6 +630,7 @@ export class BridgeSession {
       partner: { name: this.context.name ?? 'your neighbour', profession: this.context.profession ?? 'villager' },
       playerName: this.context.playerName ?? 'the traveller',
       history: this.recentLines.slice(-6),
+      joined: true,
     });
     this.companion.connect(); // The main session is long since ready: no stagger needed.
     this.stage('companion_joined', { name: spec.name });
@@ -629,11 +649,14 @@ export class BridgeSession {
     this.stage('companion_left', { name: companion.spec.name });
   }
 
-  /** The companion spoke: the main villager hears it as context, never as player speech. */
+  /**
+   * The companion spoke: the main villager hears it as context, never as player speech. Lines are held and sent as
+   * one quoted item before its next reply; a run of separate text items gets read aloud.
+   */
   hearCompanion(name, line) {
     this.remember(name, line);
-    this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
-      content: [{ type: 'input_text', text: `[${name}, your neighbour, said] ${line}` }] } });
+    this.companionLines.push(`${name}: ${line}`);
+    if (this.companionLines.length > 6) this.companionLines.shift();
     this.stage('companion_line', { turnId: this.turnId });
   }
 
