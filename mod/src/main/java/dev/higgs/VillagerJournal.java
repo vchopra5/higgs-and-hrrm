@@ -257,6 +257,32 @@ public final class VillagerJournal implements AutoCloseable {
         return pair.stream().filter(episode -> episode.type.equals("promise") && !resolved.contains(episode.id)).toList();
     }
 
+    /** Players this villager has a journal record with (episodes or a lasting summary). */
+    public synchronized Set<UUID> players(UUID villager) {
+        Set<UUID> players = new LinkedHashSet<>();
+        for (List<Episode> pair : episodes.values())
+            if (!pair.isEmpty() && pair.getFirst().villagerId.equals(villager)) players.add(pair.getFirst().playerId);
+        for (Summary summary : summaries.values()) if (summary.villagerId.equals(villager)) players.add(summary.playerId);
+        return players;
+    }
+
+    /** Deletes one episode (dashboard edit). True if it existed. */
+    public synchronized boolean remove(UUID episode) {
+        if (closed) return false;
+        for (List<Episode> pair : episodes.values()) {
+            if (pair.removeIf(e -> e.id.equals(episode))) { save(); return true; }
+        }
+        return false;
+    }
+
+    /** Wipes everything a villager remembers of a player: episodes and the lasting summary (dashboard edit). */
+    public synchronized void forget(UUID villager, UUID player) {
+        if (closed) return;
+        episodes.remove(key(villager, player));
+        summaries.remove(key(villager, player));
+        save();
+    }
+
     private static String clean(String text, int max) {
         if (text == null) return "";
         String result = text.replaceAll("[\\p{Cntrl}]", " ").replaceAll("\\s+", " ").strip();

@@ -202,12 +202,12 @@ export function sendJson(socket, event) {
   return true;
 }
 
-export async function readJsonBody(request) {
+export async function readJsonBody(request, maxBytes = LIMITS.messageBytes) {
   let bytes = 0;
   const chunks = [];
   for await (const chunk of request) {
     bytes += chunk.length;
-    if (bytes > LIMITS.messageBytes) throw new Error('Request too large');
+    if (bytes > maxBytes) throw new Error('Request too large');
     chunks.push(chunk);
   }
   return JSON.parse(Buffer.concat(chunks).toString());

@@ -159,6 +159,12 @@ public final class VillagerMemoryStore implements AutoCloseable {
 
     public synchronized int size() { return memories.values().stream().mapToInt(Map::size).sum(); }
 
+    /** Everything one villager currently holds, newest first (dashboard view). */
+    public synchronized List<Memory> owned(UUID owner, long now) {
+        return memories.getOrDefault(owner, new LinkedHashMap<>()).values().stream().filter(m -> m.expiresAt > now)
+            .sorted(Comparator.comparingLong(Memory::learnedAt).reversed()).toList();
+    }
+
     public synchronized void prune(long now) {
         boolean changed = false;
         for (var entries : memories.values()) changed |= entries.values().removeIf(m -> m.expiresAt <= now);

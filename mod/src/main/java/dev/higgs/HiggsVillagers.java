@@ -42,6 +42,7 @@ public final class HiggsVillagers implements ModInitializer {
     private VillagerAlarm alarm;
     private VillageMoments moments;
     private VillagerOuting outings;
+    private VillageDashboard dashboard;
     private final Map<String, Long> bedtimeUntil = new HashMap<>();
     private static final long BEDTIME_MS = 90_000;
     /** Villagers wind down for the night: their rest schedule, or the clock for villagers without AI. */
@@ -473,11 +474,62 @@ public final class HiggsVillagers implements ModInitializer {
             public void arrived(ServerPlayer player, Villager guide, Villager target) { handoff(player.level().getServer(), player, guide, target); }
         });
         memory.bonds(new VillagerMemoryService.Bonds() {
-            public int standing(Villager villager, ServerPlayer player) {
-                return relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral()).score();
+            public int standing(Villager villager, UUID player) {
+                return relationships.getOrDefault(player + ":" + villager.getUUID(), TradeReputation.neutral()).score();
             }
             public void reached(Villager villager, ServerPlayer player, RelationshipStage stage) { milestone(villager, player, stage); }
         });
+        dashboard = new VillageDashboard(new VillageDashboard.Host() {
+            public CompletableFuture<JsonElement> request(String method, String path, JsonObject body) { return HiggsVillagers.this.request(method, path, body); }
+            public int standing(UUID player, UUID villager) {
+                return relationships.getOrDefault(player + ":" + villager, TradeReputation.neutral()).score();
+            }
+            public void setStanding(UUID player, UUID villager, int value) {
+                TradeReputation previous = relationships.getOrDefault(player + ":" + villager, TradeReputation.neutral());
+                relationships.put(player + ":" + villager, new TradeReputation(value, System.currentTimeMillis(), previous.lastHit()));
+                saveTradeReputations();
+                for (Session s : sessions.values())
+                    if (s.player.getUUID().equals(player) && s.villager.getUUID().equals(villager)) s.proposal = null; // Old prices are stale.
+            }
+            public Set<UUID> playersWithStanding(UUID villager) {
+                Set<UUID> players = new java.util.LinkedHashSet<>();
+                String suffix = ":" + villager;
+                for (String key : relationships.keySet())
+                    if (key.endsWith(suffix)) players.add(UUID.fromString(key.substring(0, key.length() - suffix.length())));
+                return players;
+            }
+            public JsonObject quest(UUID player, UUID villager) {
+                Quest quest = quests.get(player + ":" + villager);
+                if (quest == null) return null;
+                JsonObject open = new JsonObject();
+                open.addProperty("wants", quest.ask());
+                open.addProperty("deal", terms(quest.deal()));
+                open.addProperty("delivered", quest.delivered());
+                return open;
+            }
+            public boolean clearQuest(UUID player, UUID villager) {
+                if (quests.remove(player + ":" + villager) == null) return false;
+                saveQuests();
+                return true;
+            }
+            public boolean deliverQuest(UUID player, UUID villager) {
+                Quest quest = quests.get(player + ":" + villager);
+                if (quest == null || quest.delivered()) return false;
+                quests.put(player + ":" + villager, quest.deliver());
+                saveQuests();
+                return true;
+            }
+            public boolean clearErrand(UUID player) {
+                if (errands.remove(player.toString()) == null) return false;
+                saveErrands();
+                return true;
+            }
+            public JsonObject playerState(MinecraftServer server, ServerPlayer player) { return debugState(server, player).getAsJsonObject("state"); }
+            public String talkingWith(Villager villager) {
+                return sessions.values().stream().filter(s -> s.villager == villager || s.companion == villager)
+                    .map(s -> s.player.getName().getString()).findFirst().orElse(null);
+            }
+        }, memory, villages, personalities);
         // Ringing a bell: vanilla still rings it; a few villagers come over to see what is the matter.
         net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             if (!world.isClientSide() && player instanceof ServerPlayer sp && !token.isBlank()
@@ -516,6 +568,7 @@ public final class HiggsVillagers implements ModInitializer {
             if (!token.isBlank()) chatter.tick(server, ticks);
             if (!token.isBlank()) alarm.tick(server, ticks);
             if (!token.isBlank()) moments.tick(server, ticks);
+            if (!token.isBlank()) dashboard.tick(server, ticks);
             villages.tick(server, ticks);
             // Rotate explicitly: the demo villagers have NoAI, so look controls alone do nothing.
             Map<UUID, Session> facing = new HashMap<>();
@@ -614,6 +667,7 @@ public final class HiggsVillagers implements ModInitializer {
             moments.clear();
             outings.clear();
             wilderness.clear();
+            dashboard.clear();
             hits.clear();
         });
     }

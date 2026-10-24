@@ -8,6 +8,7 @@ import { CHATTER_LIMITS, ChatterScene } from './chatter.js';
 import { SHOUT_LIMITS, ShoutCache, ShoutScene, parseShout } from './shout.js';
 import { consolidate as consolidateConversation } from './consolidate.js';
 import { submitToolResult } from './tools.js';
+import { createDashboard } from './dashboard.js';
 
 const CONTINUE_MS = 2 * 60_000;
 const DIGEST_MS = 10 * 60_000;
@@ -22,6 +23,7 @@ export function createBridge({
   log = entry => console.info(JSON.stringify(entry)),
   consolidation = true,
   consolidate = consolidateConversation,
+  dashboardToken,
 } = {}) {
   if (typeof token !== 'string' || token.length < 32) {
     throw new Error('Set HIGGS_BRIDGE_TOKEN to a random secret of at least 32 characters.');
@@ -34,6 +36,7 @@ export function createBridge({
   const shoutCache = new ShoutCache();
   const scenes = new Map();
   const expectedAuth = Buffer.from(`Bearer ${token}`);
+  const dashboard = createDashboard({ token: dashboardToken, sessions, now, log });
   const sessionOptions = {
     apiKey, upstreamUrl, connect, now, log, voiceOverrides,
     onClose: id => {
@@ -126,9 +129,16 @@ export function createBridge({
   }
 
   async function handleRequest(request, response) {
+    // The browser dashboard has its own token; everything else is the game server's.
+    try {
+      if (await dashboard.handle(request, response, new URL(request.url, 'http://localhost'))) return;
+    } catch {
+      return replyJson(response, 400, { error: 'Invalid request' });
+    }
     if (!authorized(request)) return replyJson(response, 401, { error: 'Unauthorized' });
     try {
       const path = new URL(request.url, 'http://localhost').pathname;
+      if (request.method === 'POST' && path === '/dashboard/sync') return await dashboard.sync(request, response);
       if (request.method === 'POST' && path === '/scenes') return await createScene(request, response);
       if (request.method === 'POST' && path === '/shouts') return await createShout(request, response);
       if (request.method === 'GET' && path === '/digests') {
@@ -223,6 +233,7 @@ export function createBridge({
   function close() {
     closing ??= (async () => {
       clearInterval(sweep);
+      dashboard.close();
       for (const session of sessions.values()) session.close();
       for (const scene of scenes.values()) scene.close();
       for (const client of wss.clients) client.terminate();
@@ -231,5 +242,5 @@ export function createBridge({
     })();
     return closing;
   }
-  return { server, sessions, scenes, close };
+  return { server, sessions, scenes, dashboard, close };
 }
