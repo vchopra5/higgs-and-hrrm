@@ -66,7 +66,10 @@ final class VillagerAlarm {
     }
 
     /** A voiced line (a scream, a bell call, a rap) heard from the villager by players within earshot. */
-    boolean shout(MinecraftServer server, Villager villager, String kind) {
+    boolean shout(MinecraftServer server, Villager villager, String kind) { return shout(server, villager, kind, null); }
+
+    /** detail describes what the line is about, e.g. "wolf named Rex" for a remark about a pet. */
+    boolean shout(MinecraftServer server, Villager villager, String kind, String detail) {
         if (pending >= MAX_PENDING) return false;
         pending++;
         personalities.prepare(villager).whenComplete((prepared, failure) -> server.execute(() -> {
@@ -86,6 +89,7 @@ final class VillagerAlarm {
             }
             JsonObject body = new JsonObject();
             body.addProperty("kind", kind);
+            if (detail != null) body.addProperty("detail", detail);
             body.add("speaker", speaker);
             host.request("POST", "/shouts", body).whenComplete((reply, error) -> server.execute(() -> {
                 pending--;

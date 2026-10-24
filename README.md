@@ -259,6 +259,17 @@ about its trade in its own voice (a fresh verse each time; at most one per jukeb
 nearby walk over and ask who rang it and what the matter is. Villagers with AI disabled
 only answer if they are already within six blocks.
 
+## Fireworks, children and pets
+
+Launch a firework near villagers and they look up at the sky; one of them “ooh”s, and
+the ones who like you clap (a happy hop and sparkles). By day, village children near you
+pair up for games of tag: one chases, the other runs, and each tag swaps them with a
+giggle. At dusk an adult calls the children home and they run to it. When your tamed
+wolf, cat or parrot wanders up to a villager, it remarks on it in its own voice, using the
+pet's name if you gave it one; about one villager in four is nervous of wolves, asks you
+to keep it back and steps away. Pet remarks come at most every 30 seconds, and each
+villager comments at most every five minutes.
+
 ## Errands
 
 Ask a villager for work (“anything I can help with?”) and it may send you to a neighbour

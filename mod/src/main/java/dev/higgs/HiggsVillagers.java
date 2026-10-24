@@ -451,7 +451,8 @@ public final class HiggsVillagers implements ModInitializer {
             public void send(ServerPlayer player, JsonObject message) { HiggsVillagers.this.send(player, message); }
             public boolean canSend(ServerPlayer player) { return ServerPlayNetworking.canSend(player, ControlPayload.TYPE); }
         }, personalities, publicBackend);
-        moments = new VillageMoments(alarm, villager -> sessions.values().stream().anyMatch(s -> s.villager == villager || s.companion == villager));
+        moments = new VillageMoments(alarm, villager -> sessions.values().stream().anyMatch(s -> s.villager == villager || s.companion == villager),
+            (player, villager) -> relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral()).score());
         // Ringing a bell: vanilla still rings it; a few villagers come over to see what is the matter.
         net.fabricmc.fabric.api.event.player.UseBlockCallback.EVENT.register((player, world, hand, hitResult) -> {
             if (!world.isClientSide() && player instanceof ServerPlayer sp && !token.isBlank()

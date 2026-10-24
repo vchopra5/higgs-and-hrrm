@@ -7,15 +7,23 @@ import { LIMITS, sendJson } from './protocol.js';
 // nearby players through the chatter listen channel. Screams are cached per voice, so after the first few they cost
 // nothing and play at once.
 export const SHOUT_LIMITS = Object.freeze({ generating: 2, variants: 3, clipBytes: 400_000, retainMs: 15_000, shoutMs: 20_000 });
-export const SHOUT_KINDS = new Set(['zombie', 'bell', 'rap']);
-/** Short stock cries are cached per voice; a rap is always fresh. */
-const CACHED_KINDS = new Set(['zombie', 'bell']);
+export const SHOUT_KINDS = new Set(['zombie', 'bell', 'rap', 'fireworks', 'callhome', 'pet', 'pet_scared']);
+/** Short stock cries are cached per voice; raps and remarks about a particular pet are always fresh. */
+const CACHED_KINDS = new Set(['zombie', 'bell', 'fireworks', 'callhome']);
 
 const PROMPTS = {
   zombie: () => '[A zombie is chasing you right now] Scream for help in terror: a cry and at most a few panicked words, such as '
     + 'calling out that a zombie is after you. No narration, no description of sounds.',
   bell: () => '[Someone just rang the village bell and you hurried over to it] Call out in one short sentence, asking who rang the '
     + 'bell and what the matter is. No narration.',
+  fireworks: () => '[Fireworks just burst in the sky above you] React with delight in a few words: an ooh, an aah, or a short '
+    + 'cheerful exclamation. No narration.',
+  callhome: () => '[It is getting dark and the village children are still out playing] Call the children home for the night. '
+    + 'One short, warm sentence only. No narration.',
+  pet: (_, detail) => `[The player's ${detail} has wandered up to you] Make a friendly remark about it, as you would about a `
+    + `neighbour's pet. ${/ named /.test(detail) ? 'Use its name.' : 'It has no name: never make one up.'} One short sentence only. No narration.`,
+  pet_scared: (_, detail) => `[The player's ${detail} has wandered up to you, and you are nervous around such animals] React nervously, `
+    + `asking them to keep it back.${/ named /.test(detail) ? '' : ' It has no name: never make one up.'} One short sentence only. No narration.`,
   rap: speaker => `[A jukebox is playing a lively tune and everyone is dancing] Break into a short, playful rap: two to four rhyming `
     + `lines about your life as the village ${speaker.profession}. Rhythmic, cheerful, family-friendly. Only the lyrics: no narration, `
     + 'no description of sounds or music.',
@@ -28,7 +36,9 @@ export function parseShout(body) {
   const speaker = body?.speaker;
   if (!SHOUT_KINDS.has(body?.kind) || !speaker || typeof speaker !== 'object' || !Number.isInteger(speaker.entityId)
       || !text(speaker.name, 40) || !text(speaker.profession, 32)) throw new Error('Invalid shout');
-  return { kind: body.kind, speaker };
+  const needsDetail = body.kind === 'pet' || body.kind === 'pet_scared';
+  if (needsDetail ? !text(body.detail, 60) : body.detail !== undefined) throw new Error('Invalid shout');
+  return { kind: body.kind, speaker, detail: needsDetail ? body.detail : undefined };
 }
 
 function deliver(client, event) {
@@ -58,8 +68,9 @@ export class ShoutCache {
 export class ShoutScene {
   constructor(body, { apiKey, upstreamUrl, connect, now, log, onClose, cache, voiceOverrides = {}, cachedOnly = false }) {
     this.cachedOnly = cachedOnly;
-    const { kind, speaker } = parseShout(body);
+    const { kind, speaker, detail } = parseShout(body);
     this.kind = kind;
+    this.detail = detail;
     this.speaker = speaker;
     this.id = randomUUID();
     this.token = randomBytes(32).toString('hex');
@@ -130,7 +141,7 @@ export class ShoutScene {
         if (!this.asked && (event.type === 'session.updated' || event.session?.instructions === this.requested)) {
           this.asked = true;
           sendJson(this.upstream, { type: 'conversation.item.create', item: { type: 'message', role: 'user',
-            content: [{ type: 'input_text', text: PROMPTS[this.kind](this.speaker) }] } });
+            content: [{ type: 'input_text', text: PROMPTS[this.kind](this.speaker, this.detail) }] } });
           sendJson(this.upstream, { type: 'response.create' });
         }
         break;
