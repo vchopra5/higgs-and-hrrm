@@ -153,3 +153,27 @@ tasks.register('testPersonalities', JavaExec) {
     mainClass = 'dev.higgs.VillagerPersonalityTest'
 }
 tasks.named('check') { dependsOn 'testPersonalities' }
+
+tasks.register('compileSwitchTalkGateTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/SwitchTalkGate.java', 'src/client/test/dev/higgs/SwitchTalkGateTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('switch-talk-test')
+}
+tasks.register('testSwitchTalkGate', JavaExec) {
+    dependsOn 'compileSwitchTalkGateTest'
+    classpath = files(layout.buildDirectory.dir('switch-talk-test'))
+    mainClass = 'dev.higgs.SwitchTalkGateTest'
+}
+tasks.named('check') { dependsOn 'testSwitchTalkGate' }
+
+tasks.register('compileTradeReputationTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/TradeReputation.java', 'src/main/java/dev/higgs/Negotiation.java', 'src/reactions/test/dev/higgs/TradeReputationTest.java')
+    classpath = sourceSets.main.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('trade-reputation-test')
+}
+tasks.register('testTradeReputation', JavaExec) {
+    dependsOn 'compileTradeReputationTest'
+    classpath = files(layout.buildDirectory.dir('trade-reputation-test')) + sourceSets.main.compileClasspath
+    mainClass = 'dev.higgs.TradeReputationTest'
+}
+tasks.named('check') { dependsOn 'testTradeReputation' }

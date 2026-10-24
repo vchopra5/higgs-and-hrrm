@@ -335,6 +335,7 @@ test('hit statistics guide reactions, coalesce and cannot execute trade tools or
   await f.request(path, 'POST', hit(2, true));
   await f.request(path, 'POST', hit(8));
   assert.equal(f.received.filter(e => e.type === 'response.create').length, 1);
+  f.emit({type:'response.output_audio.delta',response_id:'reaction1',delta:'AAA='});
   f.emit({type:'response.output_audio_transcript.done',response_id:'reaction1',transcript:'Watch where you swing that!'});
   f.emit({ type:'response.done', response:{id:'reaction1',status:'completed'} });
   await until(() => session.responseDone);
@@ -461,4 +462,51 @@ test('an invalid replacement profile cannot disconnect an existing conversation'
   assert.equal(response.status, 400);
   assert.equal(f.bridge.sessions.size, 1);
   assert.equal(f.bridge.sessions.get(f.sessionId).ready, true);
+});
+
+test('duplicate reaction audio is withheld, retried once, and interruption discards buffered audio', async t => {
+  const f = await fixture(t);
+  const session = f.bridge.sessions.get(f.sessionId);
+  session.recentReactionLines = ['Stop hitting me!'];
+  session.environmentEvent({type:'hit',count:2,windowMs:30000,spanMs:500,sincePreviousMs:500,tradeCancelled:false});
+  f.emit({type:'response.created',response:{id:'repeat'}});
+  f.emit({type:'response.output_audio.delta',response_id:'repeat',delta:'AAA='});
+  f.emit({type:'response.output_audio_transcript.done',response_id:'repeat',transcript:'Ow! Stop hitting me!'});
+  f.emit({type:'response.done',response:{id:'repeat',status:'completed'}});
+  await until(() => session.pendingReaction?.retry === 1);
+  assert.equal(f.events.some(e => e.type === 'audio' || e.type === 'transcript'), false);
+  session.sweep();
+  f.emit({type:'response.created',response:{id:'fresh'}});
+  f.emit({type:'response.output_audio.delta',response_id:'fresh',delta:'AAA='});
+  f.emit({type:'response.output_audio_transcript.done',response_id:'fresh',transcript:'What has gotten into you?'});
+  f.emit({type:'response.done',response:{id:'fresh',status:'completed'}});
+  await until(() => f.events.some(e => e.type === 'audio'));
+  assert.equal(f.events.filter(e => e.type === 'audio').length, 1);
+  assert.equal(session.recentReactionLines.at(-1), 'What has gotten into you?');
+  session.environmentEvent({type:'hit',count:3,windowMs:30000,spanMs:1000,sincePreviousMs:500,tradeCancelled:false});
+  f.emit({type:'response.created',response:{id:'interrupted-reaction'}});
+  f.emit({type:'response.output_audio.delta',response_id:'interrupted-reaction',delta:'AAA='});
+  f.emit({type:'input_audio_buffer.speech_started'});
+  f.emit({type:'response.done',response:{id:'interrupted-reaction',status:'cancelled'}});
+  await until(() => session.responseDone);
+  assert.equal(f.events.filter(e => e.type === 'audio').length, 1);
+  assert.equal(session.reactionAudio.length, 0);
+});
+
+
+test('new hit reactions do not clear speech still playing on the client', async t => {
+  const f = await fixture(t);
+  const session = f.bridge.sessions.get(f.sessionId);
+  session.environmentEvent({type:'hit',count:1,windowMs:30000,spanMs:0,sincePreviousMs:-1,tradeCancelled:false});
+  f.emit({type:'response.created',response:{id:'first-hit'}});
+  f.emit({type:'response.output_audio.delta',response_id:'first-hit',delta:'AAA='});
+  f.emit({type:'response.output_audio_transcript.done',response_id:'first-hit',transcript:'Watch it!'});
+  f.emit({type:'response.done',response:{id:'first-hit',status:'completed'}});
+  await until(() => f.events.some(e => e.type === 'audio'));
+  // The model finished, but the audio may still be buffered in Minecraft's speaker.
+  session.environmentEvent({type:'hit',count:2,windowMs:30000,spanMs:500,sincePreviousMs:500,tradeCancelled:false});
+  await until(() => f.received.filter(e => e.type === 'response.create').length === 2);
+  assert.equal(f.events.some(e => e.type === 'clear'), false);
+  f.client.send(JSON.stringify({type:'interrupt'}));
+  await until(() => f.events.some(e => e.type === 'clear'));
 });
