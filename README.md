@@ -309,6 +309,8 @@ five minutes, and one scene runs at a time.
 Chatter uses two Boson realtime sessions per scene. Tune or disable it with the
 `HIGGS_CHATTER_*` settings in `.env` (see `.env.example`), then restart the game server.
 
+Before a demo, run through the [playtest checklist](docs/playtest-checklist.md).
+
 ## Voice trading
 
 Villagers know before speaking whether they have anything to sell and what is in stock.

@@ -335,7 +335,11 @@ public final class HiggsVillagers implements ModInitializer {
         String ask() { return count + " × " + itemName; }
     }
     /** What a player has given a villager, and what it refused; the villager remembers both. */
-    private record GiftLedger(List<String> refused, List<String> received, long lastReward) {}
+    /**
+     * What the gift rules need: items refused (a repeat costs reputation) and the last rewarded gift (cooldown). The history
+     * of gifts is in the journal. Older saves also carried "received"; Gson ignores it.
+     */
+    private record GiftLedger(List<String> refused, long lastReward) {}
     private static final long GIFT_COOLDOWN_MS = 5 * 60_000;
     private final Map<String, GiftLedger> gifts = new HashMap<>();
     private final Map<UUID, Long> lastGiftClick = new HashMap<>();
@@ -971,7 +975,15 @@ public final class HiggsVillagers implements ModInitializer {
         // Fabric reports both the interact and interact-at packets; one click is one gift.
         if (now - lastGiftClick.getOrDefault(player.getUUID(), 0L) < 300) return;
         lastGiftClick.put(player.getUUID(), now);
-        giveGift(player, villager, player.getItemInHand(hand), 1, false);
+        ItemStack held = player.getItemInHand(hand);
+        // Handing an errand package to its recipient delivers the errand, whether or not you are talking to them.
+        Errand open = errand(player);
+        if (open != null && open.kind().equals("item") && open.targetId().equals(villager.getUUID().toString()) && id(held).equals(open.item())) {
+            Session talking = sessions.get(player.getUUID());
+            deliverErrand(talking != null && talking.villager == villager ? talking : new Session(player, villager), "");
+            return;
+        }
+        giveGift(player, villager, held, 1, false);
     }
     /** Spoken gift: the item the player named, from their hands first, then their inventory. */
     private JsonObject receiveGift(Session s, JsonObject arguments) {
@@ -1017,13 +1029,13 @@ public final class HiggsVillagers implements ModInitializer {
         ItemStack template = source.copyWithCount(1);
         String item = id(template), name = template.getHoverName().getString();
         String key = player.getUUID() + ":" + villager.getUUID();
-        GiftLedger ledger = gifts.getOrDefault(key, new GiftLedger(List.of(), List.of(), 0));
+        GiftLedger ledger = gifts.getOrDefault(key, new GiftLedger(List.of(), 0));
         var verdict = GiftCatalogue.judge(GiftCatalogue.preferences(villager.getUUID(), VillagerMemoryService.profession(villager)), item);
         boolean refusedBefore = ledger.refused().contains(item);
         boolean cooldown = now - ledger.lastReward() < GIFT_COOLDOWN_MS;
         TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
         int next = GiftCatalogue.standingAfter(previous.score(), verdict, refusedBefore, cooldown);
-        List<String> refused = new ArrayList<>(ledger.refused()), received = new ArrayList<>(ledger.received());
+        List<String> refused = new ArrayList<>(ledger.refused());
         int given = 0;
         if (verdict == GiftCatalogue.Verdict.DISLIKED) {
             if (!refusedBefore) refused.add(item); // Handed back; the item stays with the player.
@@ -1035,10 +1047,8 @@ public final class HiggsVillagers implements ModInitializer {
             given = player.getInventory().clearOrCountMatchingItems(match, count, craft);
             if (given <= 0) return outcome("not_found", "The player no longer has the " + name + ". Nothing was given.");
             player.inventoryMenu.broadcastChanges();
-            received.add(given > 1 ? given + " × " + name : name);
-            while (received.size() > 8) received.removeFirst();
         }
-        gifts.put(key, new GiftLedger(refused, received, next > previous.score() ? now : ledger.lastReward()));
+        gifts.put(key, new GiftLedger(refused, next > previous.score() ? now : ledger.lastReward()));
         saveGifts();
         Session s = sessions.get(player.getUUID());
         boolean talking = s != null && s.villager == villager && s.id != null;
@@ -1301,6 +1311,7 @@ public final class HiggsVillagers implements ModInitializer {
         return context;
     }
     private void errandStatus(Session s, String status, String carrying, String recipient, String footer) {
+        if (s.id == null) return; // No conversation open: the action bar says it instead.
         JsonObject message = new JsonObject();
         message.addProperty("type", "trade_status");
         message.addProperty("sessionId", s.id);
@@ -1321,13 +1332,18 @@ public final class HiggsVillagers implements ModInitializer {
     /** The villager's own tastes and its history with this player, so it can talk about gifts and remember refusals. */
     private JsonObject giftContext(ServerPlayer player, Villager villager) {
         var preferences = GiftCatalogue.preferences(villager.getUUID(), VillagerMemoryService.profession(villager));
-        GiftLedger ledger = gifts.getOrDefault(player.getUUID() + ":" + villager.getUUID(), new GiftLedger(List.of(), List.of(), 0));
+        GiftLedger ledger = gifts.getOrDefault(player.getUUID() + ":" + villager.getUUID(), new GiftLedger(List.of(), 0));
         JsonObject context = new JsonObject();
         context.add("youLove", itemNames(preferences.loves()));
         context.add("youDislike", itemNames(preferences.dislikes()));
         context.add("refusedFromPlayer", itemNames(ledger.refused()));
+        // Gift history from the journal: what the villager saw happen, newest last.
+        List<String> history = new ArrayList<>();
+        VillagerJournal journal = memory.journal();
+        if (journal != null) for (var episode : journal.all(villager.getUUID(), player.getUUID(), System.currentTimeMillis()))
+            if (episode.type().equals("gift")) history.add(episode.text());
         JsonArray received = new JsonArray();
-        ledger.received().forEach(received::add);
+        history.subList(Math.max(0, history.size() - 6), history.size()).forEach(received::add);
         context.add("receivedFromPlayer", received);
         return context;
     }

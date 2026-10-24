@@ -1,0 +1,237 @@
+{
+  "suite": "journal-retrieval-v1",
+  "methodology": "One villager\u0027s journal with 13 episodes of different types for one player, plus decoys for another player and another villager. Questions are phrased as a player would ask. Top-1 counts the first result in the expected set; abstention counts unanswerable questions that return nothing.",
+  "limitations": "Synthetic, author-written questions; lexical retrieval cannot answer paraphrases with no shared or type words.",
+  "baseline": {
+    "answerable": 13,
+    "unanswerable": 3,
+    "top1": 0.46153846153846156,
+    "meanReciprocalRank": 0.5,
+    "recallAt3": 0.5384615384615384,
+    "abstention": 1.0
+  },
+  "revised": {
+    "answerable": 13,
+    "unanswerable": 3,
+    "top1": 0.8461538461538461,
+    "meanReciprocalRank": 0.8846153846153846,
+    "recallAt3": 0.9230769230769231,
+    "abstention": 1.0
+  },
+  "invariants": {
+    "otherPlayersEpisodesExcluded": true,
+    "otherVillagersEpisodesExcluded": true,
+    "rankingsSurviveRestart": true
+  },
+  "cases": [
+    {
+      "id": "buy",
+      "category": "trade",
+      "query": "What did I buy from you last time?",
+      "expected": [
+        "trade"
+      ],
+      "baseline": [
+        "met"
+      ],
+      "revised": [
+        "trade",
+        "met",
+        "hit"
+      ]
+    },
+    {
+      "id": "axes",
+      "category": "trade",
+      "query": "How much were those axes?",
+      "expected": [
+        "trade"
+      ],
+      "baseline": [],
+      "revised": [
+        "trade"
+      ]
+    },
+    {
+      "id": "give",
+      "category": "gift",
+      "query": "Did I ever give you anything?",
+      "expected": [
+        "saw",
+        "gift"
+      ],
+      "baseline": [
+        "saw"
+      ],
+      "revised": [
+        "gift",
+        "saw"
+      ]
+    },
+    {
+      "id": "refused",
+      "category": "gift",
+      "query": "Remember the rotten flesh I offered you?",
+      "expected": [
+        "refused"
+      ],
+      "baseline": [
+        "refused"
+      ],
+      "revised": [
+        "refused"
+      ]
+    },
+    {
+      "id": "quest_done",
+      "category": "quest",
+      "query": "Did I finish your quest?",
+      "expected": [
+        "quest_set",
+        "quest_done"
+      ],
+      "baseline": [],
+      "revised": [
+        "quest_done",
+        "quest_set"
+      ]
+    },
+    {
+      "id": "quest_set",
+      "category": "quest",
+      "query": "What did you ask me to bring you?",
+      "expected": [
+        "quest_set"
+      ],
+      "baseline": [
+        "quest_set"
+      ],
+      "revised": [
+        "quest_set",
+        "quest_done",
+        "talk"
+      ]
+    },
+    {
+      "id": "errand",
+      "category": "errand",
+      "query": "Who did I bring a message from?",
+      "expected": [
+        "errand"
+      ],
+      "baseline": [
+        "quest_set"
+      ],
+      "revised": [
+        "quest_set",
+        "errand"
+      ]
+    },
+    {
+      "id": "hit",
+      "category": "hit",
+      "query": "Did I hit you?",
+      "expected": [
+        "hit"
+      ],
+      "baseline": [
+        "hit",
+        "gossip"
+      ],
+      "revised": [
+        "hit",
+        "gossip"
+      ]
+    },
+    {
+      "id": "met",
+      "category": "first",
+      "query": "When did we first meet?",
+      "expected": [
+        "met"
+      ],
+      "baseline": [
+        "met"
+      ],
+      "revised": [
+        "met"
+      ]
+    },
+    {
+      "id": "cave",
+      "category": "conversation",
+      "query": "What did I tell you about the cave?",
+      "expected": [
+        "talk"
+      ],
+      "baseline": [
+        "talk"
+      ],
+      "revised": [
+        "talk"
+      ]
+    },
+    {
+      "id": "promise",
+      "category": "promise",
+      "query": "What did I promise you?",
+      "expected": [
+        "promise"
+      ],
+      "baseline": [],
+      "revised": [
+        "promise"
+      ]
+    },
+    {
+      "id": "gossip",
+      "category": "gossip",
+      "query": "What have others said about me?",
+      "expected": [
+        "gossip"
+      ],
+      "baseline": [],
+      "revised": []
+    },
+    {
+      "id": "saw",
+      "category": "witnessed",
+      "query": "Did you see me with Bram?",
+      "expected": [
+        "saw"
+      ],
+      "baseline": [
+        "errand",
+        "saw"
+      ],
+      "revised": [
+        "saw",
+        "errand"
+      ]
+    },
+    {
+      "id": "none_boat",
+      "category": "abstention",
+      "query": "Did we ever sail a boat together?",
+      "expected": [],
+      "baseline": [],
+      "revised": []
+    },
+    {
+      "id": "none_colour",
+      "category": "abstention",
+      "query": "What is your favourite colour?",
+      "expected": [],
+      "baseline": [],
+      "revised": []
+    },
+    {
+      "id": "none_nether",
+      "category": "abstention",
+      "query": "Have you been to the nether?",
+      "expected": [],
+      "baseline": [],
+      "revised": []
+    }
+  ]
+}

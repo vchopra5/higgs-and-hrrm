@@ -31,7 +31,7 @@ final class TextTerms {
     }
 
     /** "wolves" and "wolf", "returned" and "return" compare equal enough for a spoken paraphrase. */
-    private static String stem(String word) {
+    static String stem(String word) {
         if (word.length() > 4 && word.endsWith("ves")) return word.substring(0, word.length() - 3) + "f";
         if (word.length() > 4 && word.endsWith("ies")) return word.substring(0, word.length() - 3) + "y";
         if (word.length() > 4 && word.endsWith("ing")) return word.substring(0, word.length() - 3);

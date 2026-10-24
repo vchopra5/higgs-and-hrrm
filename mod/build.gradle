@@ -105,6 +105,20 @@ tasks.register('testJournal', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testJournal' }
 
+tasks.register('compileJournalBenchmark', JavaCompile) {
+    source = files('src/main/java/dev/higgs/VillagerJournal.java', 'src/main/java/dev/higgs/TextTerms.java',
+        'src/test/dev/higgs/VillagerJournalBenchmark.java')
+    classpath = sourceSets.main.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('journal-benchmark')
+}
+tasks.register('benchmarkJournal', JavaExec) {
+    dependsOn 'compileJournalBenchmark'
+    classpath = files(layout.buildDirectory.dir('journal-benchmark')) + sourceSets.main.compileClasspath
+    mainClass = 'dev.higgs.VillagerJournalBenchmark'
+    args layout.buildDirectory.file('reports/journal-benchmark.json').get().asFile.absolutePath
+}
+tasks.named('check') { dependsOn 'benchmarkJournal' }
+
 tasks.register('compileMemoryBenchmark', JavaCompile) {
     source = files('src/main/java/dev/higgs/VillagerMemoryStore.java', 'src/main/java/dev/higgs/TextTerms.java',
         'src/main/java/dev/higgs/MemoryContextBudget.java',

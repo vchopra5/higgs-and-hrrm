@@ -128,3 +128,18 @@ From Microsoft TinyTroupe we borrow persona relationships, a cognitive state, th
 - **Repeat check**: live runs showed the voice model echoing quoted lines verbatim. Lines are now held until complete; one whose wording repeats an earlier line (cosine similarity > 0.7, the existing reaction check) is never broadcast, and the speaker gets one fresh attempt; a second repeat ends the scene. A live three-villager run after this change produced six distinct lines in which mood and bonds were visible (a villager the player hit stayed suspicious; a rival disagreed).
 - **Scene memory**: a scene about the player reaches the game server through `GET /digests` (`kind: scene`). Each participant records a `chatter_heard` episode quoting the other speakers.
 - **Persona check**: a villager with nothing to sell that mentions wares or prices gets one correction, including in its greeting. The planned check for an errand recipient quoting the message was unnecessary: since the errand fix, the recipient never receives the message.
+
+## Episode retrieval evaluation
+
+`VillagerJournalBenchmark` (run on every build; report in `benchmarks/journal-retrieval-v1.json`) asks 13 answerable and 3 unanswerable player-style questions of a persisted journal with decoys for another player and another villager. The frozen baseline is the first journal search (text words only). The revised search also indexes a few plain words for each event's type (structured server data, such as `trade` → "buy sell bought sold") and normalises word endings (plurals, -ed, -ing). Queries are never rewritten.
+
+| Metric | Baseline | Revised |
+| --- | ---: | ---: |
+| Top-1 evidence accuracy, 13 answerable | 46.2% | 84.6% |
+| Mean reciprocal rank | 0.500 | 0.885 |
+| Evidence recall at 3 | 53.8% | 92.3% |
+| Correct abstention, 3 unanswerable | 100% | 100% |
+
+Invariants passed: another player's episodes and another villager's episodes are never returned, and rankings are identical after restart. The build fails if top-1 drops below 0.8 or abstention below 100%. Two questions still miss, kept rather than tuned. "What have others said about me?" returns nothing because "said" is a shared stop word. "Who did I bring a message from?" ranks the quest ("…to bring me…") above the errand. These are small, author-written synthetic questions: a regression check, not a general score.
+
+Gift history in conversation context (`gifts.receivedFromPlayer`) now comes from journal `gift` episodes. The gift ledger keeps only what the rules need: refused items and the reward cooldown. Older saves load unchanged.

@@ -155,18 +155,48 @@ public final class VillagerJournal implements AutoCloseable {
         return pair;
     }
 
-    /** Episodes whose text shares words with the query, best first; lexical like the memory retriever. */
+    /**
+     * The event type is structured server data, so a few plain words describing it are indexed with the text
+     * ("bought" in the text, "buy" for the type), like attributed names in the memory store. Queries are never rewritten.
+     */
+    private static final Map<String, String> TYPE_TERMS = Map.ofEntries(
+        Map.entry("trade", "trade buy sell bought sold"), Map.entry("gift", "gift give gave present"),
+        Map.entry("gift_refused", "gift offer offered refuse"), Map.entry("quest_set", "quest ask asked bring"),
+        Map.entry("quest_done", "quest brought finish finished done"), Map.entry("errand_given", "errand send sent"),
+        Map.entry("errand_done", "errand deliver delivered done"), Map.entry("errand_received", "errand message deliver brought"),
+        Map.entry("hit", "hit attack struck"), Map.entry("insult", "insult rude"), Map.entry("kindness", "kind nice compliment"),
+        Map.entry("shunned", "refuse talk"), Map.entry("first_met", "meet met first"), Map.entry("conversation", "talk talked told"),
+        Map.entry("promise", "promise promised"), Map.entry("chatter_heard", "heard said say gossip"),
+        Map.entry("witnessed", "see saw seen"), Map.entry("overheard", "heard there"));
+
+    static Set<String> terms(String text) {
+        Set<String> result = new HashSet<>();
+        for (String word : TextTerms.words(text)) result.add(TextTerms.stem(word));
+        return result;
+    }
+
+    static Set<String> episodeTerms(Episode episode) {
+        Set<String> result = terms(episode.text);
+        result.addAll(terms(TYPE_TERMS.getOrDefault(episode.type, "")));
+        return result;
+    }
+
+    /** Episodes sharing terms with the query, best first; lexical like the memory retriever. */
     public synchronized List<Episode> search(UUID villager, UUID player, String query, long now, int limit) {
-        Set<String> terms = new HashSet<>(TextTerms.words(query));
+        Set<String> terms = terms(query);
         if (terms.isEmpty()) return List.of();
         List<Episode> pair = all(villager, player, now);
+        Map<Episode, Set<String>> indexed = new HashMap<>();
         Map<String, Integer> frequency = new HashMap<>();
-        for (Episode episode : pair) for (String word : new HashSet<>(TextTerms.words(episode.text))) frequency.merge(word, 1, Integer::sum);
+        for (Episode episode : pair) {
+            indexed.put(episode, episodeTerms(episode));
+            for (String word : indexed.get(episode)) frequency.merge(word, 1, Integer::sum);
+        }
         record Scored(Episode episode, double score) {}
         List<Scored> scored = new ArrayList<>();
         for (Episode episode : pair) {
             double score = 0;
-            for (String word : new HashSet<>(TextTerms.words(episode.text))) {
+            for (String word : indexed.get(episode)) {
                 if (terms.contains(word)) score += Math.log(1 + (pair.size() + 1.0) / frequency.get(word));
             }
             if (score > 0) scored.add(new Scored(episode, score + episode.salience * 0.01));
