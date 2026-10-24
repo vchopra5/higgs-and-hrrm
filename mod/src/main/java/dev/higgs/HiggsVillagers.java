@@ -944,6 +944,28 @@ public final class HiggsVillagers implements ModInitializer {
         result.addProperty("reputationChange", change);
         return result;
     }
+    /** A book and quill describing a quest or errand, so the player does not forget who wanted what. Theirs to keep or edit. */
+    private static void giveNote(ServerPlayer player, String title, List<String> pages) {
+        int limit = net.minecraft.world.item.component.WritableBookContent.PAGE_EDIT_LENGTH;
+        ItemStack book = new ItemStack(net.minecraft.world.item.Items.WRITABLE_BOOK);
+        book.set(net.minecraft.core.component.DataComponents.WRITABLE_BOOK_CONTENT, new net.minecraft.world.item.component.WritableBookContent(
+            pages.stream().map(page -> page.length() > limit ? page.substring(0, limit) : page)
+                .map(net.minecraft.server.network.Filterable::passThrough).toList()));
+        book.set(net.minecraft.core.component.DataComponents.CUSTOM_NAME, net.minecraft.network.chat.Component.literal(title));
+        if (!player.getInventory().add(book)) player.drop(book, false, false);
+        player.inventoryMenu.broadcastChanges();
+    }
+    private String villagerLine(Villager villager) {
+        VillageTracker.Village village = villages.villageOf(villager);
+        return villager.getName().getString() + ", the " + VillagerMemoryService.profession(villager)
+            + (village == null ? "" : " of " + village.name());
+    }
+    private static String position(Villager villager) {
+        return villager.blockPosition().getX() + ", " + villager.blockPosition().getY() + ", " + villager.blockPosition().getZ();
+    }
+    private static String stackText(JsonObject item) {
+        return item == null || item.get("count").getAsInt() <= 0 ? "" : item.get("count").getAsInt() + " × " + item.get("name").getAsString();
+    }
     /** Tracker card for a gift: what was given and how it landed. */
     private void giftStatus(Session s, String status, ItemStack gift, String reaction) {
         JsonObject message = new JsonObject();
@@ -1004,6 +1026,14 @@ public final class HiggsVillagers implements ModInitializer {
                 target.addEffect(new net.minecraft.world.effect.MobEffectInstance(net.minecraft.world.effect.MobEffects.GLOWING, 20 * 120));
                 s.player.inventoryMenu.broadcastChanges();
                 String where = where(s.player, target);
+                String sender = giver.getName().getString(), recipient = target.getName().getString();
+                giveNote(s.player, "Errand: " + sender + " → " + recipient, List.of(
+                    "ERRAND\n\nFrom: " + villagerLine(giver) + "\nTo: " + villagerLine(target) + "\n\n"
+                        + (kind.equals("message") ? "Pass on this message:\n\"" + message + "\""
+                            : "Deliver: 1 × " + carried.getHoverName().getString() + "\n(" + sender + " gave it to you)"),
+                    "Where: " + recipient + " was " + where + " from you, at " + position(target) + ", when " + sender + " asked.\n\n"
+                        + "Reward: " + sender + " +" + Errands.GIVER_REWARD + ", " + recipient + " +" + Errands.TARGET_REWARD + " reputation.\n\n"
+                        + "Lapses after two hours."));
                 errandStatus(s, "errand", errand.kind().equals("message") ? "\"" + errand.message() + "\"" : "1 × " + errand.itemName(),
                     errand.targetName() + " · " + errand.targetProfession(), where);
                 org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Errand {} for {}: {} -> {}", kind, s.player.getName().getString(),
@@ -1215,6 +1245,13 @@ public final class HiggsVillagers implements ModInitializer {
         result.addProperty("quest", quest.ask());
         result.add("deal", terms);
         questStatus(s, quest, "quest", "");
+        String giver = s.villager.getName().getString();
+        String pay = stackText(terms.getAsJsonObject("costA")), extra = stackText(terms.getAsJsonObject("costB"));
+        giveNote(s.player, "Quest: " + giver, List.of(
+            "QUEST\n\nFrom: " + villagerLine(s.villager) + "\n\nBring: " + quest.ask() + "\n\nThen " + giver + " will trade:\n"
+                + pay + (extra.isEmpty() ? "" : " + " + extra) + "\n→ " + stackText(terms.getAsJsonObject("receive")),
+            "Tell " + giver + " when you have it. The deal opens once, at the price you asked.\n\n"
+                + giver + " was at " + position(s.villager) + " when the quest was set."));
         return result;
     }
     private JsonObject completeQuest(Session s, int turn) {

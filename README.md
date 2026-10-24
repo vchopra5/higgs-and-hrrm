@@ -225,7 +225,9 @@ Ask a villager for work (“anything I can help with?”) and it may send you to
 in the same village: either to pass on a short message it writes (“Tell Bram the wolves
 are back”) or to deliver a package from its wares, which it hands you. The recipient
 glows for two minutes, and an **ERRAND** card shows what you carry, who it is for, and
-roughly where they are (“30 blocks north-east”). Talk to the recipient and pass it on:
+roughly where they are (“30 blocks north-east”). You also get a book and quill titled
+“Errand: Iris → Bram” recording who sent you, who it is for, the exact message or
+package, where the recipient was, and the reward. Talk to the recipient and pass it on:
 it confirms the delivery (taking the package), gains 1 reputation, and the villager who
 sent you gains 2 and remembers the favour. One errand at a time; it lapses after two
 hours. Hostile villagers do not hand out errands, so errands are a good way to rebuild
@@ -299,7 +301,8 @@ axe.” The server offers profession-themed errands, harder for a bigger discoun
 wheat for a small one, iron or gold for a fair one, an ominous banner or diamonds for a
 steep one), and the villager picks one. Tell the villager when you have the items: the
 server checks your inventory, takes them, and opens the deal at your price for one
-purchase, confirmed with a yes as usual. Each villager keeps one open quest per player,
+purchase, confirmed with a yes as usual. Setting a quest also hands you a book and quill
+(“Quest: Iris”) noting what to bring, the deal it unlocks, and where the villager was. Each villager keeps one open quest per player,
 saved with the world (`data/higgs-quests.json`) and remembered in later conversations.
 If the trade changes or sells out, the delivered quest waits for it to restock.
 
