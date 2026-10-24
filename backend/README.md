@@ -45,3 +45,32 @@ Live API behavior and Minecraft microphone/playback still require testing with a
 Closure logs include a session ID, stable reason and WebSocket code, never tickets, credentials, audio, transcripts or provider-supplied close text. Nonfatal provider errors log only a sanitized code. For hands-free use, headphones prevent speaker audio being recaptured as user speech; this native audio path does not yet implement echo cancellation.
 
 The client can send `{type:"mute",muted:true/false}` even before Ready. Muting pauses capture, clears the upstream input buffer and discards any unfinished utterance. Unmuting clears stale input before the next speech turn. Neither action cancels an existing assistant reply. The bridge sends `{type:"end",code,message}` on closure; session setup rejection is fatal, while ordinary provider errors after Ready are recoverable.
+
+## Live voice diagnostics
+
+While connected the bridge sends a `diagnostics` snapshot every second: forwarded PCM `inputBytes`/`outputBytes`, `speechStarts`/`speechStops`, `responses`, `firstAudioLatencyMs` (speech end to first audio forwarded, null until available), `lastEvent`, `lastError`, `pendingTools`, and `upstreamReady`. Additional `suppressedAudio` byte counters distinguish `speaking`, `cancelled`, `staleResponse`, and `backpressure`; `speaking`/`cancelled` flags expose the current gate. Counters reset on a new conversation. These are transport/provider diagnostics, not proof of audible playback.
+
+If input bytes stay flat, inspect microphone capture or mute. If bytes grow without speech events, Higgs has not detected speech. Speech stops without responses points to provider turn handling; responses without output points to provider generation or suppression counters. Output bytes growing without audible sound points to client playback. Nonzero pending tools can delay the response until the Minecraft server responds. The backend console records sanitized `voice_stage` timestamps for Ready, speech start/stop, response start/end and first audio, without logging audio, transcripts, context, tickets or API keys.
+
+### Investigation evidence (2026-10-23)
+
+No provider bug is established by the available logs. The configured model is
+`higgs-realtime`; the captured logs do not identify its underlying model version
+or confirm account access to Higgs 1.5.
+
+- Direct Higgs synthetic-speech test: first audio approximately 418 ms after
+  speech stopped; response completed.
+- Synthetic speech through the updated bridge, with a simulated game-server
+  trade lookup: speech stopped at 3510 ms, first audio at 4332 ms (822 ms latency),
+  final response completed at 5312 ms. Received 426240 PCM bytes; no provider
+  errors, suppressed audio, or pending tools remained.
+- A probe without a simulated game-server tool handler waited on one pending
+  trade lookup. This was an incomplete test setup, not evidence of a provider stall.
+- The bridge had a cancellation-state bug: if `response.created` preceded
+  `speech_stopped`, the cancelled flag could remain set and discard the new reply.
+  This is fixed and regression-tested with simulated event ordering. That ordering
+  was not observed in the successful live probe, and is not established as the
+  cause of the user's original symptom.
+- The available original game log shows the session ending when the player died;
+  it predates the microphone counters and cannot establish whether speech reached
+  Higgs. The synthetic probes do not validate the actual game microphone or speakers.

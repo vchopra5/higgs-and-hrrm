@@ -51,3 +51,15 @@ tasks.register('testAudioQueue', JavaExec) {
     mainClass = 'dev.higgs.AudioPlaybackQueueTest'
 }
 tasks.named('check') { dependsOn 'testAudioQueue' }
+tasks.register('compileAudioLevelsTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/AudioLevels.java',
+        'src/client/test/dev/higgs/AudioLevelsTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('audio-levels-test')
+}
+tasks.register('testAudioLevels', JavaExec) {
+    dependsOn 'compileAudioLevelsTest'
+    classpath = files(layout.buildDirectory.dir('audio-levels-test'))
+    mainClass = 'dev.higgs.AudioLevelsTest'
+}
+tasks.named('check') { dependsOn 'testAudioLevels' }

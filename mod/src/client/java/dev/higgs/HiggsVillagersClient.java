@@ -22,11 +22,19 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     private boolean pending;
     private long requestTime;
     private long generation;
+    private boolean showDiagnostics = true;
+    private boolean tutorialDisabled;
+    private VoiceSession lastVoice;
+    private long diagnosticRefresh;
+    private String[] diagnosticLines = new String[0];
+    private static volatile String lastStatus = "";
+    private static volatile long lastStatusAt;
 
     @Override public void onInitializeClient() {
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("higgs_villagers", "voice"));
         KeyMapping toggle = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.conversation", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, category));
         KeyMapping mute = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.mute", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category));
+        KeyMapping diagnostics = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.diagnostics", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, category));
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "voice_indicator"),
             (graphics, delta) -> {
                 Minecraft client = Minecraft.getInstance();
@@ -51,11 +59,45 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 graphics.fill(mx - 3, my + 15, mx + 3, my + 16, color);
                 graphics.text(client.font, label, x + 24, y + 9, color, false);
             });
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "diagnostics"),
+            (graphics, delta) -> {
+                Minecraft client = Minecraft.getInstance();
+                long now = System.currentTimeMillis();
+                if (!showDiagnostics || client.player == null || client.options.hideGui
+                    || (voice == null && !pending && now - lastStatusAt > 15_000)) return;
+                VoiceSession source = voice != null ? voice : lastVoice;
+                if (now - diagnosticRefresh >= 250) {
+                    diagnosticRefresh = now;
+                    diagnosticLines = source == null ? new String[]{"Higgs diagnostics [F8]", pending ? "Connecting…" : "No active session"} : source.diagnosticLines();
+                }
+                int width = Math.min(390, graphics.guiWidth() - 20);
+                int x = 10, y = 10;
+                int height = (diagnosticLines.length + 1) * 11 + 16;
+                graphics.fill(x, y, x + width, y + height, 0xE0141B24);
+                int row = y + 5;
+                for (String text : diagnosticLines) {
+                    graphics.text(client.font, client.font.plainSubstrByWidth(text, width - 12), x + 6, row, 0xFFD3DBE5, false);
+                    row += 11;
+                }
+                String status = lastStatus.length() > 200 ? lastStatus.substring(0, 200) : lastStatus;
+                graphics.text(client.font, client.font.plainSubstrByWidth(status, width - 12), x + 6, row, 0xFFFFCF70, false);
+                double dbfs = source == null ? -96 : source.microphoneDbfs();
+                int meter = (int) ((width - 12) * Math.max(0, Math.min(1, (dbfs + 60) / 60)));
+                graphics.fill(x + 6, y + height - 5, x + width - 6, y + height - 3, 0xFF384451);
+                if (meter > 0) graphics.fill(x + 6, y + height - 5, x + 6 + meter, y + height - 3, dbfs > -3 ? 0xFFFF7070 : 0xFF70EF9B);
+            });
         ClientPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) ->
             context.client().execute(() -> receive(payload.json())));
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> stop(false));
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             if (client.player == null || client.level == null) { stop(false); return; }
+            if (!tutorialDisabled) {
+                client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
+                tutorialDisabled = true;
+            }
+            while (diagnostics.consumeClick()) {
+                if (client.screen == null) showDiagnostics = !showDiagnostics;
+            }
             while (toggle.consumeClick()) {
                 if (client.screen != null) continue;
                 if (voice != null || pending) { stop(true); status("Conversation ended."); }
@@ -84,6 +126,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         request.addProperty("type", "start");
         request.addProperty("entityId", hit.getEntity().getId());
         pending = true;
+        lastVoice = null;
+        diagnosticRefresh = 0;
         requestTime = System.currentTimeMillis();
         ClientPlayNetworking.send(new ControlPayload(request.toString()));
         status("Connecting to villager…");
@@ -122,12 +166,14 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         pending = false;
         VoiceSession previous = voice;
         voice = null;
-        if (previous != null) previous.close();
+        if (previous != null) { lastVoice = previous; previous.close(); }
         if (notifyServer && active && ClientPlayNetworking.canSend(ControlPayload.TYPE))
             ClientPlayNetworking.send(new ControlPayload("{\"type\":\"end\"}"));
     }
 
     private static void status(String message) {
+        lastStatus = message;
+        lastStatusAt = System.currentTimeMillis();
         org.slf4j.LoggerFactory.getLogger("HiggsVillagersVoice").info("{}", message);
         Minecraft client = Minecraft.getInstance();
         client.execute(() -> {

@@ -39,6 +39,9 @@ export function createBridge({ apiKey, token, upstreamUrl = 'wss://api.boson.ai/
     const received = Buffer.from(req.headers.authorization ?? ''); const expected = Buffer.from(`Bearer ${token}`);
     return received.length === expected.length && timingSafeEqual(received, expected);
   }
+  function stage(s, event, extra = {}) {
+    log({ event: 'voice_stage', sessionId: s.id, stage: event, elapsedMs: now() - s.created, ...extra });
+  }
   function completeBatch(s) {
     if (!s.recording && !s.cancelled && s.responseDone && s.pending.size === 0 && s.hasTools) { s.hasTools = false; send(s.upstream, { type: 'response.create' }); }
   }
@@ -58,7 +61,7 @@ export function createBridge({ apiKey, token, upstreamUrl = 'wss://api.boson.ai/
         const body = await jsonBody(req);
         if (typeof body.playerId !== 'string' || typeof body.villagerId !== 'string' || !body.context || typeof body.context !== 'object') return reply(400, { error: 'playerId, villagerId and context required' });
         for (const s of sessions.values()) if (s.playerId === body.playerId) closeSession(s, 'replaced_by_new_session');
-        const s = { id: randomUUID(), ticket: randomBytes(32).toString('hex'), created: now(), playerId: body.playerId, context: body.context, pending: new Map(), seen: new Set(), responseDone: true, hasTools: false, inputBytes: 0 };
+        const s = { id: randomUUID(), ticket: randomBytes(32).toString('hex'), created: now(), playerId: body.playerId, context: body.context, pending: new Map(), seen: new Set(), responseDone: true, hasTools: false, inputBytes: 0, diagnostics: { inputBytes: 0, outputBytes: 0, speechStarts: 0, speechStops: 0, responses: 0, firstAudioLatencyMs: null, lastEvent: 'session_allocated', lastError: null, suppressedAudio: { speaking: 0, cancelled: 0, staleResponse: 0, backpressure: 0 } } };
         s.timer = setTimeout(() => { send(s.client, { type: 'error', fatal: true, code: 'session_duration_limit', message: 'The ten-minute conversation limit was reached. Start a new conversation to continue.' }); closeSession(s, 'session_duration_limit'); }, 600_000); s.timer.unref(); sessions.set(s.id, s);
         return reply(201, { sessionId: s.id, ticket: s.ticket });
       }
@@ -94,14 +97,32 @@ export function createBridge({ apiKey, token, upstreamUrl = 'wss://api.boson.ai/
     upstream.on('message', data => {
       try {
         const event = JSON.parse(data);
-        if (s.configSent && (event.type === 'session.created' || event.type === 'session.updated')) { clearTimeout(s.connectTimer); s.ready = true; send(client, { type: 'status', message: 'Ready' }); }
-        if (event.type === 'response.output_audio.delta' && !s.recording && !s.cancelled) send(client, { type: 'audio', audio: event.delta });
-        if (event.type === 'response.created') { s.responseId = event.response?.id; s.responseDone = false; if (!s.recording) s.cancelled = false; }
+        s.diagnostics.lastEvent = String(event.type ?? 'unknown').replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 80);
+        if (s.configSent && (event.type === 'session.created' || event.type === 'session.updated')) { clearTimeout(s.connectTimer); s.ready = true; stage(s, 'upstream_ready'); send(client, { type: 'status', message: 'Ready' }); }
+        if (event.type === 'response.output_audio.delta') {
+          const bytes = typeof event.delta === 'string' ? Buffer.from(event.delta, 'base64').length : 0;
+          const stale = event.response_id && s.responseId && event.response_id !== s.responseId;
+          const reason = stale ? 'staleResponse' : s.recording ? 'speaking' : s.cancelled ? 'cancelled' : null;
+          if (reason) s.diagnostics.suppressedAudio[reason] += bytes;
+          else if (send(client, { type: 'audio', audio: event.delta })) {
+            s.diagnostics.outputBytes += bytes;
+            if (!s.firstAudioSent) {
+              s.firstAudioSent = true;
+              s.diagnostics.firstAudioLatencyMs = s.speechStoppedAt == null ? null : Math.max(0, now() - s.speechStoppedAt);
+              stage(s, 'first_audio', { firstAudioLatencyMs: s.diagnostics.firstAudioLatencyMs });
+            }
+          } else s.diagnostics.suppressedAudio.backpressure += bytes;
+        }
+        if (event.type === 'response.created') {
+          s.responseId = event.response?.id; s.responseDone = false; s.cancelled = false; s.firstAudioSent = false;
+          s.diagnostics.responses++; s.diagnostics.firstAudioLatencyMs = null; stage(s, 'response_created');
+        }
         if (event.type === 'input_audio_buffer.speech_started' && s.mode === 'vad' && !s.muted) {
+          s.diagnostics.speechStarts++; stage(s, 'speech_started');
           interrupt(false); send(client, { type: 'speech', active: true });
         }
         if (event.type === 'input_audio_buffer.speech_stopped' && s.mode === 'vad') {
-          s.recording = false; send(client, { type: 'speech', active: false });
+          s.recording = false; s.speechStoppedAt = now(); s.diagnostics.speechStops++; stage(s, 'speech_stopped'); send(client, { type: 'speech', active: false });
         }
         if (event.type === 'response.function_call_arguments.done') {
           if (s.seen.has(event.call_id)) return;
@@ -111,10 +132,10 @@ export function createBridge({ apiKey, token, upstreamUrl = 'wss://api.boson.ai/
           s.pending.set(event.call_id, { callId: event.call_id, name: event.name, arguments: args, created: now() });
           if (!args || !['get_trades', 'propose_trade'].includes(event.name) || (event.name === 'propose_trade' && (!Number.isInteger(args.offerIndex) || args.offerIndex < 0))) toolResult(s, event.call_id, { error: 'Invalid tool request' });
         }
-        if (event.type === 'response.done' && (!event.response?.id || !s.responseId || event.response.id === s.responseId)) { s.responseDone = true; if (event.response?.status === 'cancelled') s.cancelled = true; completeBatch(s); }
+        if (event.type === 'response.done' && (!event.response?.id || !s.responseId || event.response.id === s.responseId)) { s.responseDone = true; stage(s, 'response_done', { status: ['completed', 'cancelled', 'failed', 'incomplete'].includes(event.response?.status) ? event.response.status : 'unknown' }); if (event.response?.status === 'cancelled') s.cancelled = true; completeBatch(s); }
         if (event.type === 'error') {
           const code = String(event.error?.code ?? 'provider_error').replace(/[^a-zA-Z0-9_.-]/g, '_').slice(0, 80);
-          log({ event: 'provider_error', sessionId: s.id, code });
+          s.diagnostics.lastError = code; log({ event: 'provider_error', sessionId: s.id, code });
           send(client, { type: 'error', fatal: !s.ready, code, message: s.ready ? `Higgs reported ${code}; the conversation is still connected.` : `Higgs rejected session setup (${code}). Check the API configuration.` });
           if (!s.ready) closeSession(s, 'provider_setup_rejected');
         }
@@ -148,7 +169,7 @@ export function createBridge({ apiKey, token, upstreamUrl = 'wss://api.boson.ai/
           const bytes = Buffer.from(event.audio, 'base64').length;
           if (bytes % 2 || (s.mode === 'ptt' && s.inputBytes + bytes > 48_000 * 60)) throw new Error('Audio turn exceeds 60 seconds or has invalid PCM');
           if (s.mode === 'ptt') { s.recording = true; s.inputBytes += bytes; }
-          send(upstream, { type: 'input_audio_buffer.append', audio: event.audio });
+          if (send(upstream, { type: 'input_audio_buffer.append', audio: event.audio })) s.diagnostics.inputBytes += bytes;
         } else if (event.type === 'commit') {
           if (s.mode !== 'ptt') return; // VAD owns commits and responses.
           s.recording = false;
@@ -165,6 +186,7 @@ export function createBridge({ apiKey, token, upstreamUrl = 'wss://api.boson.ai/
   const sweep = setInterval(() => {
     for (const s of sessions.values()) {
       if (!s.client && now() - s.created > 30_000) { closeSession(s, 'ticket_expired'); continue; }
+      send(s.client, { type: 'diagnostics', ...s.diagnostics, pendingTools: s.pending.size, upstreamReady: !!s.ready && s.upstream?.readyState === WebSocket.OPEN, speaking: !!s.recording, cancelled: !!s.cancelled });
       for (const tool of s.pending.values()) if (now() - tool.created > 15_000) toolResult(s, tool.callId, { error: 'Game server did not respond in time' });
     }
   }, 1000); sweep.unref();

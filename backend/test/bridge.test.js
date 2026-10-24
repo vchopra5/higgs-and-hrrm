@@ -122,6 +122,31 @@ test('hands-free VAD survives long silence, repeated turns, interruption and non
   emit({ type: 'response.created', response: { id: 'unmuted' } });
   emit({ type: 'response.output_audio.delta', delta: 'RESUMED=' });
   await until(() => events.some(e => e.audio === 'RESUMED='));
+  // response.created can race ahead of speech_stopped; a new response must clear
+  // the previous response's cancellation even while the player is still speaking.
+  emit({ type: 'input_audio_buffer.speech_started' });
+  emit({ type: 'response.created', response: { id: 'reordered' } });
+  emit({ type: 'response.output_audio.delta', response_id: 'reordered', delta: 'AAA=' });
+  emit({ type: 'input_audio_buffer.speech_stopped' });
+  emit({ type: 'response.output_audio.delta', response_id: 'old', delta: 'AAA=' });
+  emit({ type: 'response.output_audio.delta', response_id: 'reordered', delta: 'FINAL=' });
+  await until(() => events.some(e => e.audio === 'FINAL='));
+  await delay(1100);
+  const diagnostic = events.filter(e => e.type === 'diagnostics').at(-1);
+  assert.ok(diagnostic.inputBytes >= 65 * 48_000);
+  assert.ok(diagnostic.outputBytes > 0);
+  assert.ok(diagnostic.speechStarts >= 6);
+  assert.ok(diagnostic.speechStops >= 5);
+  assert.ok(diagnostic.responses >= 6);
+  assert.equal(typeof diagnostic.firstAudioLatencyMs, 'number');
+  assert.equal(diagnostic.upstreamReady, true);
+  assert.equal(diagnostic.pendingTools, 0);
+  assert.equal(diagnostic.lastError, 'response_cancel_not_active');
+  assert.equal(diagnostic.lastEvent, 'response.output_audio.delta');
+  assert.ok(diagnostic.suppressedAudio.speaking > 0);
+  assert.ok(diagnostic.suppressedAudio.staleResponse > 0);
+  assert.ok(logs.some(e => e.stage === 'speech_stopped'));
+  assert.ok(logs.some(e => e.stage === 'first_audio' && typeof e.firstAudioLatencyMs === 'number'));
   upstream.close(1013, 'PRIVATE CLOSE DETAIL');
   await until(() => !bridge.sessions.has(sessionId));
   assert.ok(logs.some(e => e.event === 'session_closed' && e.reason === 'upstream_closed' && e.code === 1013));

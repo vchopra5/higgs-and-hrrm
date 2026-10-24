@@ -20,7 +20,8 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private static final AudioFormat FORMAT = new AudioFormat(24000, 16, 1, true, false);
     private final Consumer<String> status;
     private final Runnable ended;
-    private final ArrayBlockingQueue<String> outgoing = new ArrayBlockingQueue<>(64);
+    private record Outbound(String json, int audioBytes) {}
+    private final ArrayBlockingQueue<Outbound> outgoing = new ArrayBlockingQueue<>(64);
     private record AudioChunk(byte[] bytes, long generation) { int byteCount() { return bytes.length; } }
     private final AudioPlaybackQueue<AudioChunk> playback = new AudioPlaybackQueue<>(24000 * 2 * 30, AudioChunk::byteCount);
     private volatile long playbackGeneration;
@@ -36,6 +37,12 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private long microphoneGeneration;
     private volatile Thread capture;
     private long lastOverflowNotice;
+    private volatile double micDbfs = -96;
+    private volatile long lastMicFrame;
+    private volatile long sentChunks, sentBytes, receivedChunks, receivedBytes;
+    private volatile int playingBytes;
+    private volatile String lastEvent = "connecting", lastError = "";
+    private volatile JsonObject backendDiagnostics = new JsonObject();
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final Thread sender;
     private final Thread player;
@@ -116,8 +123,10 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                 int count = line.read(frame, 0, frame.length);
                 synchronized (this) {
                     if (!muted && !closed.get() && frameGeneration == microphoneGeneration && count > 0) {
+                        micDbfs = AudioLevels.dbfs(frame, count);
+                        lastMicFrame = System.currentTimeMillis();
                         String audio = Base64.getEncoder().encodeToString(java.util.Arrays.copyOf(frame, count));
-                        enqueue("{\"type\":\"audio\",\"audio\":\"" + audio + "\"}");
+                        enqueue("{\"type\":\"audio\",\"audio\":\"" + audio + "\"}", count);
                     }
                 }
             }
@@ -129,13 +138,18 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         }
     }
 
-    private void enqueue(String message) {
-        if (!closed.get() && !outgoing.offer(message)) fail("Voice connection is too slow. Please reconnect.");
+    private void enqueue(String message) { enqueue(message, 0); }
+    private void enqueue(String message, int audioBytes) {
+        if (!closed.get() && !outgoing.offer(new Outbound(message, audioBytes))) fail("Voice connection is too slow. Please reconnect.");
     }
 
     private void sendLoop() {
         try {
-            while (!closed.get()) socket.sendText(outgoing.take(), true).join();
+            while (!closed.get()) {
+                Outbound packet = outgoing.take();
+                socket.sendText(packet.json(), true).join();
+                if (packet.audioBytes() > 0) { sentChunks++; sentBytes += packet.audioBytes(); }
+            }
         } catch (Exception e) {
             if (!closed.get()) fail("Voice connection interrupted.");
         }
@@ -153,8 +167,10 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                 byte[] frame = chunk.bytes();
                 for (int offset = 0; offset < frame.length && !closed.get() && chunk.generation() == playbackGeneration;) {
                     int count = Math.min(1920, frame.length - offset);
+                    playingBytes = frame.length - offset;
                     offset += line.write(frame, offset, count);
                 }
+                playingBytes = 0;
             }
         } catch (Exception e) {
             if (!closed.get()) fail("Audio output unavailable. Check your sound device.");
@@ -179,9 +195,12 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
             try {
                 JsonObject event = JsonParser.parseString(incoming.toString()).getAsJsonObject();
                 String type = event.get("type").getAsString();
+                if (!"diagnostics".equals(type)) lastEvent = type;
                 switch (type) {
+                    case "diagnostics" -> backendDiagnostics = event;
                     case "audio" -> {
                         byte[] bytes = Base64.getDecoder().decode(event.get("audio").getAsString());
+                        receivedChunks++; receivedBytes += bytes.length;
                         if ((bytes.length & 1) != 0) throw new IllegalArgumentException("Invalid PCM");
                         if (bytes.length > 0 && !playback.offer(new AudioChunk(bytes, playbackGeneration))) {
                             // Keep the conversation alive if output arrives faster than the speaker can play.
@@ -204,6 +223,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                     }
                     case "error" -> {
                         String message = event.has("message") ? event.get("message").getAsString() : "Voice error";
+                        lastError = message;
                         if (event.has("fatal") && event.get("fatal").getAsBoolean()) fail(message);
                         else status.accept(message);
                     }
@@ -226,8 +246,36 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     }
     @Override public void onError(WebSocket ws, Throwable error) { fail("Voice connection failed."); }
     private void fail(String message) {
-        if (!closed.get()) { status.accept(message); close(); }
+        if (!closed.get()) { lastError = message; status.accept(message); close(); }
     }
+    double microphoneDbfs() {
+        return muted || System.currentTimeMillis() - lastMicFrame > 1000 ? -96 : micDbfs;
+    }
+
+    String[] diagnosticLines() {
+        JsonObject remote = backendDiagnostics;
+        long age = lastMicFrame == 0 ? -1 : System.currentTimeMillis() - lastMicFrame;
+        String latency = field(remote, "firstAudioLatencyMs", "—");
+        String remoteError = field(remote, "lastError", "");
+        return new String[] {
+            "Higgs diagnostics [F8]  " + (closed.get() ? "ENDED" : ready ? "READY" : "CONNECTING"),
+            String.format(java.util.Locale.ROOT, "Mic %.1f dBFS  frame %s  %s", microphoneDbfs(), age < 0 ? "none" : age + "ms ago", muted ? "MUTED" : isTransmitting() ? "LIVE" : "INACTIVE"),
+            "Sent " + sentChunks + " chunks / " + sentBytes + " B  pending " + outgoing.size(),
+            "Audio received " + receivedChunks + " / " + receivedBytes + " B  queued " + ((playback.queuedBytes() + playingBytes) / 48) + "ms",
+            "Backend in/out " + field(remote, "inputBytes", "0") + "/" + field(remote, "outputBytes", "0") + " B  ready " + field(remote, "upstreamReady", "?"),
+            "VAD start/stop " + field(remote, "speechStarts", "0") + "/" + field(remote, "speechStops", "0") + "  replies " + field(remote, "responses", "0") + "  first audio " + latency + "ms",
+            "Suppressed " + field(remote, "suppressedAudio", "none"),
+            "Tools " + field(remote, "pendingTools", "0") + "  event " + field(remote, "lastEvent", lastEvent),
+            "Error " + (remoteError.isBlank() ? lastError.isBlank() ? "none" : lastError : remoteError)
+        };
+    }
+
+    private static String field(JsonObject object, String key, String fallback) {
+        var value = object.get(key);
+        String text = value == null || value.isJsonNull() ? fallback : value.isJsonPrimitive() ? value.getAsString() : value.toString();
+        return text.length() > 200 ? text.substring(0, 200) : text;
+    }
+
     @Override public void close() {
         if (!closed.compareAndSet(false, true)) return;
         sender.interrupt();

@@ -38,6 +38,13 @@ system audio device, not Minecraft's positional audio or volume sliders.
 Use headphones to avoid speaker audio triggering voice detection; acoustic echo
 cancellation is not implemented.
 
+Live diagnostics appear at the top left during conversations; **F8** toggles them.
+The microphone meter should move when you speak, sent bytes should increase,
+and VAD start/stop counts should advance around each sentence. Reply counts and
+first-audio latency show provider progress; received bytes and queued milliseconds
+show playback progress. Errors and ended-session diagnostics remain for 15 seconds.
+The mod also dismisses Minecraft's first-time movement tutorial on entering a world.
+
 Ask “What can I buy?” or “Show me the bread trade.” The model can open the native
 trading screen; you choose and complete the trade there. It cannot change prices
 or spend items by voice. Start within 8 blocks; conversations stay active within 12 blocks. Opening a
