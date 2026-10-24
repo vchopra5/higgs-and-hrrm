@@ -8,10 +8,32 @@ Local Minecraft Java Edition **26.1.2** server with **Fabric 0.20.1** and
 **Cardboard 26.1-15** for the villager conversation project.
 Fabric API and iCommon are installed. The Higgs integration prototype lives in
 `mod/` and `backend/`; live Boson and microphone testing is still required.
-Exact mod versions, download URLs, and checksums are in
-[`server-cardboard/components.json`](../server-cardboard/components.json).
+Exact mod versions, download URLs, and SHA-512 checksums are pinned in
+[`scripts/setup-linux.sh`](../scripts/setup-linux.sh).
 
-For a fresh Linux installation, follow **[Linux and CachyOS: from clone to conversation](linux.md)**. It covers packages, server downloads, Prism and audio troubleshooting.
+## Linux setup
+
+Install JDK 25, Node.js 22+, and curl with your package manager, then run:
+
+```sh
+./scripts/setup-linux.sh ~/.local/share/PrismLauncher/instances/YOUR_INSTANCE/.minecraft/mods
+```
+
+The argument is your Fabric 26.1.2 client's `mods` directory; omit it to set up
+only the server. The script:
+
+1. Downloads the Fabric server launcher, Cardboard, Fabric API, and iCommon into
+   `server-cardboard/`, refusing any file whose SHA-512 does not match its pin.
+2. Builds the bridge with `npm ci`, which verifies the lockfile integrity hashes.
+3. Builds the mod with Gradle. The wrapper JAR, the Gradle distribution, and every
+   dependency (`mod/gradle/verification-metadata.xml`) are checksum-verified.
+4. Copies the mod JAR into `server-cardboard/mods/`, and the mod JAR plus Fabric
+   API into the client `mods` directory.
+
+Re-run it after changing the mod; verified files are not downloaded again. Then
+fill in `.env` (step 1 below), accept the EULA (see [Run locally](#run-locally)),
+and start the bridge and server. For packages, Prism and audio troubleshooting,
+see **[Linux and CachyOS: from clone to conversation](linux.md)**.
 
 ## Villager voice prototype
 
@@ -77,10 +99,9 @@ The mod also saves conversation summaries per villager and spreads public storie
 
 These launch commands use the already-provisioned local installation. A fresh
 clone does not include Java, server JARs, mods, worlds, or EULA acceptance.
-For a fresh setup, install JDK 25 for your operating system and CPU, then download the mods listed in
-`server-cardboard/components.json` into `server-cardboard/mods`, and download
-the [pinned Fabric launcher](https://meta.fabricmc.net/v2/versions/loader/26.1.2/0.20.1/1.1.2/server/jar)
-as `server-cardboard/fabric-server-launch.jar`. Copy
+On Linux, use [Linux setup](#linux-setup). Elsewhere, install JDK 25 for your
+operating system and CPU and download the files pinned in
+`scripts/setup-linux.sh` into `server-cardboard/`. Copy
 `server-cardboard/server.properties.example` to `server-cardboard/server.properties`.
 Read and accept the [Minecraft EULA](https://aka.ms/MinecraftEULA) before setting
 `eula=true` in `server-cardboard/eula.txt`. With the whitelist enabled, add your
