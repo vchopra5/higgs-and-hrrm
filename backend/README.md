@@ -47,7 +47,7 @@ Client messages are `{type:"audio",audio:"BASE64"}`, `{type:"commit"}`, `{type:"
 
 The Minecraft client uses push-to-talk and connects with `&mode=ptt`: send `interrupt` on press and `commit` on release. In default hands-free mode, `commit` is ignored to avoid duplicate responses.
 
-Sessions last at most ten minutes. Hands-free streaming has no cumulative audio-byte cap: silence and repeated turns do not exhaust an input counter. Legacy push-to-talk turns are capped at sixty seconds; PTT turns under 100 ms are discarded. The ten-minute session limit is reported explicitly. Sessions never restart automatically. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. There is no persistent audio recording or conversation storage.
+Sessions last at most ten minutes. Hands-free streaming has no cumulative audio-byte cap: silence and repeated turns do not exhaust an input counter. Legacy push-to-talk turns are capped at sixty seconds; PTT turns under 100 ms are discarded. The ten-minute session limit is reported explicitly. Sessions never restart automatically. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. The bridge stores no audio recordings or transcripts; the game server separately persists short conversation summaries for villager memory.
 
 ## Higgs mapping
 
@@ -60,6 +60,8 @@ The implementation follows Boson's [official session configuration](https://gith
 - Tool results are serialized into `conversation.item.create` function-call outputs. One `response.create` follows the completed tool batch.
 
 `get_trades` queries authoritative game state. `propose_trade` opens the native trading screen; it never purchases anything or changes prices. The game server validates proximity, villager identity and offer availability.
+
+`remember_conversation` accepts `{summary, private}` and asks the bound game server to persist a short player statement. `recall_memories` accepts `{query, scope}` where scope is `player` or `village`. The server supplies UUIDs, sources, storage, and gossip eligibility. Private entries cannot spread; village scope can include public stories about other players. The bridge validates bounded strings and booleans and preserves the existing batch, duplicate-call, and interruption handling. A memory write returns `saved` only after disk persistence completes. See the [memory and rumours guide](../docs/memory-rumours.md).
 
 Live API behavior and Minecraft microphone/playback still require testing with a real Boson key and game client. Interruption cancels generation and clears playback; precise conversation truncation to the last heard sample is not implemented in this MVP.
 

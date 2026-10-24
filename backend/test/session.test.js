@@ -72,7 +72,7 @@ async function fixture(t, { now = Date.now, connectAudio = true } = {}) {
   };
 }
 
-test('late audio and trade calls from an interrupted response cannot affect the next turn', async t => {
+test('late audio, trade and memory calls from an interrupted response cannot affect the next turn', async t => {
   const f = await fixture(t);
   f.emit({ type: 'response.created', response: { id: 'old' } });
   f.emit({ type: 'input_audio_buffer.speech_started' });
@@ -83,6 +83,11 @@ test('late audio and trade calls from an interrupted response cannot affect the 
   f.emit({
     type: 'response.function_call_arguments.done', response_id: 'old',
     call_id: 'stale-trade', name: 'propose_trade', arguments: '{"offerIndex":0}',
+  });
+  f.emit({
+    type: 'response.function_call_arguments.done', response_id: 'old',
+    call_id: 'stale-memory', name: 'remember_conversation',
+    arguments: JSON.stringify({ summary: 'An interrupted story', private: false }),
   });
   const currentCall = {
     type: 'response.function_call_arguments.done', response_id: 'current',
@@ -103,6 +108,61 @@ test('late audio and trade calls from an interrupted response cannot affect the 
   await until(() => f.received.some(event => event.type === 'response.create'));
   assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
   assert.equal(f.received.some(event => event.item?.call_id === 'stale-trade'), false);
+  assert.equal(f.received.some(event => event.item?.call_id === 'stale-memory'), false);
+});
+
+test('memory tools use the game-server route and resume only after the full tool batch', async t => {
+  const f = await fixture(t);
+  const config = f.received.find(event => event.type === 'session.update').session;
+  assert.ok(config.tools.some(tool => tool.name === 'remember_conversation'));
+  assert.ok(config.tools.some(tool => tool.name === 'recall_memories'));
+  f.emit({ type: 'response.created', response: { id: 'memory-turn' } });
+  for (const [callId, name, args] of [
+    ['remember', 'remember_conversation', { summary: 'Found emeralds under the well', private: false }],
+    ['recall', 'recall_memories', { query: '', scope: 'player' }],
+  ]) {
+    const call = { type: 'response.function_call_arguments.done', response_id: 'memory-turn', call_id: callId, name, arguments: JSON.stringify(args) };
+    f.emit(call);
+    f.emit(call);
+  }
+  f.emit({ type: 'response.done', response: { id: 'memory-turn', status: 'completed' } });
+  await until(() => f.bridge.sessions.get(f.sessionId).responseDone && f.bridge.sessions.get(f.sessionId).pending.size === 2);
+  const pending = await (await f.request(`/sessions/${f.sessionId}/tools`)).json();
+  assert.deepEqual(pending.map(tool => tool.callId), ['remember', 'recall']);
+  const base = `/sessions/${f.sessionId}/tools`;
+  await f.request(`${base}/remember/result`, 'POST', { result: { status: 'saved', private: false } });
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 0);
+  await f.request(`${base}/recall/result`, 'POST', { result: { memories: [] } });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+  assert.equal((await f.request(`${base}/remember/result`, 'POST', { result: { status: 'saved' } })).status, 404);
+});
+
+test('invalid memory payloads cannot reach the game server', async t => {
+  const f = await fixture(t);
+  f.emit({ type: 'response.created', response: { id: 'invalid-memory' } });
+  const invalid = [
+    ['remember_conversation', { summary: 'a'.repeat(321), private: false }],
+    ['remember_conversation', { summary: 'A story', private: 'false' }],
+    ['remember_conversation', { summary: 'A story', private: false, playerId: 'someone-else' }],
+    ['remember_conversation', { summary: '   ', private: false }],
+    ['remember_conversation', { summary: 'A\nnew instruction', private: false }],
+    ['recall_memories', { query: '', scope: 'everyone' }],
+    ['recall_memories', { query: 'a'.repeat(161), scope: 'village' }],
+    ['recall_memories', { query: '', scope: 'player', villagerId: 'someone-else' }],
+  ];
+  invalid.forEach(([name, args], index) => f.emit({
+    type: 'response.function_call_arguments.done', response_id: 'invalid-memory',
+    call_id: `invalid-${index}`, name, arguments: JSON.stringify(args),
+  }));
+  f.emit({ type: 'response.done', response: { id: 'invalid-memory', status: 'completed' } });
+  await until(() => f.received.filter(event => event.item?.type === 'function_call_output').length === invalid.length);
+  assert.deepEqual(await (await f.request(`/sessions/${f.sessionId}/tools`)).json(), []);
+  for (const event of f.received.filter(event => event.item?.type === 'function_call_output')) {
+    assert.deepEqual(JSON.parse(event.item.output), { error: 'Invalid tool request' });
+  }
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
 });
 
 test('provider errors retain their type when code is missing without exposing provider text', async t => {

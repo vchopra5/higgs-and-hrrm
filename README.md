@@ -4,7 +4,7 @@
 
 <p align="center">
   <strong>Your favorite village has something to say.</strong><br />
-  Voice conversations with Minecraft villagers, connected to their real trades.
+  Villagers that talk, remember, and pass stories around.
 </p>
 
 <p align="center">
@@ -63,10 +63,20 @@ The payoff is a real merchant screen opening from a spoken request. You select t
 | | What happens |
 | :--- | :--- |
 | **In-character conversation** | Villager name, profession, and level give the conversation context. |
+| **A village that remembers** | Saved summaries let each villager recall past conversations across visits and server restarts. |
+| **Stories that travel** | Nearby villagers pass along public stories; green particles signal a new rumour. |
 | **Live offer lookup** | `get_trades` reads current offers from the Minecraft server. |
 | **An action you can see** | `propose_trade` checks availability and proximity, then opens native trading. |
 | **Room to interrupt** | Hold **B** during a reply to interrupt and begin your next turn. |
 | **Player-controlled purchases** | Minecraft handles the exchange and final prices; voice does not spend your items. |
+
+## The village remembers
+
+Tell a villager, **“Remember this: I found emeralds under the old well.”** End the conversation and return to ask what it remembers. Its saved summaries survive visits and server restarts.
+
+Keep another awake villager nearby. A brief burst of green particles signals that a new story has passed between them. Ask the neighbour, **“Heard any news about me?”** It can tell you what it heard and who told it.
+
+Stories stay attributed as player claims. Explicitly private entries do not spread; ordinary stories can reach other players through village news. **[Try the memory and rumours demo →](docs/memory-rumours.md)**
 
 ## Under the hood
 
@@ -116,7 +126,7 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and p
 
 This is a hackathon prototype. The voice bridge, Fabric integration, and trade tools are implemented. Full microphone, playback, and in-game trade validation still need confirmation on the target setup; local mock tests and synthetic voice probes cover only part of that path.
 
-Current scope: push-to-talk in the game client, system audio for the speaking player, and conversation history within a session. Persistent character memory, negotiated prices, and spatial or shared audio are future directions.
+Current scope includes push-to-talk, system audio for the speaking player, persistent conversation summaries, and local rumour spreading with a particle indicator. Memory and gossip have local regression coverage; live voice recall and particle visibility still need in-game validation. Distinct saved personalities, negotiated prices, and spatial or shared audio are future directions.
 
 <details>
 <summary><strong>Development checks</strong></summary>
@@ -138,6 +148,7 @@ Backend tests use a local fake Higgs endpoint. The build compiles the mod; neith
 | [`backend/`](backend/) | Local Higgs voice bridge and tool routing |
 | [`docs/architecture.md`](docs/architecture.md) | System boundaries and the end-to-end interaction |
 | [`docs/setup.md`](docs/setup.md) | Full installation, controls, local server, and troubleshooting |
+| [`docs/memory-rumours.md`](docs/memory-rumours.md) | Persistent memory, nearby gossip, demo prompts, and settings |
 | [`demo.md`](demo.md) | Presentation script, demo flow, and rehearsal checklist |
 | [`docs/brand.md`](docs/brand.md) | Logo, colors, and artwork notes |
 

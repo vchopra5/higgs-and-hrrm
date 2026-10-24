@@ -4,7 +4,7 @@
 
 [← HIGGS HRRM](../README.md) · [Visual identity](brand.md)
 
-**Status: first prototype implemented; live voice validation pending.**
+**Status: voice/trade prototype plus persistent memory and local gossip implemented; full live in-game validation pending.**
 The code is in `mod/` and `backend/`. The diagram remains the target architecture.
 The prototype uses default system audio rather than spatial playback; persona
 comes from a shared prompt plus villager context rather than persistent per-villager
@@ -117,7 +117,25 @@ Build voice-only conversation with one nearby villager first, then add live
 offer lookup and merchant-screen handoff. Test permission denial, interrupted
 speech, invalid offers, moving out of range, and disconnects before expanding.
 
-The first version uses existing trades and per-session conversation history.
-Negotiated prices, voice-only purchase confirmation, persistent conversation
-memory, and speech audible to nearby players are later features with additional
-validation and synchronization work. No custom database is needed for this MVP.
+The first version uses existing trades and per-session voice conversation history.
+Persistent conversation summaries now live in a separate world-scoped memory store.
+Negotiated prices, voice-only purchase confirmation, and speech audible to nearby
+players remain later features. No database service is needed.
+
+## Persistent memory and nearby gossip
+
+`VillagerMemoryStore` keeps bounded summaries keyed by villager and player UUID in
+`<world>/data/higgs_hrrm_memories.json`. It writes ordered snapshots on a background
+writer and exposes memories for recall and gossip after a successful save. The
+`remember_conversation` and `recall_memories` tools reuse the authenticated game-tool
+route; the server binds identities rather than accepting UUIDs from the model.
+Memory summaries are attributed player claims, not observed world facts.
+
+`VillagerMemoryService` adds the current player's saved memories to session context,
+handles fresh recall, and samples loaded villagers for proximity-based transfers.
+`VillagerGossip` enforces eligibility, dimension, distance, pair cooldowns, and root
+deduplication. A pass uses a snapshot so newly heard stories cannot cascade in the
+same pass. Private entries and exhausted hop counts cannot spread. A successful
+save triggers native green particles above the participants; there is no autonomous
+villager voice session. See the [feature guide](memory-rumours.md) for limits,
+configuration, failure behaviour, and live rehearsal steps.

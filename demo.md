@@ -26,6 +26,19 @@ Our first audience is Minecraft players and creators who want more expressive ro
 >
 > Let’s meet the villager.”
 
+## Memory and gossip demo · two-minute extension
+
+Rehearse this flow using the [memory and rumours setup](docs/memory-rumours.md). The feature is implemented and tested locally; confirm live recall and visible particles before presenting it as a successful in-game demo.
+
+1. **Tell the farmer:** “Remember this: I found emeralds under the old well.” Wait for its reply, then end the session.
+2. **Return:** Start a new conversation and ask, “What did I tell you about the well?” Let the villager recall its saved summary.
+3. **Watch the village:** Keep a second awake villager within 16 blocks. A green particle burst signals a newly saved rumour transfer. End the first conversation before addressing the neighbour.
+4. **Discover the story:** Ask the neighbour, “Have you heard any news about me?” Listen for the story and its source. Keep a third villager isolated as a control.
+
+**Say:** “The voice session ended, but the villager remembered. Then the story travelled through the village. Each villager knows only the stories it learned, and can tell you who passed them along.”
+
+The default check interval is 10 seconds; each pair has a 60-second cooldown. Prepare a fresh public story for each run and leave enough time for a transfer. Explicitly private entries are excluded from gossip. Treat the emerald story as a player claim, not a verified discovery. Restart the server and ask again if you want to demonstrate persistence on disk.
+
 ## Four-minute presentation and live demo
 
 Use one presenter and, if available, a second person operating Minecraft. The operator holds **B** for each player line and releases it to request the reply. If presenting solo, pause narration while operating the game. Let the audience hear the villager.
@@ -167,7 +180,7 @@ Open trading manually and identify that action as manual. Treat the voice-to-act
 | Why use Higgs? | The interaction needs streaming speech and tool calls in the same conversation. We integrate those capabilities through Higgs Realtime. |
 | Can it negotiate or buy for me? | The current tools look up offers and open trading. They cannot change prices or spend items. The player selects and confirms in Minecraft. |
 | How do you keep trade information accurate? | Offer lookup reads server state, and the server rechecks availability before opening trading. The prompt instructs the model to use those tools and avoid invented offers. Final prices are applied in the native screen; model mistakes remain possible. |
-| Does each villager remember me? | The current prototype uses a shared prompt, villager context, and conversation history within a session. Persistent memory and distinct saved personalities are future work. |
+| Does each villager remember me? | The server saves bounded conversation summaries per villager and player across visits and restarts. Nearby villagers can learn public stories through gossip. Distinct saved personalities remain future work. |
 | Is the audio spatial? | Currently it plays through the default system device for the speaking player. Spatial sound and nearby-player playback are future work. |
 | Who would use it? | We would start with Minecraft roleplay players and creators, then validate interest from adventure-server owners. We have not established market demand. |
 | How fast is it? | Measure release-to-first-audio during rehearsal. Existing synthetic bridge-test notes report about 822 ms in one successful probe; that is not an in-game benchmark or a latency guarantee. |
@@ -177,7 +190,7 @@ Open trading manually and identify that action as manual. Treat the voice-to-act
 
 The script describes the intended live flow implemented in this repository. **Rehearsal must establish that it works on the actual presentation setup.** This document does not certify a successful in-game demo.
 
-Use **push-to-talk** for the Minecraft demo: hold **B**, release to send. The bridge also supports hands-free mode, but the current game client uses push-to-talk. Claim interruption only if verified in rehearsal. Do not describe the system as having persistent memory, unique voices for every villager, autonomous purchasing, negotiated prices, or spoken confirmation of completed purchases.
+Use **push-to-talk** for the Minecraft demo: hold **B**, release to send. The bridge also supports hands-free mode, but the current game client uses push-to-talk. Claim interruption and live memory/gossip behaviour only after rehearsal. Persistent summaries and local gossip are implemented; unique voices for every villager, autonomous purchasing, negotiated prices, and spoken confirmation of completed purchases are not.
 
 For implementation details and current evidence, see the [project README](README.md), [architecture](docs/architecture.md), and [bridge documentation](backend/README.md).
 

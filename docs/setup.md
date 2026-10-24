@@ -61,6 +61,10 @@ Validation: `npm --prefix backend test` tests against a local fake Higgs endpoin
 `./scripts/build-mod.sh` compiles both mod entrypoints. These checks do not prove
 real API access, microphone compatibility, or a successful in-game conversation.
 
+## Memory and nearby gossip
+
+The mod also saves conversation summaries per villager and spreads public stories between nearby, awake adult villagers. Green particles mark a newly saved transfer. To try recall across visits or configure gossip distance and timing, follow the [memory and rumours guide](memory-rumours.md). Update both mod installations and restart the backend for the new voice tools.
+
 ## Run locally
 
 These launch commands use the already-provisioned local installation. A fresh

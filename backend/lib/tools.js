@@ -29,6 +29,15 @@ export function submitToolResult(session, callId, result) {
 function validArguments(name, args) {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return false;
   if (name === 'get_trades') return true;
+  if (name === 'remember_conversation') {
+    return Object.keys(args).length === 2 && typeof args.summary === 'string'
+      && args.summary.trim().length > 0 && args.summary.length <= 320
+      && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.summary) && typeof args.private === 'boolean';
+  }
+  if (name === 'recall_memories') {
+    return Object.keys(args).length === 2 && typeof args.query === 'string' && args.query.length <= 160
+      && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.query) && ['player', 'village'].includes(args.scope);
+  }
   return name === 'propose_trade' && Number.isInteger(args.offerIndex) && args.offerIndex >= 0;
 }
 

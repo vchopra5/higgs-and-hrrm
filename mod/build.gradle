@@ -63,3 +63,17 @@ tasks.register('testAudioLevels', JavaExec) {
     mainClass = 'dev.higgs.AudioLevelsTest'
 }
 tasks.named('check') { dependsOn 'testAudioLevels' }
+
+tasks.register('compileMemoryTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/VillagerMemoryStore.java',
+        'src/main/java/dev/higgs/VillagerGossip.java',
+        'src/test/dev/higgs/VillagerMemoryTest.java')
+    classpath = sourceSets.main.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('memory-test')
+}
+tasks.register('testMemory', JavaExec) {
+    dependsOn 'compileMemoryTest'
+    classpath = files(layout.buildDirectory.dir('memory-test')) + sourceSets.main.compileClasspath
+    mainClass = 'dev.higgs.VillagerMemoryTest'
+}
+tasks.named('check') { dependsOn 'testMemory' }
