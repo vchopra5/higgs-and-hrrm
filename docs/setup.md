@@ -15,7 +15,7 @@ Exact mod versions, download URLs, and checksums are in
 
 See the [build architecture and diagram](architecture.md). The first pass
 implements Fabric client/server code, hands-free realtime audio, a Higgs backend,
-live trade lookup, and the native merchant-screen handoff.
+live trade lookup, and audio-only purchases with one spoken confirmation.
 
 1. Put your Boson key in the root `.env` as `BOSON_API_KEY=...`. Keep the generated
    `HIGGS_BRIDGE_TOKEN`; the server mod and backend must share it. For a fresh
@@ -30,9 +30,12 @@ live trade lookup, and the native merchant-screen handoff.
    Install the same JAR plus Fabric API in your **Fabric 26.1.2 client** mods
    directory. Cardboard and iCommon are server-side dependencies, not client
    requirements for this mod.
-5. Start the server and join. Look at an adult villager and press **V**.
-   Wait for **Ready** and let the villager greet you, then **hold B to speak and release B to send**. A neighbour with a fresh relevant rumour may bring it up in that greeting.
-   Press **V** again to leave. Key bindings can be changed in Minecraft controls.
+5. Start the server and join. Look at an adult villager to connect automatically.
+   Wait for **Ready** and let the villager greet you, then **hold B to speak and release B to send**.
+   Look at another villager and press B to switch. Walking away ends the session.
+   Key bindings can be changed in Minecraft controls.
+
+A neighbour with a fresh relevant rumour may bring it up in the greeting.
 
 Allow microphone access for the Minecraft/Java process when macOS asks. On macOS,
 use Prism Launcher: the official launcher may block microphone permission requests.
@@ -43,7 +46,7 @@ Speech plays through the default system audio device, not Minecraft's positional
 sound or volume sliders. Turns shorter than 100 ms are discarded; keep each turn
 under 60 seconds.
 
-Live diagnostics appear at the top left during conversations; **F8** toggles them.
+Detailed diagnostics are hidden by default; **F8** toggles them.
 The microphone meter should move and sent bytes should increase while B is held.
 Release B to request a reply; VAD counters remain zero in push-to-talk mode.
 First-audio latency measures release to audio forwarded by the bridge. Received
@@ -51,11 +54,14 @@ bytes and queued milliseconds show playback progress. Errors and ended-session
 diagnostics remain for 15 seconds. The mod dismisses Minecraft's first-time
 movement tutorial on entering a world.
 
-Ask “What can I buy?” or “Show me the bread trade.” The model can open the native
-trading screen; you choose and complete the trade there. It cannot change prices
-or spend items by voice. Start within 8 blocks; conversations stay active within 12 blocks. Opening a
-trade still requires being within 8 blocks. Sessions have a ten-minute limit,
-with an explicit message when they expire.
+Ask “What can I buy?” or “I would like some bread.” The villager reads the exact
+quote. Say yes in a new push-to-talk turn to complete one native trade. Saying no
+cancels. Prices, stock, inventory capacity, and proximity are checked before purchase.
+Quotes expire after two minutes and cannot be purchased twice. Start within eight
+blocks and remain within twelve; purchasing requires eight. Sessions last ten minutes.
+Captions labeled YOU and VILLAGER remain for eight seconds, then fade over three.
+User transcripts arrive after speech processing; villager text streams with the reply.
+Captions are transient and never saved or logged.
 
 Validation: `npm --prefix backend test` tests against a local fake Higgs endpoint;
 `./scripts/build-mod.sh` compiles both mod entrypoints. These checks do not prove

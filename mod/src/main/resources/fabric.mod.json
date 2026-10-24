@@ -19,5 +19,8 @@
     "java": ">=25",
     "fabric-api": "*"
   },
-  "icon": "assets/higgs_villagers/icon.png"
+  "icon": "assets/higgs_villagers/icon.png",
+  "mixins": [
+    "higgs_villagers.mixins.json"
+  ]
 }

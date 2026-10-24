@@ -33,7 +33,7 @@ flowchart TB
     subgraph serverMod ["Build: Fabric server mod"]
         sessions["Conversation authorization and lifecycle"]
         context["Villager context and persona mapping"]
-        trades["Trade tool handlers and merchant UI adapter"]
+        trades["Trade tools and native transaction adapter"]
     end
 
     subgraph backend ["Build: companion backend"]
@@ -49,7 +49,7 @@ flowchart TB
     context -->|"Persona and world snapshot"| voice
     voice <-->|"Tool calls and results"| tools
     tools <-->|"Bound session requests"| trades
-    trades -->|"Open existing trading screen"| interaction
+    trades -->|"Inventory and trade-status updates"| interaction
 ```
 
 ## Responsibilities and boundaries
@@ -61,7 +61,7 @@ flowchart TB
 | Speech playback | Decode and buffer returned audio, play it from the selected villager's location through the client audio facilities, and flush queued speech on interruption or session cancellation. Initially only the speaking player hears the response. |
 | Conversation lifecycle | Validate the player and villager on the game server, enforce distance and one active conversation per player, and bind player UUID, villager UUID, and session ID. End the session on walking away, disconnect, death, or villager removal. Issue short-lived, single-use tickets for the matching audio session. |
 | Villager context | Read profession, existing offers, and relevant world facts from Minecraft. Supply a configurable personality and voice selection keyed by villager UUID. Refresh trade facts through tools rather than trusting an old prompt snapshot. |
-| Trade handlers | Implement `get_trades` and `propose_trade` for the bound villager. Validate offer identifiers and session eligibility on the game thread; open the existing merchant screen for an eligible proposal. Return success or failure to Higgs. |
+| Trade handlers | Implement live lookup, previews, bounded negotiation, proposals, confirmation, and cancellation for the bound villager. Quote exact bundles and require a fresh spoken yes before a native server-side exchange. Validate offer identifiers, input turns, stock, payment, and session eligibility on the game thread. Return the actual result to Higgs. |
 | Higgs adapter | Keep the Boson API key on the backend, establish a Higgs Realtime session, supply persona/context/tool definitions, relay audio and events, and handle cancellation, timeouts, bounded buffering, and disconnect cleanup. |
 | Tool router | Validate tool names and arguments, forward requests over an authenticated server-mod/backend connection, and return results correlated with the Higgs call ID. Deduplicate repeated calls within a session; never trust a model-supplied player or villager identity. |
 
@@ -101,13 +101,14 @@ schemas, audio formats, and session configuration when implementation begins.
    replies stream back into the client's playback buffer.
 4. For “What can I buy?”, Higgs calls `get_trades`. The server mod reads the
    villager's current offers and returns them through the backend.
-5. For “I'd like that bread trade”, Higgs calls `propose_trade` with an offer
-   identifier. The server mod rechecks the session and offer and opens the
-   existing merchant screen. This is a proposal, not a purchase.
-6. The player completes the trade in Minecraft's screen. Vanilla trading remains
-   authoritative. If we want spoken purchase confirmation, add a server-side
-   observer of completed trades and send that verified result to the session;
-   opening the screen alone must never be reported as a completed purchase.
+5. For “I'd like that bread trade”, Higgs calls `propose_trade` with an offer identifier
+   and optional bounded quantity, budget, or discount request. The server returns
+   the exact bundle, costs, and a proposal ID, without opening a screen.
+6. A fresh explicit spoken yes leads to `confirm_trade`. The server checks the
+   proposal, trusted input turn, availability, price, stock, payment, and inventory,
+   then executes one native server-side exchange. Only a successful receipt may
+   be reported as purchased. Declines cancel the proposal. Model interpretation
+   supplies consent intent; server validation enforces the transaction boundary.
 7. Ending the conversation or losing eligibility revokes the session and stops
    microphone capture, playback, and pending tool requests.
 
@@ -119,8 +120,9 @@ speech, invalid offers, moving out of range, and disconnects before expanding.
 
 The first version uses existing trades and per-session voice conversation history.
 Persistent conversation summaries now live in a separate world-scoped memory store.
-Negotiated prices, voice-only purchase confirmation, and speech audible to nearby
-players remain later features. No database service is needed.
+Bounded negotiation, relationship-based price ranges, and voice-confirmed purchases
+are implemented. Speech audible to nearby players remains later work. No database
+service is needed.
 
 ## Persistent memory and nearby gossip
 

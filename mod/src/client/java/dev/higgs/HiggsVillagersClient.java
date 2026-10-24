@@ -19,10 +19,16 @@ import org.lwjgl.glfw.GLFW;
 
 public final class HiggsVillagersClient implements ClientModInitializer {
     private VoiceSession voice;
+    private final TradeHandoff handoff = new TradeHandoff();
+    private final TradeTracker tracker = new TradeTracker();
+    private String activeSessionId;
     private boolean pending;
+    private int targetId = -1;
+    private boolean wasTalking;
+    private long nextConnectAt;
     private long requestTime;
     private long generation;
-    private boolean showDiagnostics = true;
+    private boolean showDiagnostics;
     private boolean tutorialDisabled;
     private VoiceSession lastVoice;
     private long diagnosticRefresh;
@@ -32,7 +38,6 @@ public final class HiggsVillagersClient implements ClientModInitializer {
 
     @Override public void onInitializeClient() {
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("higgs_villagers", "voice"));
-        KeyMapping toggle = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.conversation", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_V, category));
         KeyMapping talk = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.talk", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category));
         KeyMapping diagnostics = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.diagnostics", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, category));
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "voice_indicator"),
@@ -72,6 +77,35 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     graphics.fill(left, y + 39, right, y + 44, bar < lit ? barColor : 0xFF384451);
                 }
             });
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "captions"),
+            (graphics, delta) -> {
+                Minecraft client = Minecraft.getInstance();
+                if (client.player == null || client.options.hideGui || client.screen != null) return;
+                VoiceSession source = voice != null ? voice : lastVoice;
+                if (source == null) return;
+                long now = System.currentTimeMillis();
+                var captions = source.captions.visible(now);
+                int width = Math.min(300, graphics.guiWidth() - 24);
+                int x = 10;
+                int bottom = graphics.guiHeight() - 58;
+                // Bottom-anchor the newest reply; limit each speaker to two wrapped lines.
+                for (int i = captions.size() - 1; i >= 0; i--) {
+                    var caption = captions.get(i);
+                    var lines = client.font.split(Component.literal(caption.text()), width - 20);
+                    int start = Math.max(0, lines.size() - 2), count = lines.size() - start;
+                    int height = 21 + count * 11;
+                    int top = bottom - height;
+                    int alpha = Math.max(5, (int) (255 * caption.opacity(now)));
+                    graphics.fill(x, top, x + width, bottom, ((alpha * 3 / 4) << 24) | 0x101B20);
+                    int tint = caption.speaker().equals("you") ? 0xA5D8FF : 0xA6E9BA;
+                    graphics.fill(x, top + 5, x + 2, bottom - 5, (alpha << 24) | tint);
+                    graphics.text(client.font, caption.speaker().equals("you") ? "YOU" : "VILLAGER",
+                        x + 10, top + 6, (alpha << 24) | tint, false);
+                    for (int row = 0; row < count; row++) graphics.text(client.font, lines.get(start + row),
+                        x + 10, top + 19 + row * 11, (alpha << 24) | 0xF2F5F4, false);
+                    bottom = top - 5;
+                }
+            });
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "diagnostics"),
             (graphics, delta) -> {
                 Minecraft client = Minecraft.getInstance();
@@ -99,11 +133,22 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 graphics.fill(x + 6, y + height - 5, x + width - 6, y + height - 3, 0xFF384451);
                 if (meter > 0) graphics.fill(x + 6, y + height - 5, x + 6 + meter, y + height - 3, dbfs > -3 ? 0xFFFF7070 : 0xFF70EF9B);
             });
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "trade_tracker"),
+            (graphics, delta) -> tracker.render(graphics));
         ClientPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) ->
             context.client().execute(() -> receive(payload.json())));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> stop(false));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); handoff.clear(); });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            handoff.tick(client);
             if (client.player == null || client.level == null) { stop(false); return; }
+            // Keep the local voice demo free of the unsigned-chat toast.
+            // Scope this to loopback so other servers retain their warning.
+            if (client.getConnection() != null
+                && client.getConnection().getConnection().getRemoteAddress() instanceof java.net.InetSocketAddress address
+                && address.getAddress() != null && address.getAddress().isLoopbackAddress()) {
+                net.minecraft.client.gui.components.toasts.SystemToast.forceHide(client.getToastManager(),
+                    net.minecraft.client.gui.components.toasts.SystemToast.SystemToastId.UNSECURE_SERVER_WARNING);
+            }
             if (!tutorialDisabled) {
                 client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
                 tutorialDisabled = true;
@@ -111,17 +156,24 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             while (diagnostics.consumeClick()) {
                 if (client.screen == null) showDiagnostics = !showDiagnostics;
             }
-            while (toggle.consumeClick()) {
-                if (client.screen != null) continue;
-                if (voice != null || pending) { stop(true); status("Conversation ended."); }
-                else start(client);
-            }
             if (pending && System.currentTimeMillis() - requestTime > 15_000) {
                 stop(true);
                 status("Villager connection timed out. Check the backend.");
             }
             while (talk.consumeClick()) { /* Held state below owns push-to-talk. */ }
-            if (voice != null) voice.setTalking(client.screen == null && client.isWindowActive() && talk.isDown());
+            boolean held = client.screen == null && client.isWindowActive() && talk.isDown();
+            Villager target = client.hitResult instanceof EntityHitResult hit && hit.getEntity() instanceof Villager v
+                && !v.isBaby() && client.player.distanceToSqr(v) <= 64 ? v : null;
+            // Warm up the connection while looking at a villager. Switch partners only
+            // on a fresh push-to-talk press, never halfway through an utterance.
+            if (held && !wasTalking && target != null && target.getId() != targetId && !pending) {
+                stop(false); // The start request replaces the server session without an old end acknowledgement.
+                nextConnectAt = Math.max(System.currentTimeMillis(), requestTime + 1500);
+            }
+            if (voice == null && !pending && target != null && System.currentTimeMillis() >= nextConnectAt
+                && client.screen == null && client.isWindowActive()) start(client);
+            if (voice != null) voice.setTalking(held);
+            wasTalking = held;
         });
     }
 
@@ -131,12 +183,14 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             return;
         }
         if (!(client.hitResult instanceof EntityHitResult hit) || !(hit.getEntity() instanceof Villager)) {
-            status("Look at a nearby villager, then press V.");
+            status("Look at a nearby villager and hold B to talk.");
             return;
         }
         JsonObject request = new JsonObject();
         request.addProperty("type", "start");
         request.addProperty("entityId", hit.getEntity().getId());
+        targetId = hit.getEntity().getId();
+        nextConnectAt = System.currentTimeMillis() + 5000;
         pending = true;
         lastVoice = null;
         diagnosticRefresh = 0;
@@ -149,9 +203,21 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         try {
             JsonObject message = JsonParser.parseString(raw).getAsJsonObject();
             switch (message.get("type").getAsString()) {
+                case "trade_complete" -> handoff.start(Minecraft.getInstance(), message);
+                case "trade_status" -> {
+                    if (activeSessionId != null && activeSessionId.equals(message.get("sessionId").getAsString())
+                        && targetId == message.get("entityId").getAsInt()) tracker.update(message);
+                }
+                case "reaction_start" -> {
+                    stop(false);
+                    targetId = message.get("entityId").getAsInt();
+                    pending = true;
+                    requestTime = System.currentTimeMillis();
+                }
                 case "session" -> {
                     if (!pending) return;
                     pending = false;
+                    activeSessionId = message.get("sessionId").getAsString();
                     long current = ++generation;
                     voice = new VoiceSession(message.get("url").getAsString(), message.get("ticket").getAsString(),
                         HiggsVillagersClient::status, () -> Minecraft.getInstance().execute(() -> {
@@ -176,6 +242,9 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         boolean active = pending || voice != null;
         generation++;
         pending = false;
+        targetId = -1;
+        activeSessionId = null;
+        tracker.clear();
         VoiceSession previous = voice;
         voice = null;
         if (previous != null) { lastVoice = previous; previous.close(); }
@@ -188,8 +257,6 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         lastStatusAt = System.currentTimeMillis();
         org.slf4j.LoggerFactory.getLogger("HiggsVillagersVoice").info("{}", message);
         Minecraft client = Minecraft.getInstance();
-        client.execute(() -> {
-            if (client.player != null) client.gui.setOverlayMessage(Component.literal("[Higgs] " + message), false);
-        });
+        // Audio-only by default. F8 exposes diagnostic status when explicitly requested.
     }
 }

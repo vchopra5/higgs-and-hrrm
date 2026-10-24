@@ -20,7 +20,7 @@ async function until(predicate) {
   throw new Error('Timed out waiting for a bridge event');
 }
 
-async function fixture(t, { now = Date.now, connectAudio = true, context = { profession: 'farmer' }, confirmConfig = true } = {}) {
+async function fixture(t, { now = Date.now, connectAudio = true, context = { profession: 'farmer' }, confirmConfig = true, mode = 'vad' } = {}) {
   const provider = new WebSocketServer({ port: 0, host: '127.0.0.1' });
   await once(provider, 'listening');
   const received = [];
@@ -61,7 +61,7 @@ async function fixture(t, { now = Date.now, connectAudio = true, context = { pro
   });
   assert.equal(response.status, 201);
   const { sessionId, ticket } = await response.json();
-  const audioUrl = base.replace('http:', 'ws:') + '/audio?ticket=' + ticket;
+  const audioUrl = base.replace('http:', 'ws:') + '/audio?ticket=' + ticket + (mode === 'ptt' ? '&mode=ptt' : '');
   let client;
   if (connectAudio) {
     client = new WebSocket(audioUrl);
@@ -106,6 +106,46 @@ test('an autonomous opening remains interruptible and a later reply still plays'
   f.emit({ type: 'response.output_audio.delta', response_id: 'opening', delta: 'AAA=' });
   f.emit({ type: 'response.created', response: { id: 'player-reply' } });
   f.emit({ type: 'response.output_audio.delta', response_id: 'player-reply', delta: 'AQI=' });
+  await until(() => f.events.some(event => event.audio === 'AQI='));
+  assert.equal(f.events.some(event => event.audio === 'AAA='), false);
+});
+
+test('a queued hit reaction takes priority over a greeting and cannot save a spoken memory', async t => {
+  const f = await fixture(t, { context: { autoGreeting: true }, confirmConfig: false });
+  await until(() => f.bridge.sessions.get(f.sessionId).configSent);
+  const session = f.bridge.sessions.get(f.sessionId);
+  session.environmentEvent({ type: 'hit', level: 2 });
+  f.emit({ type: 'session.updated' });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  const responses = f.received.filter(event => event.type === 'response.create');
+  assert.equal(responses.length, 1);
+  assert.match(responses[0].response.instructions, /Angry/);
+  assert.equal(session.turnId, 0);
+  f.emit({ type: 'response.created', response: { id: 'hit-opening' } });
+  f.emit({ type: 'response.function_call_arguments.done', response_id: 'hit-opening',
+    call_id: 'event-is-not-speech', name: 'remember_conversation', arguments: JSON.stringify(memoryArgs()) });
+  await until(() => f.received.some(event => event.item?.call_id === 'event-is-not-speech'));
+  assert.deepEqual(JSON.parse(f.received.find(event => event.item?.call_id === 'event-is-not-speech').item.output),
+    { error: 'Conversation interrupted' });
+  assert.equal(session.pending.size, 0);
+});
+
+test('speaking before the greeting starts waits for cancellation and suppresses its late audio', async t => {
+  const f = await fixture(t, { context: { autoGreeting: true }, mode: 'ptt' });
+  await until(() => f.received.some(event => event.type === 'response.create'));
+  const session = f.bridge.sessions.get(f.sessionId);
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+  f.client.send(JSON.stringify({ type: 'commit' }));
+  await until(() => session.queuedResponse);
+  assert.equal(session.turnId, 1);
+  assert.equal(f.received.filter(event => event.type === 'response.create').length, 1);
+  f.emit({ type: 'response.created', response: { id: 'late-greeting' } });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'late-greeting', delta: 'AAA=' });
+  f.emit({ type: 'response.done', response: { id: 'late-greeting', status: 'cancelled' } });
+  await until(() => f.received.filter(event => event.type === 'response.create').length === 2);
+  f.emit({ type: 'response.created', response: { id: 'answer-first-turn' } });
+  f.emit({ type: 'response.output_audio.delta', response_id: 'answer-first-turn', delta: 'AQI=' });
   await until(() => f.events.some(event => event.audio === 'AQI='));
   assert.equal(f.events.some(event => event.audio === 'AAA='), false);
 });
@@ -274,4 +314,36 @@ test('the src.js entry point still starts and shuts down as a process', async t 
   child.kill('SIGTERM');
   const [code] = await exited;
   assert.equal(code, 0, errors);
+});
+
+
+test('hit reactions escalate, coalesce and cannot execute trade tools or count as consent', async t => {
+  let clock = 1000;
+  const f = await fixture(t, { now: () => clock });
+  const path = `/sessions/${f.sessionId}/events`;
+  assert.equal((await f.request(path, 'POST', {type:'hit', level:4})).status, 400);
+  assert.equal((await f.request(path, 'POST', {type:'hit', level:1})).status, 202);
+  await until(() => f.received.some(e => e.type === 'response.create'));
+  assert.match(f.received.find(e => e.type === 'response.create').response.instructions, /Startled/);
+  const session = f.bridge.sessions.get(f.sessionId);
+  assert.equal(session.turnId, 0);
+  f.emit({ type:'response.created', response:{id:'reaction1'} });
+  f.emit({ type:'response.function_call_arguments.done', response_id:'reaction1', call_id:'bad-trade', name:'confirm_trade', arguments:JSON.stringify({proposalId:'a'.repeat(36)}) });
+  await until(() => f.received.some(e => e.item?.call_id === 'bad-trade'));
+  assert.equal(session.pending.size, 0);
+  await f.request(path, 'POST', {type:'hit', level:2});
+  await f.request(path, 'POST', {type:'hit', level:3});
+  assert.equal(f.received.filter(e => e.type === 'response.create').length, 1);
+  f.emit({ type:'response.done', response:{id:'reaction1',status:'completed'} });
+  await until(() => session.responseDone);
+  session.sweep();
+  await until(() => f.received.filter(e => e.type === 'response.create').length === 2);
+  assert.match(f.received.filter(e => e.type === 'response.create')[1].response.instructions, /Very upset/);
+  assert.equal(session.turnId, 0);
+  session.environmentEvent({type:'hit',level:1});
+  clock += 11000;
+  f.emit({ type:'response.done', response:{id:'reaction1',status:'completed'} });
+  await until(() => session.responseDone);
+  session.sweep();
+  assert.equal(session.pendingReaction, null);
 });

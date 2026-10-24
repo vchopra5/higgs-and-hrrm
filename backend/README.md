@@ -45,7 +45,7 @@ Connect the client to `ws://127.0.0.1:8787/audio?ticket=...` within 30 seconds. 
 
 Client messages are `{type:"audio",audio:"BASE64"}`, `{type:"commit"}`, `{type:"interrupt"}`, or `{type:"end"}`. Both audio directions use raw signed PCM16, little-endian, mono, 24 kHz. The default is hands-free: stream microphone audio continuously after `Ready`. Higgs detects turn boundaries and starts responses automatically. The bridge emits `{type:"speech",active:true/false}` on speech start/stop and `clear` on interruption to flush local playback. Output messages are `audio`, `speech`, `clear`, `status`, and `error`. Recoverable errors have `fatal:false` and a sanitized `code`; the client should display them without closing the session. Transport failure has `fatal:true`.
 
-The Minecraft client uses push-to-talk and connects with `&mode=ptt`: send `interrupt` on press and `commit` on release. In default hands-free mode, `commit` is ignored to avoid duplicate responses.
+The Minecraft client uses push-to-talk and connects with `&mode=ptt`: send `interrupt` on press and `commit` on release. If an interrupted response is still cancelling, the next response request waits for its completion acknowledgement; stale tool calls are discarded. In default hands-free mode, `commit` is ignored to avoid duplicate responses.
 
 Sessions last at most ten minutes. Hands-free streaming has no cumulative audio-byte cap: silence and repeated turns do not exhaust an input counter. Legacy push-to-talk turns are capped at sixty seconds; PTT turns under 100 ms are discarded. The ten-minute session limit is reported explicitly. Sessions never restart automatically. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. The bridge stores no audio recordings or transcripts; the game server separately persists short conversation summaries for villager memory.
 
@@ -57,9 +57,16 @@ The implementation follows Boson's [official session configuration](https://gith
 - Hands-free mode sets `audio.input.turn_detection` to `{type:"server_vad",silence_duration_ms:900}`. It sends only `input_audio_buffer.append`; Higgs owns commits, automatic replies and interruption of active generation. See Boson’s [turn-detection guide](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/docs/part-2.md).
 - Optional manual push-to-talk sets `audio.input.turn_detection` to `null` and sends `input_audio_buffer.commit`, then `response.create`.
 - `response.output_audio.delta` is relayed to the Minecraft client.
+- Input transcription uses `higgs-stt-3.1`. Completed user transcripts and streaming villager audio transcripts are relayed as `{type:"transcript",speaker:"you"|"villager",id,text,replace}` for transient captions. User captions arrive after speech processing; final events replace accumulated text.
 - Tool results are serialized into `conversation.item.create` function-call outputs. One `response.create` follows the completed tool batch.
 
-`get_trades` queries authoritative game state. `propose_trade` opens the native trading screen; it never purchases anything or changes prices. The game server validates proximity, villager identity and offer availability.
+`get_trades` queries authoritative game state. `propose_trade` returns an exact
+player-specific quote without opening any screen. `confirm_trade` requires one
+spoken confirmation after the quote; the server guards a new input
+turn ID, expiry and single-use purchase. `cancel_trade` clears the quote when
+the player refuses. The final native trade happens entirely server-side, then
+its result is spoken by Higgs. The model interprets affirmative speech; the
+server enforces turn separation and transaction validation.
 
 `remember_conversation` accepts `{summary, private, interest, reason, audiences}`. The voice model judges what normal speech is worth saving, using a 0–100 newsworthiness assessment and relevant professions. The server persists the statement and gates public gossip at 55; routine memories can still be recalled. `recall_memories` accepts `{query, scope}` where scope is `player` or `village`. The server supplies UUIDs, sources, storage, and gossip eligibility. Private entries cannot spread; village scope can include public stories about other players. The bridge validates bounded strings and booleans and preserves the existing batch, duplicate-call, and interruption handling. A memory write returns `saved` only after disk persistence completes. See the [memory and rumours guide](../docs/memory-rumours.md).
 
@@ -69,7 +76,7 @@ Closure logs include a session ID, stable reason and WebSocket code, never ticke
 
 The client can send `{type:"mute",muted:true/false}` even before Ready. Muting pauses capture, clears the upstream input buffer and discards any unfinished utterance. Unmuting clears stale input before the next speech turn. Neither action cancels an existing assistant reply. The bridge sends `{type:"end",code,message}` on closure; session setup rejection is fatal, while ordinary provider errors after Ready are recoverable.
 
-Game sessions set `context.autoGreeting=true`. After confirmation of the configured voice session, the bridge sends one `response.create` without waiting for player audio. A provided `openingRumour` lets the villager naturally lead with relevant news. Initial default-session events and duplicate Ready events cannot trigger extra greetings. The player can interrupt the opening through the normal push-to-talk path.
+Normal game sessions set `context.autoGreeting=true`; sessions started by a hit skip the normal greeting. After confirmation of the configured voice session, the bridge sends one `response.create` without waiting for player audio. A provided `openingRumour` lets the villager naturally lead with relevant news. Initial default-session events and duplicate Ready events cannot trigger extra greetings. The player can interrupt the opening through the normal push-to-talk path. A queued hit reaction takes priority, and early player speech waits for cancellation before starting its reply.
 
 ## Live voice diagnostics
 
@@ -99,3 +106,18 @@ or confirm account access to Higgs 1.5.
 - The available original game log shows the session ending when the player died;
   it predates the microphone counters and cannot establish whether speech reached
   Higgs. The synthetic probes do not validate the actual game microphone or speakers.
+
+## Negotiation tools
+
+`propose_trade` accepts optional integer `quantity` (output count) and `payment`
+(primary input count), each 1–64, and optional boolean `discount`. Omitting quantity
+with payment requests a budget-based bundle. Omitting both requests the default
+bundle; `discount:true` can increase output for the same budget when the price
+cannot be reduced by a whole payment item. Always read the returned quote or
+counteroffer and obtain a fresh spoken confirmation.
+
+`report_treatment` accepts `polite`, `neutral`, or `rude` for explicit treatment in
+the latest utterance. Its trusted input-turn ID prevents duplicate assessments;
+the game server bounds mood, persistent relationship changes, and pricing. Polite
+requests or thanks qualify; bargaining, refusals, accents and speaking style do not
+qualify as rudeness. Relationship data stores scores and timestamps, not transcripts.

@@ -5,7 +5,8 @@ export function interruptAudio(session, cancelProvider) {
   session.recording = true;
   session.cancelled = true;
   interruptTools(session);
-  if (cancelProvider && !session.responseDone) {
+  if (cancelProvider && !session.responseDone && !session.awaitingCancellation) {
+    session.awaitingCancellation = true;
     session.sendProvider({ type: 'response.cancel' });
   }
   session.sendClient({ type: 'clear' });
@@ -44,8 +45,10 @@ function commitTurn(session) {
   session.recording = false;
   session.speechStoppedAt = session.now();
   if (session.inputBytes >= LIMITS.minimumTurnBytes) {
+    session.turnId++;
     session.sendProvider({ type: 'input_audio_buffer.commit' });
-    session.sendProvider({ type: 'response.create' });
+    if (session.awaitingCancellation) session.queuedResponse = true;
+    else session.sendProvider({ type: 'response.create' });
   } else {
     session.sendProvider({ type: 'input_audio_buffer.clear' });
   }
@@ -79,6 +82,7 @@ export function receiveSpeechStarted(session) {
 
 export function receiveSpeechStopped(session) {
   if (session.mode !== 'vad') return;
+  session.turnId++;
   session.recording = false;
   session.speechStoppedAt = session.now();
   session.diagnostics.speechStops++;

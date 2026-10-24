@@ -27,13 +27,13 @@
 
 Villagers have professions, stock, and a place in your world. Now you can ask them about it.
 
-**HIGGS HRRM** gives Minecraft villagers a voice through Boson Higgs Realtime. Walk up, start a conversation, ask what is available, and request a trade. The mod connects the conversation to live offers and opens Minecraft’s familiar trading screen.
+**HIGGS HRRM** gives Minecraft villagers a voice through Boson Higgs Realtime. Walk up, start a conversation, ask what is available, and request a trade. The mod connects the conversation to live offers and completes a native trade after one spoken confirmation.
 
 <table>
   <tr>
     <td width="33%" valign="top">
       <h3>01 &nbsp; Meet</h3>
-      <p>Look at a nearby villager and press <kbd>V</kbd>. Wait for <strong>Ready</strong>.</p>
+      <p>Look at a nearby villager to connect automatically. Let it greet you.</p>
     </td>
     <td width="33%" valign="top">
       <h3>02 &nbsp; Speak</h3>
@@ -41,7 +41,7 @@ Villagers have professions, stock, and a place in your world. Now you can ask th
     </td>
     <td width="33%" valign="top">
       <h3>03 &nbsp; Trade</h3>
-      <p>Ask to open an available offer. Choose and confirm it in Minecraft.</p>
+      <p>Ask for an available offer. Hear the quote and say yes to confirm.</p>
     </td>
   </tr>
 </table>
@@ -54,9 +54,9 @@ Try these prompts with a villager. Responses are generated live; available items
 >
 > **Explore the shop** &nbsp; “What can I buy from you?”
 >
-> **Make a request** &nbsp; “Open the trade for…” — name an available item it mentioned.
+> **Make a request** &nbsp; “I would like…” — name an available item it mentioned.
 
-The payoff is a real merchant screen opening from a spoken request. You select the offer and complete the exchange there.
+The villager reads the exact quote. Say yes in a new push-to-talk turn to complete one trade, without opening a screen.
 
 ## A voice with a connection to the world
 
@@ -67,15 +67,15 @@ The payoff is a real merchant screen opening from a spoken request. You select t
 | **Stories worth repeating** | The voice model judges surprising or consequential stories; neighbours prioritise news relevant to their professions. |
 | **A neighbour with something to say** | Start a conversation and the villager can lead with a fresh rumour, without a special question. |
 | **Live offer lookup** | `get_trades` reads current offers from the Minecraft server. |
-| **An action you can see** | `propose_trade` checks availability and proximity, then opens native trading. |
+| **An action you can see** | `propose_trade` quotes an exact bundle; `confirm_trade` performs one validated purchase after a fresh spoken yes. |
 | **Room to interrupt** | Hold **B** during a reply to interrupt and begin your next turn. |
-| **Player-controlled purchases** | Minecraft handles the exchange and final prices; voice does not spend your items. |
+| **Player-controlled purchases** | You approve the exact quote by voice; Minecraft validates stock, payment, and inventory before the exchange. |
 
 ## The village remembers
 
 Casually tell a villager, **“I found a hidden library under the old well.”** It decides whether that is useful personal information or a story the village would find surprising. You do not need to ask it to remember. Saved summaries survive visits and server restarts.
 
-Keep another awake villager nearby. A brief burst of green particles signals that news has passed between them. Press **V** to start talking to the neighbour: it can open with a fresh rumour and credit its source. A librarian gives extra attention to the library discovery; routine preferences can stay personal memories. Freshness, relevance, and recent-topic tracking guide what comes up.
+Keep another awake villager nearby. A brief burst of green particles signals that news has passed between them. Look at the neighbour and tap **B** to switch, then let it speak first: it can open with a fresh rumour and credit its source. A librarian gives extra attention to the library discovery; routine preferences can stay personal memories. Freshness, relevance, and recent-topic tracking guide what comes up.
 
 Stories stay attributed as player claims. Explicitly private entries do not spread; ordinary stories can reach other players through village news. **[Try the memory and rumours demo →](docs/memory-rumours.md)**
 
@@ -115,11 +115,11 @@ npm --prefix backend start
 ./server-cardboard/start.command
 ```
 
-Join `localhost:25565`, face an adult, awake villager within eight blocks, and press **V**. [Installation, credentials, microphone permission, and troubleshooting](docs/setup.md#villager-voice-prototype) are covered in the setup guide.
+Join `localhost:25565`, face an adult, awake villager within eight blocks, and wait for the automatic voice connection. [Installation, credentials, microphone permission, and troubleshooting](docs/setup.md#villager-voice-prototype) are covered in the setup guide.
 
 | Key | Action |
 | :--- | :--- |
-| **V** | Start or end a conversation |
+| **Look at a villager** | Connect automatically; look at another and press B to switch |
 | **Hold B → release** | Speak, then send your turn |
 | **F8** | Show or hide voice diagnostics |
 
@@ -127,7 +127,7 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and p
 
 This is a hackathon prototype. The voice bridge, Fabric integration, and trade tools are implemented. Full microphone, playback, and in-game trade validation still need confirmation on the target setup; local mock tests and synthetic voice probes cover only part of that path.
 
-Current scope includes push-to-talk, system audio for the speaking player, persistent conversation summaries, and local rumour spreading with a particle indicator. Memory and gossip have local regression coverage; live voice recall and particle visibility still need in-game validation. Distinct saved personalities, negotiated prices, and spatial or shared audio are future directions.
+Current scope includes push-to-talk, system audio for the speaking player, persistent conversation summaries, automatic story selection, and local gossip with a particle indicator. Voice-confirmed trading, bounded negotiation, relationship scores, captions, automatic targeting, and hit reactions are also implemented. Memory and gossip have local regression coverage; live story judgments, recall, and particle visibility still need in-game validation. Distinct saved personalities and spatial or shared audio are future directions.
 
 <details>
 <summary><strong>Development checks</strong></summary>
@@ -161,3 +161,42 @@ Backend tests use a local fake Higgs endpoint. The build compiles the mod; neith
   <sub>Built with Fabric · Powered by Boson Higgs Realtime</sub><br />
   <sub>Unofficial Minecraft project. Banner artwork is illustrative, not a gameplay screenshot.</sub>
 </p>
+
+Captions for YOU and VILLAGER remain for eight seconds, then fade over three. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F8 toggles additional diagnostics.
+
+Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
+
+## Voice negotiation
+
+Ask for an item, a quantity, a budget, or a better deal: “I only have two emeralds,”
+“Could I get fifteen bread for four emeralds?” or “Could you give me a better price, please?”
+The server quotes exact whole-item amounts; say yes in a new turn to buy. A changed
+or counteroffered bundle always needs a fresh yes.
+
+Prices are relative to the native player-specific default trade: friendly 80–100%,
+neutral 95–110%, annoyed 110–125%. Explicit politeness and insults affect mood;
+bargaining or declining alone is neutral. Relationship scores persist per player
+and villager in the world data folder, are capped at -5 to +5, and change at most
+once per minute. Existing Minecraft reputation also matters. Higgs classifies the
+utterance, while the server enforces every limit. Quotes remain valid for two minutes.
+
+Bundles are limited to one stack per item (at most 64); secondary payments scale
+proportionally, rounding up to whole items. Unrepresentable prices receive a nearby
+valid counteroffer. Larger quantities consume proportional stock, rounded up to
+native trade uses; small purchases still use one stock unit. The native inventory
+transaction handles item components, space, trade statistics and rewards. Price
+negotiation cannot bypass missing payment, stock, proximity or inventory checks.
+
+A compact, non-interactive trade tracker shows the villager and the current server quote: YOU GIVE, YOU GET, and “Say yes to accept.” Revised amounts briefly show the previous deal crossed out. Expired or cancelled offers stop inviting acceptance, and success or failure fades after six seconds. Switching villagers clears the tracker; all choices still use voice.
+
+Repeated quotes with identical terms retain the original proposal ID, confirmation turn, and expiry. A repeated confirmation returns the existing purchase receipt without buying again. Trade diagnostics log tool names, turn numbers, and outcomes without speech content.
+
+Trade suggestions now use an optional “Interested?” preview, which cannot be purchased. Interest leads to an exact “Confirm trade?” quote; one yes then completes it. Direct purchase requests skip browsing. The tracker sits at the right edge, and captions use the native crisp font at bottom left with two lines per speaker. Villagers are instructed to keep trading replies to one short sentence.
+
+### Environmental reactions
+
+Hitting a nearby adult villager starts voice automatically, including the invulnerable demo villagers. Hits spaced at least 750 ms apart escalate from startled to angry to forceful; 30 seconds without a hit resets the escalation. A hit cancels the current quote and worsens the current conversation's mood. Reactions cannot execute trade tools or count as spoken confirmation.
+
+The bridge keeps only the latest queued reaction, waits until player speech/provider work finishes, and drops events older than 10 seconds. The ordinary microphone and villager captions display the response. Higgs delivery uses per-response `instructions` for tone and energy, as documented in https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices and https://docs.boson.ai/api-reference/realtime/client-events. No separate TTS service or undocumented `vibe` field is used.
+
+Test: hit once and listen, hit again after a second and listen, then hit a third time. Expect stronger delivery each time; wording/delivery are model-generated. Wait 30 seconds and repeat for the mild reaction. Also hit during a quoted trade: the tracker should cancel it and a later yes must not purchase that cancelled quote.
