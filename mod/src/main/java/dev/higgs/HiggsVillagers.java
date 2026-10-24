@@ -339,6 +339,9 @@ public final class HiggsVillagers implements ModInitializer {
         VillagerPersonalityStore.Profile profile;
         boolean polling;
         Proposal proposal;
+        final MerchantTurn merchantTurn;
+        String merchantRequest;
+        JsonArray merchantHistory;
         int pollFailures;
         int treatmentTurn;
         JsonObject hitEvent;
@@ -360,7 +363,7 @@ public final class HiggsVillagers implements ModInitializer {
         final Map<String, JsonObject> purchases = new HashMap<>();
         final Map<String, JsonObject> toolResults = new HashMap<>();
         final Set<String> pendingTools = new HashSet<>();
-        Session(ServerPlayer player, Villager villager) { this.player = player; this.villager = villager; }
+        Session(ServerPlayer player, Villager villager) { this.player = player; this.villager = villager; this.merchantTurn = new MerchantTurn(villager.getId()); }
     }
     private record Proposal(QuoteConfirmation approval, int index, ItemStack costA,
                             ItemStack costB, ItemStack result, ItemStack baseA, ItemStack baseB, ItemStack baseResult, int stockUses,
@@ -1018,6 +1021,29 @@ public final class HiggsVillagers implements ModInitializer {
         return result;
     }
 
+    /** Promote a present companion to merchant; old session callbacks cannot mutate this new session. */
+    private void switchMerchant(MinecraftServer server, Session previous, JsonObject request) {
+        Villager target = previous.companion;
+        Session next = new Session(previous.player, target);
+        next.profile = previous.companionProfile;
+        next.companion = previous.villager;
+        next.companionProfile = previous.profile;
+        next.merchantRequest = request.get("request").getAsString();
+        if (next.merchantRequest.length() > 4000) next.merchantRequest = next.merchantRequest.substring(0, 4000);
+        next.merchantHistory = request.has("recentConversation") ? request.getAsJsonArray("recentConversation").deepCopy() : new JsonArray();
+        previous.proposal = null;
+        tradeStatus(previous, outcome("cancelled", "Switching merchants. The previous quote is cancelled."));
+        handingOff = true;
+        try { end(previous.player, false); } finally { handingOff = false; }
+        sessions.put(previous.player.getUUID(), next);
+        JsonObject switching = new JsonObject();
+        switching.addProperty("type", "handoff");
+        switching.addProperty("entityId", target.getId());
+        send(previous.player, switching);
+        chatter.villagerBusy(target);
+        startVoice(server, next, true);
+    }
+
     /** At the villager the player asked for: the guide introduces them and the conversation moves to the new villager. */
     private void handoff(MinecraftServer server, ServerPlayer player, Villager guide, Villager target) {
         Session previous = sessions.get(player.getUUID());
@@ -1146,6 +1172,7 @@ public final class HiggsVillagers implements ModInitializer {
     private void startVoice(MinecraftServer server, Session s, boolean autoGreeting) {
         RecentConversation continued = continuing(s.player, s.villager);
         if (continued != null) autoGreeting = false; // Already greeted: no hello again after switching.
+        if (s.merchantRequest != null) autoGreeting = true;
         if (s.bedtime) autoGreeting = true; // The goodnight line is the whole conversation.
         try {
             ServerPlayer player = s.player;
@@ -1155,6 +1182,11 @@ public final class HiggsVillagers implements ModInitializer {
             body.addProperty("villagerId", villager.getUUID().toString());
             JsonObject context = new JsonObject();
             context.addProperty("name", villager.getName().getString());
+            context.addProperty("entityId", villager.getId());
+            if (s.merchantRequest != null) {
+                context.addProperty("merchantRequest", s.merchantRequest);
+                context.add("recentConversation", s.merchantHistory);
+            }
             context.addProperty("profession", VillagerMemoryService.profession(villager));
             context.addProperty("level", villager.getVillagerData().level());
             context.addProperty("playerName", player.getName().getString());
@@ -1169,7 +1201,7 @@ public final class HiggsVillagers implements ModInitializer {
             VillagerJournal journal = memory.journal();
             if (journal != null && journal.all(villager.getUUID(), player.getUUID(), System.currentTimeMillis()).stream().noneMatch(e -> !e.witnessed()))
                 memory.observe(villager, player, "first_met", "I met " + player.getName().getString() + " for the first time", 5, 0);
-            if (autoGreeting && !s.bedtime) {
+            if (autoGreeting && !s.bedtime && s.merchantRequest == null) {
                 String present = dailyGift(player, villager);
                 if (present != null) context.addProperty("dailyGift", present);
             }
@@ -1184,6 +1216,7 @@ public final class HiggsVillagers implements ModInitializer {
             if (!errands.isEmpty()) context.add("errands", errands);
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
+            if (s.merchantRequest != null) context.remove("openingRumour");
             context.addProperty("autoGreeting", autoGreeting);
             if (s.bedtime) context.addProperty("bedtime", true);
             if (s.introducedBy != null) context.addProperty("introducedBy", s.introducedBy);
@@ -1269,6 +1302,35 @@ public final class HiggsVillagers implements ModInitializer {
                         if (s.toolResults.size() + s.pendingTools.size() >= 256) { end(s.player, true); return; }
                         result = new JsonObject();
                         String name = call.get("name").getAsString();
+                        int callTurn = call.get("turnId").getAsInt();
+                        if (name.equals("_turn_recipient") && call.has("internal") && call.get("internal").getAsBoolean()) {
+                            int recipient = call.getAsJsonObject("arguments").get("entityId").getAsInt();
+                            boolean accepted = (recipient == s.villager.getId() || s.companion != null && recipient == s.companion.getId())
+                                && s.merchantTurn.address(recipient, callTurn);
+                            if (accepted && recipient != s.villager.getId() && s.proposal != null) {
+                                s.proposal = null;
+                                tradeStatus(s, outcome("cancelled", "You addressed another villager. Ask for a fresh quote before buying."));
+                            }
+                            result = outcome(accepted ? "addressed" : "stale", "Conversation recipient updated.");
+                            s.toolResults.put(callId, result); submitToolResult(s, callId, result); continue;
+                        }
+                        if (name.equals("_switch_merchant") && call.has("internal") && call.get("internal").getAsBoolean()) {
+                            JsonObject args = call.getAsJsonObject("arguments");
+                            int recipient = args.get("entityId").getAsInt();
+                            if (s.companion != null && s.companion.getId() == recipient
+                                && s.merchantTurn.addressed(recipient, callTurn) && companionAvailable(s, s.companion, false)
+                                && s.companion.distanceToSqr(s.player) <= 64) {
+                                switchMerchant(server, s, args);
+                                return;
+                            }
+                            result = outcome("unavailable", "The requested merchant is no longer available. Nothing was purchased.");
+                            s.toolResults.put(callId, result); submitToolResult(s, callId, result); continue;
+                        }
+                        if (Set.of("get_trades", "preview_trade", "propose_trade", "confirm_trade", "cancel_trade", "offer_quest", "complete_quest").contains(name)
+                            && (!call.has("merchantEntityId") || !s.merchantTurn.permits(call.get("merchantEntityId").getAsInt(), callTurn))) {
+                            result = outcome("unavailable", "This turn belongs to another recipient or is stale. Nothing was purchased. Ask the current merchant for a fresh quote.");
+                            s.toolResults.put(callId, result); submitToolResult(s, callId, result); continue;
+                        }
                         if (name.equals("_share_news_depart") && call.has("internal") && call.get("internal").getAsBoolean()) {
                             var plan = sharePlan(s, call.getAsJsonObject("arguments").get("memoryId").getAsString());
                             if (plan != null) {

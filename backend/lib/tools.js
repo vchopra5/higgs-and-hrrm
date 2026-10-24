@@ -1,3 +1,4 @@
+import { MERCHANT_TOOLS } from './merchant.js';
 import { vocalDelivery } from './vocal-delivery.js';
 import { LIMITS } from './protocol.js';
 
@@ -34,6 +35,9 @@ export function submitToolResult(session, callId, result) {
   }
   session.traceTool?.(pending, result);
   session.noteToolResult?.(pending, result);
+  if (pending.name === '_switch_merchant') {
+    session.sendClient({ type: 'status', message: 'That villager is no longer available to trade. Nothing was purchased; move closer and ask again.' });
+  }
   if (pending.memoryContext) {
     session.memoryContext.acceptResult(pending, result);
     return true;
@@ -106,6 +110,10 @@ export function receiveToolCall(session, event) {
   } catch {
     args = null;
   }
+  if (MERCHANT_TOOLS.has(event.name) && session.floor && session.treatmentRecipient != null) {
+    sendToolOutput(session, event.call_id, { error: 'The player addressed another villager. Do not act on your trade or interpret their words as your purchase consent.' });
+    return;
+  }
   session.hasTools = true;
   if (event.name === 'report_treatment' && args && typeof args === 'object' && !Array.isArray(args)) args.recipientEntityId = session.treatmentRecipient ?? null;
   session.noteToolCall?.(event.name);
@@ -114,6 +122,7 @@ export function receiveToolCall(session, event) {
     name: event.name,
     arguments: args,
     turnId: session.turnId,
+    ...(MERCHANT_TOOLS.has(event.name) && Number.isInteger(session.context?.entityId) ? { merchantEntityId: session.context.entityId } : {}),
     created: session.now(),
   });
   if (!validArguments(event.name, args)) {

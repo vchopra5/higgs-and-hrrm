@@ -1361,3 +1361,74 @@ test('compliment speech and treatment share a recipient and model tools cannot r
   s.reportTreatment('Idris, you are lovely.', 'explicit-companion');
   assert.equal(s.pending.get(`treatment-${s.id}-3`).arguments.recipientEntityId, 42);
 });
+
+test('addressing a companion binds the turn before tools and blocks the original merchant', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', entityId: 10, coordinated: true },
+    companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.companion?.ready);
+  s.turnId = 2;
+  s.selectedAddressee = 42;
+  f.emitTo(0, { type: 'conversation.item.input_audio_transcription.completed', item_id: 'new-merchant', transcript: 'What can I buy from you?' });
+  await until(() => s.pending.has(`recipient-${s.id}-2`));
+  assert.equal(s.pending.get(`recipient-${s.id}-2`).arguments.entityId, 42);
+  f.emitTo(0, { type: 'response.function_call_arguments.done', call_id: 'old-confirm', name: 'confirm_trade', arguments: '{"proposalId":"old-quote"}' });
+  await until(() => f.received.some(e => e.item?.call_id === 'old-confirm'));
+  assert.equal(s.pending.has('old-confirm'), false);
+  assert.match(f.received.find(e => e.item?.call_id === 'old-confirm').item.output, /another villager/);
+  s.queuedResponse = true;
+  s.flushPreparedResponse();
+  f.emitTo(1, { type: 'response.created', response: { id: 'trade-request' } });
+  f.emitTo(1, { type: 'response.function_call_arguments.done', response_id: 'trade-request', call_id: 'handoff', name: 'request_trade', arguments: '{}' });
+  await until(() => s.pending.has(`merchant-${s.id}-2`));
+  const switchCall = s.pending.get(`merchant-${s.id}-2`);
+  assert.equal(switchCall.arguments.entityId, 42);
+  assert.equal(switchCall.arguments.request, 'What can I buy from you?');
+  assert.equal(switchCall.internal, true);
+  f.emitTo(1, { type: 'response.function_call_arguments.done', response_id: 'trade-request', call_id: 'handoff-again', name: 'request_trade', arguments: '{}' });
+  await delay(30);
+  assert.equal([...s.pending.values()].filter(p => p.name === '_switch_merchant').length, 1);
+  f.client.send(JSON.stringify({ type: 'interrupt', addressee: 10 }));
+  await until(() => !s.pending.has(`merchant-${s.id}-2`));
+});
+
+test('merchant handoff resumes the request with fresh offers and binds tool calls to the new merchant', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'librarian', name: 'Idris', entityId: 42, coordinated: true,
+    autoGreeting: true, merchantRequest: 'What can I buy from you?', recentConversation: ['Mira: My quote was two emeralds.'] } });
+  await until(() => f.received.some(e => e.type === 'response.create'));
+  assert.ok(f.received.some(e => e.item?.content?.[0]?.text?.includes('never purchase consent')));
+  f.emit({ type: 'response.function_call_arguments.done', call_id: 'new-offers', name: 'get_trades', arguments: '{"merchantEntityId":10}' });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.pending.has('new-offers'));
+  assert.equal(s.pending.get('new-offers').merchantEntityId, 42);
+  assert.equal(s.pending.get('new-offers').turnId, 0);
+});
+
+test('an unsolicited companion interjection cannot switch merchants', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', entityId: 10, coordinated: true },
+    companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.companion?.ready);
+  s.companion.respond('Add a relevant comment.');
+  f.emitTo(1, { type: 'response.created', response: { id: 'aside' } });
+  f.emitTo(1, { type: 'response.function_call_arguments.done', response_id: 'aside', call_id: 'invalid-switch', name: 'request_trade', arguments: '{}' });
+  await until(() => f.received.some(e => e.item?.call_id === 'invalid-switch'));
+  assert.equal([...s.pending.values()].some(p => p.name === '_switch_merchant'), false);
+});
+
+test('a failed merchant handoff reports unavailability and does not execute a trade', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', entityId: 10, coordinated: true },
+    companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
+  const s = f.bridge.sessions.get(f.sessionId);
+  await until(() => s.companion?.ready);
+  s.turnId = 1; s.selectedAddressee = 42;
+  s.lastTranscript = { text: 'May I buy a book from you?', at: Date.now() };
+  s.companion.answer();
+  f.emitTo(1, { type: 'response.created', response: { id: 'failed-handoff' } });
+  f.emitTo(1, { type: 'response.function_call_arguments.done', response_id: 'failed-handoff', call_id: 'switch', name: 'request_trade', arguments: '{}' });
+  await until(() => s.pending.has(`merchant-${s.id}-1`));
+  assert.equal(s.quiet(), false);
+  await f.request(`/sessions/${s.id}/tools/merchant-${s.id}-1/result`, 'POST', { result: { status: 'unavailable' } });
+  await until(() => f.events.some(e => e.type === 'status' && e.message.includes('no longer available to trade')));
+  assert.equal([...s.pending.values()].some(p => p.name === 'confirm_trade'), false);
+});
