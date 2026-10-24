@@ -4,7 +4,6 @@ import com.google.gson.Gson;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
-import java.text.Normalizer;
 import java.util.*;
 import java.util.concurrent.*;
 
@@ -38,16 +37,7 @@ public final class VillagerMemoryStore implements AutoCloseable {
 
     private static final Gson GSON = new Gson();
     private static final long MAX_FILE_BYTES = 8L * 1024 * 1024;
-    // Query grammar is not evidence. Keep content words (including negation and time words),
-    // and apply the same analysis to queries and documents. This is deliberately lexical:
-    // synonyms and inferred facts need a separate semantic retrieval stage.
-    private static final Set<String> SEARCH_STOP_WORDS = Set.of(
-        "a", "about", "an", "and", "are", "as", "at", "be", "been", "being", "but", "by", "can", "could",
-        "did", "do", "does", "for", "from", "had", "has", "have", "he", "her", "his", "how", "i",
-        "if", "in", "is", "it", "its", "me", "my", "news", "of", "on", "or", "our", "please",
-        "recall", "remember", "said", "say", "says", "she", "should", "so", "some", "tell", "than",
-        "that", "the", "their", "them", "there", "these", "they", "this", "those", "to", "us", "was",
-        "we", "were", "what", "when", "where", "which", "who", "why", "will", "with", "would", "you", "your");
+
     private static final double BM25_K1 = 1.2, BM25_B = 0.75;
     private record SearchDocument(Memory memory, Map<String, Integer> frequencies, int length) {}
     private record SearchResult(Memory memory, double score) {}
@@ -271,13 +261,7 @@ public final class VillagerMemoryStore implements AutoCloseable {
         return memory.interest.score + audience + personal + Math.max(0, 12 - ageHours / 6) - memory.hops * 4L;
     }
 
-    private static List<String> searchWords(String text) {
-        if (text == null || text.isBlank()) return List.of();
-        String normalized = Normalizer.normalize(text, Normalizer.Form.NFKC).toLowerCase(Locale.ROOT)
-            .replaceAll("(?<=\\p{L})['’]s\\b", "");
-        return Arrays.stream(normalized.split("[^\\p{L}\\p{M}\\p{N}]+"))
-            .filter(word -> !word.isEmpty() && !SEARCH_STOP_WORDS.contains(word)).toList();
-    }
+    private static List<String> searchWords(String text) { return TextTerms.words(text); }
 
     private static SearchDocument searchDocument(Memory memory) {
         List<String> words = new ArrayList<>(searchWords(memory.summary));

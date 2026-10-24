@@ -5,16 +5,24 @@ package dev.higgs;
  * Goodwill never raises a price above the villager's normal one, and ill will has no room to haggle.
  */
 final class Negotiation {
-    record Band(String name, int rate, int floor) {}
+    /** rate and floor are percentages of the base price; hero is the Hero of the Village discount already applied. */
+    record Band(String name, int rate, int floor, int hero) {}
     record Bundle(int payment, int secondary, int quantity, int stockUses, boolean discounted) {}
     static final int HOSTILE = -5;
     /** At rock-bottom reputation the villager refuses all trade and nearby golems defend it. */
     static boolean hostile(int standing) { return standing <= HOSTILE; }
-    static Band band(int standing) {
+    static Band band(int standing) { return band(standing, -1); }
+
+    /**
+     * heroAmplifier is the Hero of the Village effect amplifier, or -1 without it. Vanilla takes
+     * 0.3 + 0.0625 × amplifier off every price; voice quotes apply the same cut to the normal price and the floor.
+     */
+    static Band band(int standing, int heroAmplifier) {
         int score = Math.max(-5, Math.min(5, standing));
         int floor = 100 - 5 * score;
         String name = hostile(score) ? "hostile" : score <= -2 ? "annoyed" : score >= 2 ? "friendly" : "neutral";
-        return new Band(name, Math.max(100, floor), floor);
+        int hero = heroAmplifier < 0 ? 0 : (int) Math.min(90, Math.round((0.3 + 0.0625 * heroAmplifier) * 100));
+        return new Band(name, Math.max(1, Math.max(100, floor) * (100 - hero) / 100), Math.max(1, floor * (100 - hero) / 100), hero);
     }
     /**
      * Payment is the most the player will pay: the villager accepts any amount at or above its floor, never charging

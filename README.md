@@ -227,8 +227,9 @@ are back”) or to deliver a package from its wares, which it hands you. The rec
 glows for two minutes, and an **ERRAND** card shows what you carry, who it is for, and
 roughly where they are (“30 blocks north-east”). You also get a book and quill titled
 “Errand: Iris → Bram” recording who sent you, who it is for, the exact message or
-package, where the recipient was, and the reward. Talk to the recipient and pass it on:
-it confirms the delivery (taking the package), gains 1 reputation, and the villager who
+package, where the recipient was, and the reward. Talk to the recipient and pass it on in your
+own words. It knows nothing in advance and learns the message only from you; the server
+checks that what you said carries the gist (or takes the package) and gains 1 reputation, and the villager who
 sent you gains 2 and remembers the favour. One errand at a time; it lapses after two
 hours. Hostile villagers do not hand out errands, so errands are a good way to rebuild
 a damaged reputation. Saved in `data/higgs-errands.json`.
@@ -271,6 +272,12 @@ Chatter uses two Boson realtime sessions per scene. Tune or disable it with the
 `HIGGS_CHATTER_*` settings in `.env` (see `.env.example`), then restart the game server.
 
 ## Voice trading
+
+Villagers know before speaking whether they have anything to sell and what is in stock.
+One with no profession, a nitwit, or one sold out of everything gets no trading tools at
+all and says so instead of inventing wares. The **Hero of the Village** effect applies
+vanilla's discount (30%, plus 6.25% per extra level) to voice quotes and haggling floors
+alike, and the villager thanks you for saving the village.
 
 Ask for an item, a quantity, or a budget: “I would like fifteen bread” or “How much
 bread can I buy with four emeralds?” The server quotes exact whole-item amounts,

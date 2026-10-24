@@ -40,6 +40,12 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   assert.ok(session.pending.has('parcel'));
   call('delivered', 'deliver_errand', {});
   assert.ok(session.pending.has('delivered'));
+  call('relayed', 'deliver_errand', {conveyed:'Iris says the wolves are back.'});
+  assert.ok(session.pending.has('relayed'));
+  for (const [i, args] of [{conveyed:''}, {conveyed:'x'.repeat(241)}, {message:'hi'}].entries()) {
+    call('bad-relay'+i, 'deliver_errand', args);
+    assert.equal(session.pending.has('bad-relay'+i), false);
+  }
   for (const [i, args] of [{}, {kind:'letter'}, {kind:'message', message:'x'.repeat(161)}, {kind:'item', target:'Bram'}].entries()) {
     call('bad-errand'+i, 'offer_errand', args);
     assert.equal(session.pending.has('bad-errand'+i), false);
@@ -65,7 +71,7 @@ test('trade tools validate amounts and preserve trusted confirmation turns', () 
   assert.ok(session.pending.has('tone'));
   call('bad-tone', 'report_treatment', {treatment:'give_everything_free'});
   assert.equal(session.pending.has('bad-tone'), false);
-  assert.equal(outputs.length, 29);
+  assert.equal(outputs.length, 32);
   assert.ok(outputs.every(event => JSON.parse(event.item.output).error === 'Invalid tool request'));
 });
 
@@ -106,4 +112,18 @@ test('fantasy speech keeps exact item names, numbers and trade consent rules', (
   assert.match(instructions, /silence or unrelated speech is not consent/);
   assert.match(instructions, /call report_treatment even outside trading/);
   assert.match(instructions, /Do not report physical hits: the server handles those/);
+});
+
+test('a villager with nothing to sell gets no trade tools and is told so', () => {
+  const jobless = sessionConfig({ name: 'Nit', trade: { canTrade: false, reason: 'nitwit', wares: [], soldOut: [] } }).session;
+  const names = jobless.tools.map(tool => tool.name);
+  for (const tool of ['get_trades', 'preview_trade', 'propose_trade', 'confirm_trade', 'cancel_trade', 'offer_quest', 'complete_quest'])
+    assert.equal(names.includes(tool), false, tool);
+  for (const tool of ['receive_gift', 'offer_errand', 'deliver_errand', 'report_treatment', 'remember_conversation'])
+    assert.ok(names.includes(tool), tool);
+  assert.match(jobless.instructions, /You have no trade to offer \(context.trade.reason is "nitwit"\): never offer wares/);
+  const trader = sessionConfig({ trade: { canTrade: true, reason: 'trading', wares: ['Bread'], soldOut: [] } }).session;
+  assert.ok(trader.tools.some(tool => tool.name === 'propose_trade'));
+  assert.match(trader.instructions, /offer only those, and never sold-out goods/);
+  assert.ok(sessionConfig({}).session.tools.some(tool => tool.name === 'propose_trade'), 'older servers without trade context keep trading');
 });

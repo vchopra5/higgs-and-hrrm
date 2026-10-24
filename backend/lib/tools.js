@@ -57,7 +57,10 @@ function validArguments(name, args) {
       && args.audiences.every(audience => AUDIENCES.has(audience));
   }
   if (name === 'get_trades' || name === 'cancel_trade') return true;
-  if (name === 'complete_quest' || name === 'deliver_errand') return Object.keys(args).length === 0;
+  if (name === 'complete_quest') return Object.keys(args).length === 0;
+  if (name === 'deliver_errand') return Object.keys(args).every(key => key === 'conveyed')
+    && (args.conveyed === undefined || (typeof args.conveyed === 'string' && args.conveyed.trim().length > 0
+      && args.conveyed.length <= 240 && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.conveyed)));
   if (name === 'offer_errand') return Object.keys(args).every(key => ['kind', 'message'].includes(key))
     && ['message', 'item'].includes(args.kind)
     && (args.message === undefined || (typeof args.message === 'string' && args.message.trim().length > 0 && args.message.length <= 160

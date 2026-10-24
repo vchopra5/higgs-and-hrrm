@@ -66,7 +66,7 @@ tasks.register('testAudioLevels', JavaExec) {
 tasks.named('check') { dependsOn 'testAudioLevels' }
 
 tasks.register('compileMemoryTest', JavaCompile) {
-    source = files('src/main/java/dev/higgs/VillagerMemoryStore.java',
+    source = files('src/main/java/dev/higgs/VillagerMemoryStore.java', 'src/main/java/dev/higgs/TextTerms.java',
         'src/main/java/dev/higgs/VillagerGossip.java',
         'src/main/java/dev/higgs/RumourConversation.java',
         'src/test/dev/higgs/VillagerMemoryTest.java')
@@ -80,8 +80,20 @@ tasks.register('testMemory', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testMemory' }
 
+tasks.register('compileTextTermsTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/TextTerms.java', 'src/test/dev/higgs/TextTermsTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('text-terms-test')
+}
+tasks.register('testTextTerms', JavaExec) {
+    dependsOn 'compileTextTermsTest'
+    classpath = files(layout.buildDirectory.dir('text-terms-test'))
+    mainClass = 'dev.higgs.TextTermsTest'
+}
+tasks.named('check') { dependsOn 'testTextTerms' }
+
 tasks.register('compileMemoryBenchmark', JavaCompile) {
-    source = files('src/main/java/dev/higgs/VillagerMemoryStore.java',
+    source = files('src/main/java/dev/higgs/VillagerMemoryStore.java', 'src/main/java/dev/higgs/TextTerms.java',
         'src/main/java/dev/higgs/MemoryContextBudget.java',
         'src/test/dev/higgs/VillagerMemoryBenchmark.java')
     classpath = sourceSets.main.compileClasspath

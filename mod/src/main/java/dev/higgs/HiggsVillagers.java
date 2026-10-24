@@ -189,7 +189,44 @@ public final class HiggsVillagers implements ModInitializer {
     private Path relationshipFile;
     private String relationshipKey(Session s) { return s.player.getUUID() + ":" + s.villager.getUUID(); }
     private int standing(Session s) { return relationships.getOrDefault(relationshipKey(s), TradeReputation.neutral()).score(); }
-    private Negotiation.Band band(Session s) { return Negotiation.band(standing(s)); }
+    private Negotiation.Band band(Session s) { return Negotiation.band(standing(s), heroLevel(s.player)); }
+    /** Hero of the Village amplifier, or -1 without the effect. */
+    private static int heroLevel(ServerPlayer player) {
+        var effect = player.getEffect(net.minecraft.world.effect.MobEffects.HERO_OF_THE_VILLAGE);
+        return effect == null ? -1 : effect.getAmplifier();
+    }
+    /** Villagers without a trade (no profession, nitwits) or with nothing in stock have nothing to sell. */
+    private static boolean canTrade(Villager villager) {
+        String profession = VillagerMemoryService.profession(villager);
+        return !profession.equals("none") && !profession.equals("nitwit")
+            && villager.getOffers().stream().anyMatch(offer -> !offer.isOutOfStock());
+    }
+    /** What the villager knows about its own trade before saying a word: whether it can trade, and what is in stock. */
+    private JsonObject tradeContext(Session s) {
+        String profession = VillagerMemoryService.profession(s.villager);
+        JsonObject trade = new JsonObject();
+        JsonArray wares = new JsonArray(), soldOut = new JsonArray();
+        Set<String> seen = new HashSet<>();
+        for (var offer : s.villager.getOffers()) {
+            String name = offer.getResult().getHoverName().getString();
+            if (seen.add(name + offer.isOutOfStock())) (offer.isOutOfStock() ? soldOut : wares).add(name);
+        }
+        boolean jobless = profession.equals("none") || profession.equals("nitwit");
+        trade.addProperty("canTrade", canTrade(s.villager));
+        trade.addProperty("reason", profession.equals("nitwit") ? "nitwit" : jobless ? "no_profession"
+            : s.villager.getOffers().isEmpty() ? "no_offers" : wares.isEmpty() ? "sold_out" : "trading");
+        trade.add("wares", wares);
+        trade.add("soldOut", soldOut);
+        int hero = heroLevel(s.player);
+        if (hero >= 0) trade.addProperty("heroOfTheVillage", hero + 1);
+        return trade;
+    }
+    private JsonObject noTrade(Session s) {
+        String profession = VillagerMemoryService.profession(s.villager);
+        return outcome("no_trade", profession.equals("none") || profession.equals("nitwit")
+            ? "You have no trade, so you have nothing to sell. Say so plainly; never invent wares or prices."
+            : "Everything you sell is out of stock right now. Say so and suggest they come back after you restock.");
+    }
     private void saveTradeReputations() {
         if (relationshipFile == null) return;
         try {
@@ -592,7 +629,9 @@ public final class HiggsVillagers implements ModInitializer {
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);
-            context.add("offers", offers(s));
+            JsonObject trade = tradeContext(s);
+            context.add("trade", trade);
+            if (trade.get("canTrade").getAsBoolean()) context.add("offers", offers(s));
             Quest quest = quests.get(relationshipKey(s));
             if (quest != null) {
                 JsonObject open = new JsonObject();
@@ -725,6 +764,7 @@ public final class HiggsVillagers implements ModInitializer {
                         }
                         if (name.equals("get_trades")) {
                             if (Negotiation.hostile(standing(s))) result = refused();
+                            else if (!canTrade(s.villager)) result = noTrade(s);
                             else result.add("offers", offers(s));
                         }
                         else if (name.equals("report_treatment")) {
@@ -740,7 +780,8 @@ public final class HiggsVillagers implements ModInitializer {
                         } else if (name.equals("offer_quest")) {
                             result = offerQuest(s, call.getAsJsonObject("arguments").get("item").getAsString());
                         } else if (name.equals("deliver_errand")) {
-                            result = deliverErrand(s);
+                            JsonObject errandArgs = call.getAsJsonObject("arguments");
+                            result = deliverErrand(s, errandArgs != null && errandArgs.has("conveyed") ? errandArgs.get("conveyed").getAsString() : "");
                         } else if (name.equals("receive_gift")) {
                             result = receiveGift(s, call.getAsJsonObject("arguments"));
                         } else if (name.equals("complete_quest")) {
@@ -1050,10 +1091,14 @@ public final class HiggsVillagers implements ModInitializer {
         double dx = target.getX() - player.getX(), dz = target.getZ() - player.getZ();
         return Math.round(Math.sqrt(dx * dx + dz * dz)) + " blocks " + Errands.compass(dx, dz);
     }
-    private JsonObject deliverErrand(Session s) {
+    /** The recipient knows nothing in advance: it learns the message only from the player's own words. */
+    private JsonObject deliverErrand(Session s, String conveyed) {
         Errand errand = errand(s.player);
         if (errand == null || !errand.targetId().equals(s.villager.getUUID().toString()))
-            return outcome("no_errand", "The player is not carrying an errand for you. Do not pretend otherwise.");
+            return outcome("no_errand", "Nobody sent the player to you with anything. Say you are not sure what they mean; do not pretend otherwise.");
+        if (errand.kind().equals("message") && !TextTerms.conveys(conveyed, errand.message(), errand.giverName()))
+            return outcome("errand_mismatch", "That is not a message you can make sense of yet. Say you are not sure what they mean and ask "
+                + "them to tell you what they were asked to pass on. Do not guess the message.");
         if (errand.kind().equals("item")) {
             var identifier = net.minecraft.resources.Identifier.tryParse(errand.item());
             var item = identifier == null ? null : BuiltInRegistries.ITEM.getValue(identifier);
@@ -1084,9 +1129,11 @@ public final class HiggsVillagers implements ModInitializer {
             "Errand complete");
         org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Errand delivered by {}: {} -> {}", s.player.getName().getString(),
             errand.giverName(), errand.targetName());
-        return outcome("errand_complete", "The player " + (errand.kind().equals("message")
-            ? "passed on a message from " + errand.giverName() + ": \"" + errand.message() + "\""
-            : "brought you the " + errand.itemName() + " from " + errand.giverName()) + ". React to it in character and thank them warmly.");
+        // Only the player's own words: never the original wording the recipient could not have known.
+        return outcome("errand_complete", errand.giverName() + " sent the player. " + (errand.kind().equals("message")
+            ? "They told you: \"" + conveyed.trim() + "\""
+            : "They brought you the " + errand.itemName() + (conveyed.isBlank() ? "" : " and said: \"" + conveyed.trim() + "\""))
+            + ". React to what they said in character, using only that, and thank them warmly.");
     }
     private int reward(ServerPlayer player, String villagerId, int gain, long now) {
         String key = player.getUUID() + ":" + villagerId;
@@ -1101,10 +1148,6 @@ public final class HiggsVillagers implements ModInitializer {
         Errand errand = errand(player);
         String id = villager.getUUID().toString();
         if (errand != null && errand.giverId().equals(id)) context.addProperty("youGaveThePlayer", errand.describe() + " (not yet done)");
-        if (errand != null && errand.targetId().equals(id)) context.addProperty("forYouFromVillager",
-            errand.giverName() + " sent the player to " + (errand.kind().equals("message")
-                ? "tell you: \"" + errand.message() + "\"" : "bring you the " + errand.itemName())
-                + ". Do not mention it until the player brings it up; then call deliver_errand.");
         List<String> done = errandHistory.get(player.getUUID() + ":" + id);
         if (done != null && !done.isEmpty()) {
             JsonArray finished = new JsonArray();
@@ -1326,6 +1369,7 @@ public final class HiggsVillagers implements ModInitializer {
     private JsonObject proposeTrade(Session s, JsonObject arguments, int turn) {
         if (turn == s.lastPurchaseTurn && s.lastReceipt != null) return s.lastReceipt;
         if (Negotiation.hostile(standing(s))) { s.proposal = null; return refused(); }
+        if (!canTrade(s.villager)) { s.proposal = null; return noTrade(s); }
         int index = arguments.get("offerIndex").getAsInt();
         Proposal previous = s.proposal;
         s.proposal = null;
@@ -1387,6 +1431,7 @@ public final class HiggsVillagers implements ModInitializer {
                     + "To do that, pick the option that suits you and call offer_quest with its item; otherwise just counter.");
             }
             result.addProperty("discounted", bundle.discounted());
+            if (limits.hero() > 0) result.addProperty("heroOfTheVillageDiscountPercent", limits.hero());
             result.addProperty("relationship", limits.name());
             result.addProperty("pricePercent", limits.rate());
             return result;

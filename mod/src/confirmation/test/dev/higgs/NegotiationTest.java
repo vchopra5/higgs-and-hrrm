@@ -82,6 +82,14 @@ public final class NegotiationTest {
                 }
             }
         }
+        // Hero of the Village: vanilla's 30% (+6.25% per level) off both the normal price and the floor.
+        var hero = Negotiation.band(0, 0);
+        check(hero.hero() == 30 && hero.rate() == 70 && hero.floor() == 70 && hero.name().equals("neutral"), "level I hero");
+        check(Negotiation.band(0, 1).hero() == 36, "level II hero");
+        check(Negotiation.band(5, 0).floor() == 52 && Negotiation.band(5, 0).rate() == 70, "goodwill and heroism stack");
+        expect(Negotiation.quote(32, 0, 1, 12, 64, 64, 64, hero, null, null, false), 22, 1);
+        check(Negotiation.band(0).hero() == 0 && Negotiation.band(0).equals(Negotiation.band(0, -1)), "no effect, no discount");
+        check(Negotiation.band(0, 50).hero() == 90, "discount capped");
         // Quests: a lowball offer earns the player's exact terms, scaled to how much they asked off.
         var exact = Negotiation.exact(3, 0, 1, 12, 64, 64, 64, 1, 2);
         check(exact != null && exact.payment() == 2 && exact.quantity() == 1 && exact.stockUses() == 1, "exact terms ignore the floor");
