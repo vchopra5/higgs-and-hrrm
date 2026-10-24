@@ -11,6 +11,23 @@ npm --prefix backend start
 
 The Minecraft server mod must use the same bridge token. Keep `.env` private. The bridge binds only to `127.0.0.1:8787` by default; this MVP is for a client and server on the same computer. Run `npm --prefix backend test` for local mock-provider integration tests; these do not use a paid API key.
 
+## Code layout
+
+`src.js` loads configuration and starts the process. It continues to export
+`createBridge` and `sessionConfig` for existing tests and integrations.
+
+| Module | Responsibility |
+| --- | --- |
+| `lib/bridge.js` | Authenticated HTTP routes, audio-ticket upgrades, session registry, and process cleanup. |
+| `lib/session.js` | One conversation's provider connection, lifecycle, response events, and diagnostics. |
+| `lib/audio.js` | PCM validation, push-to-talk commits, VAD events, interruptions, and reply forwarding. |
+| `lib/tools.js` | Trade-call validation, deduplication, batch completion, and timeouts. |
+| `lib/protocol.js` | Higgs session configuration, shared limits, JSON transport, and safe diagnostic codes. |
+
+Audio and tool events with an older response ID are ignored once a newer response
+starts. Provider errors preserve the sanitized error type when no code is supplied;
+provider-supplied message text remains excluded from client errors and logs.
+
 ## Protocol
 
 All REST endpoints require `Authorization: Bearer <HIGGS_BRIDGE_TOKEN>`.
