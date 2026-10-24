@@ -106,7 +106,8 @@ export function runDialogueCase({ fixture, asOf, arm, apiKey, upstreamUrl = DEFA
     const calls = [], seenCalls = new Set(), responses = [], transcriptItems = new Map();
     // Use the actual production delivery method, retaining object identity across
     // tool continuations so it delivers evidence once for this prepared turn.
-    const delivery = { preparedMemory: { memories: context.memories, status: 'ready', asOf }, sendProvider: send };
+    const delivery = { preparedMemory: { memories: context.memories, status: 'ready', asOf }, sendProvider: send,
+      deliverCompanionLines: BridgeSession.prototype.deliverCompanionLines };
     const requestResponse = () => arm === 'prepared'
       ? BridgeSession.prototype.createConversationResponse.call(delivery)
       : send({ type: 'response.create' });

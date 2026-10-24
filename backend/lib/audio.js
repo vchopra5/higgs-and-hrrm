@@ -5,6 +5,9 @@ export function interruptAudio(session, cancelProvider) {
   clearTimeout(session.newsDepartureTimer);
   session.newsDeparture = null;
   for (const [id, tool] of session.pending) if (tool.name === '_share_news_depart') session.pending.delete(id);
+  if (session.floor && !(session.floor.active?.owner === 'main' && !session.floor.active.ended)) session.responseDone = true;
+  session.floor?.interrupt();
+  session.followupUsed = false;
   session.recording = true;
   session.cancelled = true;
   session.companion?.cancel();
@@ -82,6 +85,7 @@ export function receiveClientAudioEvent(session, event) {
       commitTurn(session);
       break;
     case 'interrupt':
+      session.selectedAddressee = Number.isInteger(event.addressee) ? event.addressee : null;
       interruptAudio(session, true);
       if (session.mode === 'vad') session.recording = false;
       break;

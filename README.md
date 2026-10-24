@@ -245,23 +245,36 @@ corrected, like an invented trade.
 
 ## Three-way conversations
 
-When you start talking to a villager, the nearest idle neighbour within four blocks (one
-that is not hostile to you) joins in, outlined alongside your partner and turned to face
-you. It hears everything, and now and then adds a short remark of its own after your
-partner speaks: agreeing, teasing, or gossiping about you from its own opinion. Say its
-name (“Bram, what do you think?”) and it answers instead. The neighbour has its own
-personality and voice and speaks from where it stands, never over your partner, but it
-never trades, takes gifts, or hands out quests or errands; talk to it directly for that.
-Its lines appear in chat under its name.
+A nearby idle neighbour can join your conversation, with its own voice and personality.
+One villager owns the turn through generation and playback. The client acknowledges
+completion after its PCM queues drain, allowing 500 ms for Minecraft's native audio
+buffers. A named, direct question can hand the turn to the other villager. Listeners also get
+occasional opportunities to add a relevant thought, with permission to remain silent.
+Casual mentions do not force an answer. At most one NPC follow-up runs before yielding
+to the player. Newcomer greetings wait for a free turn instead of being lost during speech.
 
-Villagers who wander within four blocks of you or your partner mid-conversation may join
-too (a one-in-five chance every two seconds while nobody else has joined): they catch up
-on the last few lines and greet you or react to what was said. Ask a companion to leave
-(“Bram, could you give us a moment?”, “leave us alone, please”): one who likes you always
-says goodbye and walks off; a neutral one goes half the time, and an annoyed one usually
-stays to listen, with a nosy or pointed reply. One that leaves will not rejoin you for two
-minutes. Each three-way conversation uses a second Boson session; set
-`HIGGS_COMPANION_ENABLED=false` in `.env` to turn it off.
+Say a participant's name to address them, or look at them when pressing **B**. Explicit
+spoken address takes priority over gaze. Selecting someone already in the group keeps
+the existing sessions; selecting an outsider retains the normal partner-switch flow.
+Compliment and insult effects use that same recipient: hearts, reputation, and memories
+apply to the addressed villager. An absent recipient does not redirect those effects
+to the main partner, and a companion reputation change does not cancel the main trade.
+B interrupts the entire group and clears queued replies. The companion still cannot
+trade, accept gifts, or assign quests; the main partner handles those actions.
+
+Shared conversation history receives completed lines after playback acknowledgement.
+Interrupted speech receives an incomplete marker rather than its potentially unheard
+transcript. This conservatively omits the spoken prefix too; it does not claim word-level
+playback alignment. A joining neighbour does not receive dialogue from before arrival.
+Private memories remain separate. Companion failures release the turn and recover an
+unanswered routed request through the main partner. Missing playback acknowledgements
+expire the session with a reconnect message instead of holding the floor indefinitely.
+
+Ask a companion to leave (“Bram, could you give us a moment?”): its willingness depends
+on its opinion of you. Goodbye finishes playing before departure. Each three-way
+conversation uses a second Boson session; `HIGGS_COMPANION_ENABLED=false` disables it.
+The updated mod opts into the acknowledgement protocol with `context.coordinated`;
+older bridge clients retain their existing behavior and do not need to send acknowledgements.
 
 ## Night and danger
 

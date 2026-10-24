@@ -89,6 +89,7 @@ export class Companion {
   constructor(session, spec, { partner, playerName, random = Math.random, history = [], joined = false }) {
     this.history = history;
     this.joined = joined;
+    this.greetingPending = joined;
     this.transcript = history.map(line => ({ speaker: line.speaker, text: String(line.text).slice(0, 300) })).slice(-TRANSCRIPT_LINES);
     this.leaving = false;
     this.session = session;
@@ -103,6 +104,7 @@ export class Companion {
     this.retries = 0;
     this.responseId = null;
     this.cancelledId = null;
+    this.finishedIds = new Set();
     this.lines = 0;
     this.lastInterjection = -1;
     this.closed = false;
@@ -150,10 +152,7 @@ export class Companion {
           this.ready = true;
           this.session.stage('companion_ready', { name: this.spec.name });
           // Joined mid-conversation: greet without revealing dialogue from before arrival.
-          if (this.joined && this.session.quiet()) {
-            this.respond(`[You just walked up and joined] Greet ${this.partner.name} and the player briefly, `
-              + 'in one short sentence.');
-          }
+          if (this.flushGreeting() && this.session.floor) this.session.followupUsed = true;
         }
         break;
       case 'response.created':
@@ -171,21 +170,24 @@ export class Companion {
         if (!line) break;
         this.lines++;
         this.session.sendClient({ type: 'transcript', speaker: 'companion', entityId: this.spec.entityId, id: event.item_id ?? `companion-${this.lines}`, text: line, replace: true });
-        this.hear(`${this.spec.name} (you)`, line);
-        this.session.hearCompanion(this.spec.name, line);
+        if (this.session.floor) this.session.floor.line(this, line);
+        else { this.hear(`${this.spec.name} (you)`, line); this.session.hearCompanion(this.spec.name, line); }
         break;
       }
       case 'response.done':
+        if (event.response?.id && this.finishedIds.has(event.response.id)) break;
+        if (event.response?.id) this.finishedIds.add(event.response.id);
         if (this.cancelling) {
           this.cancelling = false;
           clearTimeout(this.replyTimer);
           break;
         }
-        if (event.response?.id && event.response.id === this.cancelledId) break;
+        if (event.response?.id && (event.response.id === this.cancelledId || this.responseId && event.response.id !== this.responseId)) break;
         if (this.answerTurn != null) { this.close(); break; }
         clearTimeout(this.replyTimer);
         this.speaking = false;
-        if (this.leaving) this.session.companionLeft(this);
+        if (this.session.floor) this.session.floor.finish(this, event.response?.status === 'completed');
+        else if (this.leaving) this.session.companionLeft(this);
         break;
       case 'error':
         if (this.cancelling && (event.error?.code ?? event.error?.type) === 'response_cancel_not_active') {
@@ -221,8 +223,16 @@ export class Companion {
     if (this.transcript.length > TRANSCRIPT_LINES) this.transcript.shift();
   }
 
+  flushGreeting() {
+    if (!this.greetingPending || !this.session.quiet() || this.session.followupUsed) return false;
+    if (!this.respond(`[You just walked up and joined] Greet ${this.partner.name} and the player briefly in one short sentence.`)) return false;
+    this.greetingPending = false;
+    return true;
+  }
+
   /** The player spoke to the companion by name; its words were already heard. */
   answer() {
+    this.greetingPending = false; // Answering the player is already an introduction.
     return this.respond(`[The player ${this.playerName} is speaking to you] Answer what they just said, briefly.`, true);
   }
 
@@ -242,8 +252,10 @@ export class Companion {
   maybeInterject(turnId) {
     if (!this.available() || turnId === this.lastInterjection || this.random() >= INTERJECT_CHANCE) return false;
     this.lastInterjection = turnId;
-    return this.respond(`[Your turn to chime in] Add one short remark of your own to what ${this.partner.name} just said, `
-      + 'such as agreeing, teasing, or a quick aside about the player. Do not repeat them.');
+    return this.respond(`[A pause in the conversation] You may add one brief, relevant thought to what ${this.partner.name} just said. `
+      + 'Only speak if you have something useful or personal to add: a reaction, disagreement, or related experience. '
+      + 'Otherwise remain silent with no spoken output. Do not repeat them or answer on their behalf. '
+      + 'Do not accept a compliment addressed to someone else. Leave the next turn to the player.');
   }
 
   /** One item per reply: the recent conversation, quoted and marked as context, then the cue. */
@@ -259,7 +271,9 @@ export class Companion {
 
   respond(prompt, routed = false) {
     if (!this.available()) return false;
+    if (this.session.floor && !this.session.floor.acquire(this)) return false;
     this.speaking = true;
+    this.responseId = null;
     this.cancelledId = null;
     try {
       if (!sendJson(this.upstream, { type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: this.cue(prompt) }] } })

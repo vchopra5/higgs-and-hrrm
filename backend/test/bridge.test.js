@@ -262,7 +262,7 @@ test('compliments in the transcript reach the game server even if the model skip
   await until(()=>bridge.sessions.get(sessionId).pending.size>0);
   const tools=await (await fetch(base+`/sessions/${sessionId}/tools`,{headers:auth})).json();
   assert.deepEqual(tools.map(({name,arguments:args,internal,turnId})=>({name,args,internal,turnId})),
-    [{name:'report_treatment',args:{treatment:'polite'},internal:true,turnId:1}]);
+    [{name:'report_treatment',args:{treatment:'polite',recipientEntityId:null},internal:true,turnId:1}]);
   const posted=await fetch(base+`/sessions/${sessionId}/tools/${encodeURIComponent(tools[0].callId)}/result`,
     {method:'POST',headers:auth,body:JSON.stringify({result:{status:'assessed'}})});
   assert.equal(posted.status,200);

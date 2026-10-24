@@ -288,15 +288,19 @@ public final class HiggsVillagers implements ModInitializer {
             org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not save villager relationships");
         }
     }
-    private JsonObject treatment(Session s, String tone, int turn) {
+    private JsonObject treatment(Session s, String tone, int turn, Integer recipientId) {
+        Villager recipient = recipientId == null || recipientId == s.villager.getId() ? s.villager
+            : s.companion != null && s.companion.getId() == recipientId ? s.companion : null;
+        if (recipient == null || !recipient.isAlive() || recipient.distanceToSqr(s.player) > (recipient == s.villager ? 144 : 100))
+            return outcome("unavailable", "The addressed villager is no longer here. No treatment was applied.");
         if (!Set.of("polite", "neutral", "rude").contains(tone)) return outcome("invalid", "Unknown treatment");
         if (turn <= 0 || turn <= s.treatmentTurn) return outcome("unchanged", "Treatment already assessed for this turn");
         // A neutral verdict must not use up the turn: the keyword fallback may still catch an insult the model missed.
         if (!tone.equals("neutral")) {
             s.treatmentTurn = turn;
-            moodParticles(s.player, s.villager, tone.equals("polite"));
+            moodParticles(s.player, recipient, tone.equals("polite"));
         }
-        String key = relationshipKey(s);
+        String key = s.player.getUUID() + ":" + recipient.getUUID();
         TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
         long now = System.currentTimeMillis();
         TradeReputation next = previous.treatment(tone, now);
@@ -305,22 +309,25 @@ public final class HiggsVillagers implements ModInitializer {
             saveTradeReputations();
         }
         boolean changed = next.score() != previous.score();
-        if (changed) {
+        if (changed && recipient == s.villager) {
             s.proposal = null;
             tradeStatus(s, outcome("cancelled", "Reputation changed; ask again for the new price."));
         }
-        Negotiation.Band limits = band(s);
-        if (!tone.equals("neutral")) memory.observe(s.villager, s.player, tone.equals("polite") ? "kindness" : "insult",
+        Negotiation.Band limits = Negotiation.band(next.score(), heroLevel(s.player));
+        if (!tone.equals("neutral")) memory.observe(recipient, s.player, tone.equals("polite") ? "kindness" : "insult",
             s.player.getName().getString() + (tone.equals("polite") ? " said something kind to me" : " insulted me"),
             tone.equals("polite") ? 2 : 3, 10 * 60_000L);
         org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Treatment turn={} tone={} relationship={} band={}",
             turn, tone, next.score(), limits.name());
-        if (tone.equals("rude") && Negotiation.hostile(next.score())) rallyGolems(s.player, s.villager);
-        JsonObject result = outcome("assessed", Negotiation.hostile(next.score())
+        if (tone.equals("rude") && Negotiation.hostile(next.score())) rallyGolems(s.player, recipient);
+        JsonObject result = outcome("assessed", recipient != s.villager
+            ? "Treatment applied to the addressed neighbour, " + recipient.getName().getString() + ". Your own standing and trade prices are unchanged."
+            : Negotiation.hostile(next.score())
             ? "You are now hostile towards this player: refuse every trade and speak coldly until they make amends."
             : changed
             ? "Reputation changed. Any earlier price is outdated: call propose_trade again before saying a price."
             : "Reputation unchanged. Call get_trades or propose_trade for the current price before saying it.");
+        result.addProperty("recipientEntityId", recipient.getId());
         result.addProperty("relationship", limits.name());
         result.addProperty("pricePercent", limits.rate());
         return result;
@@ -1197,6 +1204,7 @@ public final class HiggsVillagers implements ModInitializer {
                 if (quest.delivered()) open.addProperty("owed", "They earned this deal and have not used it yet: it is theirs until they buy it.");
                 context.add("quest", open);
             }
+            context.addProperty("coordinated", true);
             body.add("context", context);
             s.openingContext = autoGreeting && context.has("openingRumour") ? context : null;
             request("POST", "/sessions", body).whenComplete((reply, failure) -> server.execute(() -> {
@@ -1349,7 +1357,10 @@ public final class HiggsVillagers implements ModInitializer {
                             else result.add("offers", offers(s));
                         }
                         else if (name.equals("report_treatment")) {
-                            result = treatment(s, call.getAsJsonObject("arguments").get("treatment").getAsString(), call.get("turnId").getAsInt());
+                            JsonObject args = call.getAsJsonObject("arguments");
+                            Integer recipientId = args.has("recipientEntityId") && !args.get("recipientEntityId").isJsonNull()
+                                ? args.get("recipientEntityId").getAsInt() : null;
+                            result = treatment(s, args.get("treatment").getAsString(), call.get("turnId").getAsInt(), recipientId);
                         } else if (name.equals("cancel_trade")) {
                             s.proposal = null; result = outcome("cancelled", "The proposal is cancelled. Nothing was purchased.");
                         } else if (name.equals("preview_trade")) {
