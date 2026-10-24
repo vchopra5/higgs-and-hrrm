@@ -33,7 +33,7 @@ Villagers have professions, stock, and a place in your world. Now you can ask th
   <tr>
     <td width="33%" valign="top">
       <h3>01 &nbsp; Meet</h3>
-      <p>Look at a nearby villager to connect automatically. Let it greet you.</p>
+      <p>Look at a nearby villager to connect automatically. If they are gossiping, tap <kbd>B</kbd> to interrupt and connect. Let it greet you.</p>
     </td>
     <td width="33%" valign="top">
       <h3>02 &nbsp; Speak</h3>
@@ -125,7 +125,7 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and w
 
 | Key | Action |
 | :--- | :--- |
-| **Look at a villager** | Connect automatically; look at another and press B to switch |
+| **Look at a villager** | Connect automatically; gossiping villagers require B. Look at another and press B to switch |
 | **Hold B → release** | Speak, then send your turn |
 | **F6** | Debug: conversation / Boson session (state, tool calls, provider events) |
 | **F7** | Debug: context sent to Boson (personality, rumours, memories, offers) |

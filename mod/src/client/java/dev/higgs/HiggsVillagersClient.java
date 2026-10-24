@@ -206,8 +206,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                         && client.player.distanceToSqr(v) <= 64 && client.player.hasLineOfSight(v))
                     .stream().min(java.util.Comparator.comparingDouble(v -> client.player.distanceToSqr(v))).orElse(null);
             }
-            // Warm up the connection while looking at a villager. Switch partners only
-            // on a fresh push-to-talk press, never halfway through an utterance.
+            // Ordinary villagers connect on look; gossiping villagers require B.
+            // Switch partners only on a fresh press, never halfway through an utterance.
             if (held && !wasTalking && target != null && target.getId() != targetId && !pending) {
                 switchTalkGate.switched();
                 stop(false); // The start request replaces the server session without an old end acknowledgement.
@@ -293,6 +293,10 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     java.util.UUID.fromString(message.get("villagerId").getAsString()), message.get("expression").getAsString(),
                     message.has("standing") ? message.get("standing").getAsInt() : 0);
                 case "trade_complete" -> handoff.start(Minecraft.getInstance(), message);
+                case "companion_departed" -> {
+                    if (voice != null && activeSessionId != null && activeSessionId.equals(message.get("sessionId").getAsString()))
+                        voice.dismissCompanion(message.get("entityId").getAsInt());
+                }
                 case "companion_join" -> {
                     if (voice == null || activeSessionId == null || !activeSessionId.equals(message.get("sessionId").getAsString())) return;
                     var entity = Minecraft.getInstance().level.getEntity(message.get("entityId").getAsInt());

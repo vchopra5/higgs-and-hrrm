@@ -844,7 +844,7 @@ async function spokenTurn(f, session, itemId, transcript) {
   await f.request(`/sessions/${f.sessionId}/tools/${recall.callId}/result`, 'POST', { result: { memories: [] } });
 }
 
-test('a neighbour joins mid-conversation, catches up, and leaves when a friend asks', async t => {
+test('a neighbour joins without hearing missed dialogue and leaves when a friend asks', async t => {
   const f = await fixture(t, { mode: 'ptt', context: { name: 'Iris', profession: 'librarian', playerName: 'Steve' } });
   const session = f.bridge.sessions.get(f.sessionId);
   await spokenTurn(f, session, 'turn-1', 'Any news from the mine?');
@@ -861,7 +861,7 @@ test('a neighbour joins mid-conversation, catches up, and leaves when a friend a
   const items = () => f.received.filter(e => e.type === 'conversation.item.create').map(e => e.item.content[0].text);
   await until(() => items().some(text => text.includes('[You just walked up and joined]')));
   const hello = items().find(text => text.includes('[You just walked up and joined]'));
-  assert.ok(hello.includes('Steve: Any news from the mine?') && hello.includes('Iris: They found silver, I hear.'), 'caught up on recent lines');
+  assert.ok(!hello.includes('Any news from the mine?') && !hello.includes('They found silver'), 'does not hear dialogue from before arrival');
   f.emitTo(1, { type: 'response.done', response: { id: 'hello', status: 'completed' } });
   await until(() => !session.companion.speaking);
   // A friendly companion always obliges.
@@ -1038,13 +1038,14 @@ test('a disconnected companion cannot consume a new player turn', async t => {
 });
 
 test('companion failures after routing return the unanswered turn to the main villager once', async t => {
-  for (const failure of ['disconnect', 'error', 'empty']) {
+  for (const failure of ['disconnect', 'error', 'empty', 'departure']) {
     const f = await fixture(t, { mode: 'ptt', context: { name: 'Iris' },
       companion: { entityId: 7, name: 'Bram', profession: 'farmer' } });
     const session = f.bridge.sessions.get(f.sessionId);
     await until(() => session.companion?.ready);
     await spokenTurn(f, session, 'question', 'Bram, how are you?');
     await until(() => f.logs.some(e => e.stage === 'companion_answer'));
+    if (failure === 'departure') assert.equal((await f.request(`/sessions/${f.sessionId}/events`, 'POST', { type: 'companion_departed', entityId: 7 })).status, 202);
     if (failure === 'disconnect') f.sockets[1].close();
     if (failure === 'error') f.emitTo(1, { type: 'error', error: { code: 'provider_error' } });
     if (failure === 'empty') f.emitTo(1, { type: 'response.done', response: { id: 'empty', status: 'completed' } });
@@ -1068,4 +1069,28 @@ test('companion failure never resurrects an interrupted player turn', async t =>
   await until(() => session.companion === null);
   assert.equal(f.logs.some(e => e.stage === 'companion_fallback'), false);
   assert.equal(f.received.filter(e => e.type === 'response.create').length, 1);
+});
+
+
+test('departed companions cannot speak or hear missed dialogue on rejoining', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { name: 'Iris' },
+    companion: { entityId: 7, name: 'Bram', profession: 'farmer' } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  await until(() => session.companion?.ready);
+  const departed = session.companion;
+  session.environmentEvent({ type: 'companion_departed', entityId: 99 });
+  assert.equal(session.companion, departed, 'stale departure cannot remove another villager');
+  session.environmentEvent({ type: 'companion_departed', entityId: 7 });
+  assert.equal(session.companion, null);
+  assert.equal(session.closed, false);
+  const lines = session.companionLines.length;
+  departed.receive(JSON.stringify({ type: 'response.output_audio_transcript.done', transcript: 'Late reply' }));
+  assert.equal(session.companionLines.length, lines);
+  session.recentLines.push({ speaker: 'Iris', text: 'You missed this secret.' });
+  assert.equal(session.addCompanion({ entityId: 7, name: 'Bram', profession: 'farmer' }), 'joined');
+  assert.deepEqual(session.companion.transcript, []);
+  session.environmentEvent({ type: 'companion_departed', entityId: 7 });
+  await spokenTurn(f, session, 'after-departure', 'Iris, hello');
+  await until(() => f.received.some(e => e.type === 'response.create'));
+  assert.equal(session.closed, false);
 });

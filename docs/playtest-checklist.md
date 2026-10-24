@@ -133,3 +133,19 @@ One pass through every feature in a running game. Everything here has unit or in
 - Villagers with AI disabled cannot walk away, and only turn their back. Zombie screams rely on the zombie targeting that villager.
 - Only zombies trigger screams; raids and other mobs do not.
 - A gift sneak-used during a conversation gets a spoken reaction. An errand package sneak-used during a conversation completes silently, with an action bar and card only.
+
+### Companion earshot regression
+
+- Keep the main villager nearby; move beyond 10 blocks from the companion. Within half a second, its outline and queued speech should stop and the main conversation should stay connected.
+- Repeat while the companion is answering a direct question, before its first audio arrives. The main villager should answer the outstanding turn once.
+- Return within 8 blocks after five seconds. The companion may join again, without knowing dialogue spoken during its absence.
+- Walk repeatedly between 8 and 10 blocks: an existing companion stays; a departed one cannot rejoin until within 8 blocks.
+- Repeat departure by putting the companion to sleep or removing it. No late captions/audio should appear. Normal voluntary goodbyes should still finish playing.
+- B retains its existing speaking and partner-selection behavior.
+
+### Gossip-aware conversation start
+
+- Look directly at gossiping villagers without pressing B: their exchange continues and no player voice session starts.
+- Press B while looking at a gossiping adult villager within 8 blocks: the conversation starts; release and press again to speak after the greeting.
+- Look at a non-gossiping adult villager: it connects automatically as before. With no active partner, B can still select the nearest available villager when looking away.
+- During an active conversation, looking away does not disconnect it; B still speaks to the selected partner. A fresh B press aimed at another villager switches partners.

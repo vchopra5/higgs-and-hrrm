@@ -425,3 +425,16 @@ tasks.register('testVoicePcm', JavaExec) {
     mainClass = 'dev.higgs.VoicePcmBufferTest'
 }
 tasks.named('check') { dependsOn 'testVoicePcm' }
+
+
+tasks.register('compileCompanionPresenceTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/CompanionPresence.java', 'src/test/dev/higgs/CompanionPresenceTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('companion-presence-test')
+}
+tasks.register('testCompanionPresence', JavaExec) {
+    dependsOn 'compileCompanionPresenceTest'
+    classpath = files(layout.buildDirectory.dir('companion-presence-test'))
+    mainClass = 'dev.higgs.CompanionPresenceTest'
+}
+tasks.named('check') { dependsOn 'testCompanionPresence' }

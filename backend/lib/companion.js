@@ -138,6 +138,7 @@ export class Companion {
   }
 
   receive(data) {
+    if (this.closed) return;
     let event;
     try { event = JSON.parse(data); } catch { return; }
     switch (event.type) {
@@ -146,10 +147,10 @@ export class Companion {
         if (!this.ready && this.requested && (event.type === 'session.updated' || event.session?.instructions === this.requested)) {
           this.ready = true;
           this.session.stage('companion_ready', { name: this.spec.name });
-          // Joined mid-conversation: catch up on the last few lines, then say hello if nobody is talking.
-          if (this.joined && this.history.length && this.session.quiet()) {
+          // Joined mid-conversation: greet without revealing dialogue from before arrival.
+          if (this.joined && this.session.quiet()) {
             this.respond(`[You just walked up and joined] Greet ${this.partner.name} and the player briefly, `
-              + 'or react to what was just being said, in one short sentence.');
+              + 'in one short sentence.');
           }
         }
         break;
@@ -158,7 +159,7 @@ export class Companion {
         break;
       case 'response.output_audio.delta':
         if (this.speaking && typeof event.delta === 'string' && (!event.response_id || event.response_id !== this.cancelledId)) {
-          this.session.sendClient({ type: 'audio', speaker: 'companion', audio: event.delta });
+          this.session.sendClient({ type: 'audio', speaker: 'companion', entityId: this.spec.entityId, audio: event.delta });
           if (event.delta.length) this.answerTurn = null;
         }
         break;
@@ -167,7 +168,7 @@ export class Companion {
         const line = String(event.transcript ?? '').trim().slice(0, 600);
         if (!line) break;
         this.lines++;
-        this.session.sendClient({ type: 'transcript', speaker: 'companion', id: event.item_id ?? `companion-${this.lines}`, text: line, replace: true });
+        this.session.sendClient({ type: 'transcript', speaker: 'companion', entityId: this.spec.entityId, id: event.item_id ?? `companion-${this.lines}`, text: line, replace: true });
         this.hear(`${this.spec.name} (you)`, line);
         this.session.hearCompanion(this.spec.name, line);
         break;

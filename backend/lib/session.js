@@ -103,6 +103,16 @@ export class BridgeSession {
   }
 
   environmentEvent(event) {
+    if (event?.type === 'companion_departed' && Number.isInteger(event.entityId)) {
+      if (this.companionSpec?.entityId === event.entityId) this.companionSpec = null;
+      const companion = this.companion;
+      if (companion?.spec.entityId === event.entityId) {
+        const turn = companion.answerTurn;
+        companion.close();
+        this.companionFailed(companion, turn);
+      }
+      return;
+    }
     if (event?.type === 'gift') { this.giftEvent(event); return; }
     if (GAME_EVENTS.has(event?.type)) { this.queueCue(parseGameEvent(event)); return; }
     if (event?.type !== 'hit' || event.windowMs !== 30_000
@@ -707,7 +717,7 @@ export class BridgeSession {
     this.companion = new Companion(this, spec, {
       partner: { name: this.context.name ?? 'your neighbour', profession: this.context.profession ?? 'villager' },
       playerName: this.context.playerName ?? 'the traveller',
-      history: this.recentLines.slice(-6),
+      history: [],
       joined: true,
     });
     this.companion.connect(); // The main session is long since ready: no stagger needed.
@@ -719,7 +729,7 @@ export class BridgeSession {
   companionFailed(companion, turnId) {
     if (this.companion !== companion || this.closed) return;
     this.companion = null;
-    this.sendClient({ type: 'companion_left', entityId: companion.spec.entityId });
+    this.sendClient({ type: 'companion_left', entityId: companion.spec.entityId, discardAudio: true });
     if (turnId !== this.turnId || this.recording || this.muted || this.queuedResponse || !this.responseDone) return;
     this.cancelled = false;
     this.responseDone = false;

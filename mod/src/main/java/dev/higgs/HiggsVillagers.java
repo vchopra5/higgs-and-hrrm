@@ -136,22 +136,23 @@ public final class HiggsVillagers implements ModInitializer {
         villager.getLookControl().setLookAt(player, 30, 30);
         villager.getNavigation().stop();
     }
-    /** A neighbour wandering within four blocks mid-conversation may join in. */
+    /** A neighbour wandering within eight blocks of the player mid-conversation may join in. */
     private void maybeJoin(MinecraftServer server, Session s) {
-        if (s.id == null || s.companion != null || s.companionJoining || java.util.concurrent.ThreadLocalRandom.current().nextDouble() >= 0.2) return;
+        if (s.id == null || s.companion != null || s.departingCompanion != null || s.companionJoining || java.util.concurrent.ThreadLocalRandom.current().nextDouble() >= 0.2) return;
         Villager joining = companionFor(s);
         if (joining == null) return;
         s.companionJoining = true;
         personalities.prepare(joining).whenComplete((prepared, failure) -> {
             if (server.isStopped()) return;
             server.execute(() -> {
-                if (failure != null || sessions.get(s.player.getUUID()) != s || s.companion != null || !joining.isAlive()) { s.companionJoining = false; return; }
+                if (failure != null || sessions.get(s.player.getUUID()) != s || s.companion != null || !companionAvailable(s, joining, true)) { s.companionJoining = false; return; }
                 personalities.applyName(joining, prepared);
                 request("POST", "/sessions/" + s.id + "/companion", chatter.speaker(s.player, joining, prepared.profile(), List.of(s.villager)))
                     .whenComplete((reply, error) -> server.execute(() -> {
                         s.companionJoining = false;
                         if (error != null || sessions.get(s.player.getUUID()) != s || s.companion != null) return;
                         s.companion = joining;
+                        if (!companionAvailable(s, joining, true)) { departCompanion(s); return; }
                         s.companionProfile = prepared.profile();
                         chatter.villagerBusy(joining);
                         JsonObject message = new JsonObject();
@@ -178,16 +179,48 @@ public final class HiggsVillagers implements ModInitializer {
         s.player.sendSystemMessage(net.minecraft.network.chat.Component.literal(leaving.getName().getString() + " leaves you to it")
             .withStyle(net.minecraft.ChatFormatting.GRAY), true);
     }
-    /** The nearest idle neighbour within four blocks may join; never one already talking or hostile to the player. */
+    /** The nearest idle neighbour within eight blocks of the player may join; never one already talking or hostile to the player. */
     private final Map<String, Long> companionCooldown = new HashMap<>();
     private static final long COMPANION_COOLDOWN_MS = 2 * 60_000;
+    private boolean companionAvailable(Session s, Villager v, boolean joining) {
+        return v.isAlive() && !v.isRemoved() && !v.isBaby() && !v.isSleeping() && !v.isTrading()
+            && v.level() == s.player.level() && CompanionPresence.withinRange(v.distanceToSqr(s.player), joining)
+            && sessions.values().stream().noneMatch(other -> other != s && (other.villager == v || other.companion == v));
+    }
+    private void departCompanion(Session s) {
+        Villager leaving = s.companion;
+        if (leaving == null || s.id == null) return;
+        s.departingCompanion = leaving.getId();
+        sendCompanionDeparture(s);
+        s.companion = null;
+        s.companionProfile = null;
+        companionCooldown.put(s.player.getUUID() + ":" + leaving.getUUID(), System.currentTimeMillis() + 5000);
+        JsonObject message = new JsonObject();
+        message.addProperty("type", "companion_departed");
+        message.addProperty("sessionId", s.id);
+        message.addProperty("entityId", leaving.getId());
+        send(s.player, message);
+        s.player.sendSystemMessage(net.minecraft.network.chat.Component.literal(leaving.getName().getString() + " moved out of earshot.")
+            .withStyle(net.minecraft.ChatFormatting.GRAY), true);
+    }
+    private void sendCompanionDeparture(Session s) {
+        if (s.departingCompanion == null || s.departureSending) return;
+        s.departureSending = true;
+        JsonObject event = new JsonObject();
+        event.addProperty("type", "companion_departed");
+        event.addProperty("entityId", s.departingCompanion);
+        request("POST", "/sessions/" + s.id + "/events", event).whenComplete((reply, failure) ->
+            s.player.level().getServer().execute(() -> {
+                s.departureSending = false;
+                if (failure == null) s.departingCompanion = null;
+            }));
+    }
     private Villager companionFor(Session s) {
         if (!companions || s.bedtime || bedtime(s.villager)) return null;
         long now = System.currentTimeMillis();
         companionCooldown.values().removeIf(until -> until < now);
-        return s.villager.level().getEntitiesOfClass(Villager.class, s.villager.getBoundingBox().inflate(8),
-                v -> v != s.villager && v.isAlive() && !v.isBaby() && !v.isSleeping() && !v.isTrading()
-                    && (v.distanceToSqr(s.villager) <= 16 || v.distanceToSqr(s.player) <= 16)
+        return s.villager.level().getEntitiesOfClass(Villager.class, s.player.getBoundingBox().inflate(8),
+                v -> v != s.villager && companionAvailable(s, v, true)
                     && !companionCooldown.containsKey(s.player.getUUID() + ":" + v.getUUID())
                     && !Negotiation.hostile(standing(new Session(s.player, v)))
                     && sessions.values().stream().noneMatch(other -> other.villager == v || other.companion == v))
@@ -309,6 +342,8 @@ public final class HiggsVillagers implements ModInitializer {
         Villager companion;
         VillagerPersonalityStore.Profile companionProfile;
         boolean companionJoining;
+        Integer departingCompanion;
+        boolean departureSending;
         /** Night: the villager says it is off to bed, and the conversation ends there. */
         boolean bedtime;
         /** The neighbour who just brought the player here, when a guide handed the conversation over. */
@@ -567,6 +602,8 @@ public final class HiggsVillagers implements ModInitializer {
             if (ticks % 100 == 0 && !token.isBlank()) collectDigests(server);
             if (ticks % 10 != 0) return;
             for (Session s : List.copyOf(sessions.values())) {
+                if (s.companion != null && !companionAvailable(s, s.companion, false)) departCompanion(s);
+                sendCompanionDeparture(s);
                 if (s.bedtime && !bedtime(s.villager)) {
                     bedtimeUntil.remove(s.player.getUUID() + ":" + s.villager.getUUID());
                     end(s.player, true, "Morning has arrived. You can talk to this villager again.");
@@ -695,7 +732,7 @@ public final class HiggsVillagers implements ModInitializer {
                         server.execute(() -> {
                             if (sessions.get(player.getUUID()) != s) return;
                             // A failed or now-busy companion just means a two-way conversation.
-                            if (joinFailure == null && companion.isAlive() && !companion.isSleeping()) {
+                            if (joinFailure == null && companionAvailable(s, companion, true)) {
                                 personalities.applyName(companion, joined);
                                 s.companion = companion;
                                 s.companionProfile = joined.profile();
@@ -1113,6 +1150,7 @@ public final class HiggsVillagers implements ModInitializer {
                 try {
                     JsonObject r = reply.getAsJsonObject(); s.id = r.get("sessionId").getAsString();
                     if (sessions.get(player.getUUID()) != s || !valid(s)) { delete(s.id); return; }
+                    if (s.companion != null && !companionAvailable(s, s.companion, true)) departCompanion(s);
                     JsonObject response = new JsonObject();
                     response.addProperty("type", "session"); response.addProperty("sessionId", s.id);
                     String ticket = r.get("ticket").getAsString(); response.addProperty("ticket", ticket);
