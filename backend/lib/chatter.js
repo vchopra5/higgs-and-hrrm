@@ -52,7 +52,9 @@ export function parseScene(body) {
 
 const TOPIC_PROMPTS = {
   player: name => `Gossip about ${name}, the traveller who has been around the village lately. `
-    + 'Use only the facts given about them; do not invent events. Speak about them, never to them.',
+    + 'Use only the facts given about them; do not invent events. Speak about them, never to them. '
+    + 'If your facts include stanceOnPlayer, act on it: praise means speak well of them to your neighbour, '
+    + 'badmouth means run them down, grounded in your facts.',
   work: () => 'Chat about your work and what has been keeping you busy at your trade.',
   village: () => 'Chat about village life: the weather, the time of day, and how things are going around here.',
   rumour: () => 'Share and react to the rumour in the facts, crediting where it came from. It is hearsay, not proven fact.',

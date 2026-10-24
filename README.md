@@ -175,6 +175,17 @@ Each finished turn from you and the villager is added to Minecraft chat, so the 
 
 Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
 
+## Villages
+
+Every generated village gets a name the first time a player comes near it, picked at
+random from 20 names in `mod/src/main/resources/higgs_villagers/village_names.txt`
+and saved with the world (`data/higgs-villages.json`). Walking within 64 blocks of a
+village's centre shows its name as a title, with your village reputation underneath:
+the average of how every villager in that radius regards you (villagers you have never
+met count as neutral), for example “Reputation: Friendly (+1.6)”. Villagers know their
+village's name and its overall opinion of you. Change the radius with
+`HIGGS_VILLAGE_RADIUS` in `.env`.
+
 ## Overheard chatter
 
 Villagers sometimes talk to each other. Every minute or so (half the time), two idle
@@ -183,7 +194,11 @@ strike up a four-to-six line conversation, each in their own personality and voi
 They gossip about the nearby player (their opinion of you, whether you hit them
 recently, and public things you told them), talk shop about their trade, chat about the
 weather and time of day, or pass on a public rumour. Private memories never reach
-chatter. Each line plays from the speaking villager, fading with distance (16 blocks),
+chatter. When they talk about you, a villager with a clear opinion (friendly, or annoyed
+and worse) praises or badmouths you to the other, moving that villager's opinion one
+point toward its own: never past it, and never into hostility, which only your own
+actions cause. You see hearts or angry particles and a note such as “Bram spoke well of
+you to Iris”. Each line plays from the speaking villager, fading with distance (16 blocks),
 and appears in chat as a grey, italic caption. Starting your own conversation, or
 talking to either villager, stops the scene. Each villager chats at most once every
 five minutes, and one scene runs at a time.

@@ -243,6 +243,19 @@ tasks.register('testTradeReputation', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testTradeReputation' }
 
+tasks.register('compileVillageReputationTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/VillageReputation.java', 'src/main/java/dev/higgs/Negotiation.java',
+        'src/reactions/test/dev/higgs/VillageReputationTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('village-reputation-test')
+}
+tasks.register('testVillageReputation', JavaExec) {
+    dependsOn 'compileVillageReputationTest'
+    classpath = files(layout.buildDirectory.dir('village-reputation-test'))
+    mainClass = 'dev.higgs.VillageReputationTest'
+}
+tasks.named('check') { dependsOn 'testVillageReputation' }
+
 tasks.register('compileAudioDeviceTest', JavaCompile) {
     source = files('src/client/java/dev/higgs/AudioDevices.java',
         'src/client/java/dev/higgs/PcmAudioConverter.java',

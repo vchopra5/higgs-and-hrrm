@@ -91,6 +91,7 @@ export function sessionConfig(context, mode = 'vad', voiceOverrides = {}) {
         + 'When relationship is hostile, you are furious with this player: speak coldly, refuse to trade, and soften only after a sincere apology or kindness. Trade tools will refuse while you are hostile. '
         + 'When a counteroffer result includes questOptions, you may instead set a quest in character, such as asking for a pillager banner before you accept their price: call offer_quest with the option that suits you. Offer at most one quest at a time; context.quest shows any open quest. '
         + 'When the player says they brought the quest items, call complete_quest; only its result says whether they did. '
+        + 'context.village names your village and how the village as a whole regards the player; you may mention it naturally. '
         + 'For acceptance or refusal of an active quote, handle that trade action first; memory work must not delay it or alter consent. '
         + 'Environmental game events are not player speech: never save them as spoken claims or treat them as purchase consent. '
         + 'Automatically use remember_conversation when ordinary speech reveals a meaningful story, preference, discovery, '

@@ -39,6 +39,7 @@ public final class HiggsVillagers implements ModInitializer {
     private VillagerMemoryService memory;
     private VillagerPersonalityService personalities;
     private VillagerChatter chatter;
+    private VillageTracker villages;
     private int ticks;
     private final Map<String, RecentHits> hits = new HashMap<>();
     private void hit(MinecraftServer server, ServerPlayer player, Villager villager) {
@@ -227,6 +228,9 @@ public final class HiggsVillagers implements ModInitializer {
         token = config.getOrDefault("HIGGS_BRIDGE_TOKEN", "");
         personalities = new VillagerPersonalityService();
         memory = new VillagerMemoryService(config, personalities);
+        villages = new VillageTracker(config, (player, villager) ->
+            relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral()).score());
+        ServerLifecycleEvents.SERVER_STARTED.register(villages::start);
         chatter = new VillagerChatter(config, new VillagerChatter.Host() {
             public CompletableFuture<JsonElement> request(String method, String path, JsonObject body) { return HiggsVillagers.this.request(method, path, body); }
             public void send(ServerPlayer player, JsonObject message) { HiggsVillagers.this.send(player, message); }
@@ -235,6 +239,24 @@ public final class HiggsVillagers implements ModInitializer {
             public boolean talking(Villager villager) { return sessions.values().stream().anyMatch(s -> s.villager == villager); }
             public TradeReputation opinion(ServerPlayer player, Villager villager) {
                 return relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral());
+            }
+            public void influenced(ServerPlayer player, Villager speaker, Villager listener, int standing) {
+                String key = player.getUUID() + ":" + listener.getUUID();
+                TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
+                relationships.put(key, new TradeReputation(standing, System.currentTimeMillis(), previous.lastHit()));
+                saveTradeReputations();
+                boolean praise = standing > previous.score();
+                moodParticles(player, listener, praise);
+                player.sendSystemMessage(net.minecraft.network.chat.Component.literal(speaker.getName().getString()
+                    + (praise ? " spoke well of you to " : " badmouthed you to ") + listener.getName().getString())
+                    .withStyle(praise ? net.minecraft.ChatFormatting.GREEN : net.minecraft.ChatFormatting.GOLD), true);
+                org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Chatter gossip: {} {} {} to {}; standing {} -> {}",
+                    speaker.getName().getString(), praise ? "praised" : "badmouthed", player.getName().getString(),
+                    listener.getName().getString(), previous.score(), standing);
+            }
+            public String villageName(Villager villager) {
+                VillageTracker.Village village = villages.villageOf(villager);
+                return village == null ? null : village.name();
             }
         }, personalities, memory, publicBackend);
         ServerLifecycleEvents.SERVER_STARTED.register(personalities::start);
@@ -262,6 +284,7 @@ public final class HiggsVillagers implements ModInitializer {
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             memory.tick(server, ++ticks);
             if (!token.isBlank()) chatter.tick(server, ticks);
+            villages.tick(server, ticks);
             // Rotate explicitly: the demo villagers have NoAI, so look controls alone do nothing.
             Map<UUID, Session> facing = new HashMap<>();
             for (Session s : sessions.values()) {
@@ -392,6 +415,8 @@ public final class HiggsVillagers implements ModInitializer {
             context.addProperty("level", villager.getVillagerData().level());
             context.addProperty("playerName", player.getName().getString());
             context.addProperty("relationship", band(s).name());
+            JsonObject village = villages.context(player, villager);
+            if (village != null) context.add("village", village);
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
             if (s.profile != null) context.add("personality", personalities.context(s.profile, player));
             context.addProperty("autoGreeting", autoGreeting);

@@ -31,6 +31,9 @@ final class VillagerChatter {
         boolean talking(ServerPlayer player);
         boolean talking(Villager villager);
         TradeReputation opinion(ServerPlayer player, Villager villager);
+        /** The listener heard the speaker's opinion of the player; its own standing moves to the given score. */
+        void influenced(ServerPlayer player, Villager speaker, Villager listener, int standing);
+        String villageName(Villager villager);
     }
     private record Scene(MinecraftServer server, String id, Villager a, Villager b, String url, long until, Set<UUID> invited) {}
     private static final double PAIR_DISTANCE_SQUARED = 6 * 6;
@@ -129,6 +132,7 @@ final class VillagerChatter {
                     org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Villager chatter scene={} topic={} between {} and {}",
                         id, body.get("topic").getAsString(), a.getName().getString(), b.getName().getString());
                     invite(server, active);
+                    if (body.get("topic").getAsString().equals("player")) gossip(player, a, b);
                 }));
             }));
     }
@@ -144,8 +148,15 @@ final class VillagerChatter {
         shared.addProperty("playerName", player.getName().getString());
         shared.addProperty("timeOfDay", ChatterTopic.timeOfDay(a.level().getOverworldClockTime()));
         shared.addProperty("weather", a.level().isThundering() ? "thunderstorm" : a.level().isRaining() ? "rain" : "clear");
+        String village = host.villageName(a);
+        if (village != null) shared.addProperty("village", village);
+        String topic = ChatterTopic.choose(random, playerNews, rumours);
+        if (topic.equals("player")) {
+            stance(factsA, host.opinion(player, a).score(), host.opinion(player, b).score());
+            stance(factsB, host.opinion(player, b).score(), host.opinion(player, a).score());
+        }
         JsonObject body = new JsonObject();
-        body.addProperty("topic", ChatterTopic.choose(random, playerNews, rumours));
+        body.addProperty("topic", topic);
         body.addProperty("lines", ChatterTopic.lines(random));
         body.add("shared", shared);
         JsonArray speakers = new JsonArray();
@@ -153,6 +164,12 @@ final class VillagerChatter {
         speakers.add(speakerB);
         body.add("speakers", speakers);
         return body;
+    }
+
+    /** A speaker with a clear opinion praises or badmouths the player, and the scene's speech should match. */
+    private static void stance(JsonObject facts, int speaker, int listener) {
+        int next = VillageReputation.influence(speaker, listener);
+        if (next != listener) facts.addProperty("stanceOnPlayer", next > listener ? "praise" : "badmouth");
     }
 
     private JsonObject speaker(ServerPlayer player, Villager villager, VillagerPersonalityStore.Profile profile) {
@@ -186,6 +203,14 @@ final class VillagerChatter {
         if (!wares.isEmpty()) facts.add("myWares", wares);
         speaker.add("facts", facts);
         return speaker;
+    }
+
+    /** Both villagers hear each other's view of the player; computed from the opinions before either changes. */
+    private void gossip(ServerPlayer player, Villager a, Villager b) {
+        int scoreA = host.opinion(player, a).score(), scoreB = host.opinion(player, b).score();
+        int nextB = VillageReputation.influence(scoreA, scoreB), nextA = VillageReputation.influence(scoreB, scoreA);
+        if (nextB != scoreB) host.influenced(player, a, b, nextB);
+        if (nextA != scoreA) host.influenced(player, b, a, nextA);
     }
 
     private static JsonArray summaries(JsonArray entries, boolean withSource) {

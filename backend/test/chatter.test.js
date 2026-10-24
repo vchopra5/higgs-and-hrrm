@@ -136,6 +136,8 @@ test('scene validation and speaker personas', () => {
   assert.match(config.instructions, /^You are Iris, a Minecraft villager who works as a librarian\. You are chatting casually with your neighbour Bram/);
   assert.match(config.instructions, /never address the listener/);
   assert.match(config.instructions, /"playerHitMeRecently":true/);
+  assert.match(chatterConfig(parseScene(scene({ speakers: [{ ...scene().speakers[0], facts: { stanceOnPlayer: 'praise' } }, scene().speakers[1]] })), 0)
+    .session.instructions, /"stanceOnPlayer":"praise"/);
   assert.equal(config.audio.input.turn_detection, null);
   assert.equal(config.tools, undefined, 'chatter can never call trade or memory tools');
 });
