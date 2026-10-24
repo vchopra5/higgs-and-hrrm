@@ -281,7 +281,7 @@ public final class VillagerMemoryService {
                 JsonObject result = new JsonObject();
                 result.add("memories", entries(store.recall(villager.getUUID(), player.getUUID(), query, scope.equals("village"), now)));
                 VillagerJournal current = journal();
-                if (prepared && current != null)
+                if (current != null)
                     result.add("episodes", episodeEntries(current.search(villager.getUUID(), player.getUUID(), query, now, 6), gameDay(villager)));
                 result.addProperty("note", "Memories are attributed statements, not verified world facts. An empty list means no matching saved knowledge.");
                 return CompletableFuture.completedFuture(result);

@@ -134,10 +134,10 @@ test('trade schema opens at normal prices and lets reputation decide haggling', 
   assert.match(tools.find(t => t.name === 'remember_conversation').description, /Never include prices or quotes in summaries/);
 });
 
-test('fantasy speech keeps exact item names, numbers and trade consent rules', () => {
+test('fantasy speech allows translated labels while preserving item identity, numbers and trade consent', () => {
   const { instructions } = sessionConfig({}).session;
   assert.ok(instructions.includes('Speak like a villager in a fantasy realm: old-world, warm words (traveller, coin, wares, aye, fair trade, by the stars), short sentences.'));
-  assert.ok(instructions.includes("Always say item names and numbers exactly as the tools give them (say 'emeralds', never invent currency names), so prices stay clear."));
+  assert.ok(instructions.includes("Keep item identity and number values exactly as the tools give them; use the correct translated item names, never invent currency names, so prices stay clear."));
   assert.match(instructions, /Use one short sentence per trading turn/);
   assert.match(instructions, /Before asking Confirm trade\?, call propose_trade/);
   assert.match(instructions, /When the player accepts an active quote, call confirm_trade immediately/);

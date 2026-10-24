@@ -11,9 +11,16 @@ const RUDE = new Set(['stupid', 'idiot', 'ugly', 'dumb', 'moron', 'hate', 'usele
 const RUDE_PHRASES = ['shut up', 'get lost', 'go away', 'rip off', 'ripoff', 'you suck', 'screw you', 'piss off', 'drop dead'];
 const NEGATIONS = new Set(['not', "don't", 'dont', 'never', 'no', "isn't", 'isnt', "aren't", 'arent', "wasn't", "doesn't"]);
 
+// This is an English fallback, not a language detector. Do not strip other scripts
+// into accidental English words ("kind" also means child in German). Ambiguous
+// wording is left to the audio model's report_treatment tool in any language.
+const ENGLISH_CONTEXT = /^(?:you(?:\b|'re)|your\b|that(?:\b|'s)|this\b|i\b|we\b|could i\b|can i\b|would you\b|thank you\b|thanks\b|please\b|cheers\b|nice (?:hat|shop|work|eyes)\b|shut up\b|get lost\b|go away\b|screw you\b|piss off\b|drop dead\b)/i;
+
 /** Returns 'polite', 'rude' or 'neutral' for one player utterance. Insults win over compliments. */
 export function classifyTreatment(text) {
-  const clean = String(text).toLowerCase().replace(/[’]/g, "'").replace(/[^a-z'\s]/g, ' ');
+  const original = String(text ?? '').trim().replace(/[’]/g, "'");
+  if (/[^\x00-\x7f]/u.test(original) || !ENGLISH_CONTEXT.test(original)) return 'neutral';
+  const clean = original.toLowerCase().replace(/[^a-z'\s]/g, ' ');
   const words = clean.split(/\s+/).filter(Boolean);
   const joined = words.join(' ');
   let polite = false;
