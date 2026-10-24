@@ -1,3 +1,4 @@
+import { CONVERSATION_LANGUAGE, MULTILINGUAL_TOOLS } from './language.js';
 import { EXPRESSIVE_DELIVERY } from './vocal-delivery.js';
 import { WebSocket } from 'ws';
 import { resolveCharacter } from './personalities.js';
@@ -66,7 +67,7 @@ const TOOLS = [
     name: 'recall_memories',
     description: 'Recall this villager’s saved memories and rumours. Use for questions about previous visits or news. '
       + 'Scope player recalls the current player; village also includes public stories about others. '
-      + 'Use an empty query for recent memories. An empty result means you have not heard anything relevant.',
+      + 'Use concise English search terms for translated questions; try original-language terms for older memories written in another language. Use an empty query for recent memories. An empty result means you have not heard anything relevant.',
     parameters: {
       type: 'object',
       properties: {
@@ -78,7 +79,7 @@ const TOOLS = [
   },
   { type: 'function', name: 'preview_trade', description: 'Show one optional suggestion while browsing, before the player chooses a deal. Say only a short item suggestion and Interested? A yes to this preview means interest only: next call propose_trade for the exact quote, never confirm_trade. Skip this tool for direct purchase requests or changed terms. No purchase or active confirmation is created. Pass item: the name of the item on offer.', parameters: { type: 'object', properties: { offerIndex: { type: 'integer', minimum: 0 }, item: { type: 'string', minLength: 1, maxLength: 64 } }, required: ['offerIndex', 'item'], additionalProperties: false } },
   { type: 'function', name: 'cancel_trade', description: 'Cancel the pending proposal when the player says no, declines, or changes their mind. Does not purchase anything.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
-  { type: 'function', name: 'confirm_trade', description: 'Confirm the current quoted trade ONLY after clear spoken acceptance of the active exact quote. Interpret meaning in context, not a literal yes keyword: yes, yeah, yep, yup, sure, okay, OK, alright, absolutely, sounds good, deal, go ahead, do it, and I agree all count when they express agreement to this deal. Natural equivalents and minor transcription errors count when the intent is clear. Pass the proposalId returned by propose_trade. One explicit spoken confirmation after the quote completes one purchase. Report the actual tool result; do not ask for a second confirmation. Never call twice from one user utterance. Silence, unrelated speech, questions, uncertainty, refusals, and conditional or changed terms are not confirmation. For example, not yet, yeah no, okay but cheaper, and yes if you lower the price do not accept the current quote.', parameters: { type: 'object', properties: { proposalId: { type: 'string' } }, required: ['proposalId'], additionalProperties: false } },
+  { type: 'function', name: 'confirm_trade', description: 'Confirm the current quoted trade ONLY after clear spoken acceptance of the active exact quote. Interpret meaning in context, not a literal yes keyword: yes, yeah, yep, yup, sure, okay, OK, alright, absolutely, sounds good, deal, go ahead, do it, and I agree all count when they express agreement to this deal. Natural equivalents in any language and minor transcription errors count when the intent is clear. Interpret the whole reply; never confirm from a translated keyword alone. Pass the proposalId returned by propose_trade. One explicit spoken confirmation after the quote completes one purchase. Report the actual tool result; do not ask for a second confirmation. Never call twice from one user utterance. Silence, unrelated speech, questions, uncertainty, refusals, and conditional or changed terms are not confirmation. For example, not yet, yeah no, okay but cheaper, and yes if you lower the price do not accept the current quote.', parameters: { type: 'object', properties: { proposalId: { type: 'string' } }, required: ['proposalId'], additionalProperties: false } },
   { type: 'function', name: 'get_trades', description: 'Look up your normal asking prices for this player. Say prices only from the latest tool result. Before inviting a yes, call propose_trade to create the exact active quote. Never ask for confirmation from this list alone.', parameters: { type: 'object', properties: {}, additionalProperties: false } },
   { type: 'function', name: 'report_treatment', description: 'Report explicit polite or rude treatment in the latest player utterance, including standalone compliments outside trading, before quoting a new or changed deal. Never delay acceptance of an existing quote. Genuine compliments, appreciation, polite requests or thanks count as polite; insults or threats count as rude. Bargaining, declining, accent and speaking style are neutral. Never invent treatment. The server caps changes.', parameters: { type: 'object', properties: { treatment: { type: 'string', enum: ['polite', 'neutral', 'rude'] } }, required: ['treatment'], additionalProperties: false } },
   { type: 'function', name: 'propose_trade', description: 'Create a fresh quote at the player’s current reputation when the player requests a deal or changes its terms. Never use this tool to respond to yes, okay, do it, or another acceptance of an active quote; use confirm_trade. Quotes open at your normal price. Optional quantity is the number of output items; payment is the most the player offers or can pay in primary input items, including a specific lower price they name. For a budget alone omit quantity. Set discount true when the player asks for a better price without naming one. Omit counts for the default bundle. Counts are 1–64; the server decides what you accept from your opinion of the player and returns an exact whole-item quote or your best counteroffer within stock limits. Read BOTH payment costs and output quantity from this result, then wait for fresh spoken acceptance. Never confirm a changed quote using the utterance that requested it. Always pass item: the item the player asked to buy (or to sell you), in their words; the server checks you actually trade it and returns not_sold if you do not.', parameters: { type: 'object', properties: { offerIndex: { type: 'integer', minimum: 0 }, item: { type: 'string', minLength: 1, maxLength: 64 }, quantity: { type: 'integer', minimum: 1, maximum: 64 }, payment: { type: 'integer', minimum: 1, maximum: 64 }, discount: { type: 'boolean' } }, required: ['offerIndex', 'item'], additionalProperties: false } },
@@ -103,7 +104,9 @@ export function sessionConfig(context, mode = 'vad', voiceOverrides = {}) {
       model: 'higgs-realtime-1.5-preview',
       instructions: 'You are this Minecraft villager. Speak naturally with a vivid, responsive voice. '
         + EXPRESSIVE_DELIVERY
-        + "Speak like a villager in a fantasy realm: old-world, warm words (traveller, coin, wares, aye, fair trade, by the stars), short sentences. Always say item names and numbers exactly as the tools give them (say 'emeralds', never invent currency names), so prices stay clear. "
+        + CONVERSATION_LANGUAGE
+        + MULTILINGUAL_TOOLS
+        + "Speak like a villager in a fantasy realm: old-world, warm words (traveller, coin, wares, aye, fair trade, by the stars), short sentences. Keep item identity and number values exactly as the tools give them; use the correct translated item names, never invent currency names, so prices stay clear. "
         + 'Use one short sentence per trading turn; no explanations, repeated summaries, or selling speeches. Use tools for all trade facts and actions. '
         + (trading
           ? 'context.trade.wares lists everything you have to sell: offer only those, and never sold-out goods. context.trade.buys are goods you pay emeralds for: you do not have any to sell. If the player asks for anything not in your wares, say plainly you do not sell it; never claim to have it, and never stand something else in for it. '
@@ -191,14 +194,14 @@ export function sessionConfig(context, mode = 'vad', voiceOverrides = {}) {
       audio: {
         input: {
           format: { type: 'audio/pcm', rate: 24000 },
-          transcription: { model: 'higgs-stt-3.1', language: 'en' },
+          transcription: { model: 'higgs-stt-3.1' },
           turn_detection: mode === 'ptt' ? null : { type: 'server_vad', silence_duration_ms: 900 },
         },
         output: { format: { type: 'audio/pcm', rate: 24000 }, voice: character?.voice ?? 'oliver' },
       },
-      // Retrieval belongs to the bridge's context preparation, not the speaking agent.
+      // Automatic retrieval stays first; explicit recall lets the model translate a missed query.
       // A villager with nothing to sell has no trade tools at all, so it cannot drift into selling.
-      tools: TOOLS.filter(tool => tool.name !== 'recall_memories' && (trading || !TRADE_TOOL_NAMES.has(tool.name))),
+      tools: TOOLS.filter(tool => trading || !TRADE_TOOL_NAMES.has(tool.name)),
       tool_choice: 'auto',
     },
   };

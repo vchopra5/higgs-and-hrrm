@@ -85,6 +85,33 @@ Stories stay attributed as player claims. Explicitly private entries do not spre
 
 Villagers keep their identities across visits and restarts. Confirmed return visits build bounded familiarity. **[Meet the cast and prepare the demo →](docs/villager-personalities.md)**
 
+## How we use Boson AI
+
+**Boson Higgs Realtime gives our villagers speech, understanding, and character.** It connects what players say to actions in Minecraft and helps villagers remember their relationships.
+
+| Boson use | What players experience |
+| :--- | :--- |
+| **Live voice and captions** | Speak naturally, hear a reply, read the conversation, and interrupt when needed. |
+| **Distinct characters** | Each villager speaks with its own voice, personality, mood, and emotional delivery. |
+| **Greetings and social reactions** | Villagers greet returning players, respond to praise or insults, protest hits, refuse a conversation, or say goodnight. |
+| **Shopping and negotiation** | Ask about real stock, bargain over quantities and prices, and accept or cancel an exact quote by voice. |
+| **Gifts, quests, and errands** | Give a present, earn a better deal through a quest, or carry a message or package to a neighbour. |
+| **Memory and relationships** | Villagers recognise meaningful stories, recall shared experiences, and summarise conversations and promises for future visits. |
+| **Friendship** | Close friends can choose a nickname and give you a book about your shared story. |
+| **Gossip and urgent news** | Villagers discuss public stories, credit their sources, and decide when news is worth sharing with a neighbour. |
+| **Group conversations** | A nearby villager joins in with its own voice; speakers take turns and respond to the person addressed. |
+| **Overheard village chatter** | Neighbours talk about village life, their work, relationships, and public news without waiting for a player prompt. |
+| **Walks and directions** | Ask a villager to walk with you, introduce you to someone, or point you toward a real place. |
+| **Voices for village events** | Hear cries for help, bell calls, fireworks reactions, calls for children to come home, pet remarks, and short jukebox raps. |
+
+Boson interprets conversation and generates speech or structured requests. **Minecraft controls the outcomes:** inventory, prices, purchases, movement, saved memories, and privacy rules. Movement, particles, and gestures run in the game; Boson can request an emotional gesture.
+
+These features use the **Realtime API**, including speech transcription and a separate text-only call for conversation summaries. Ambient voice clips also come from Realtime, with some reused from a cache. Dedicated TTS, voice cloning, and Avatar APIs are not integrated. Multilingual conversations are being developed in [PR #1](https://github.com/vchopra5/higgs-and-hrrm/pull/1).
+
+**Quick demo:** Meet a villager → ask for a deal → give a gift → share a story → revisit it → meet a neighbour who heard the news.
+
+[See the full Boson use map and demo prompts →](docs/boson-api-uses.md)
+
 ## Under the hood
 
 ```mermaid
@@ -184,6 +211,7 @@ edits apply on the next sync. Only loaded villagers are shown.
 | [`mod/`](mod/) | Fabric client and server; microphone, playback, sessions, and trades |
 | [`backend/`](backend/) | Local Higgs voice bridge and tool routing |
 | [`docs/architecture.md`](docs/architecture.md) | System boundaries and the end-to-end interaction |
+| [`docs/boson-api-uses.md`](docs/boson-api-uses.md) | Boson feature map, simple demo prompts, and implementation references |
 | [`docs/setup.md`](docs/setup.md) | Full installation, controls, local server, and troubleshooting |
 | [`docs/memory-rumours.md`](docs/memory-rumours.md) | Persistent memory, nearby gossip, demo prompts, and settings |
 | [`demo.md`](demo.md) | Presentation script, demo flow, and rehearsal checklist |

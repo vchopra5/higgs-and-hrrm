@@ -153,3 +153,11 @@ no audio, credentials, or conversation memory contents are added. Follow it with
 or the server's once-per-turn reputation rule. Historical chats remain in the
 Minecraft client log; earlier model classifications cannot be reconstructed when
 they were never logged.
+
+### Multilingual conversations
+
+Input transcription no longer forces English. Main villagers and companions are instructed to follow the player's language, including switches, while retaining their configured voice and personality. Fresh greetings default to English until the player speaks. Tool identifiers and exact trade quantities remain authoritative; translated speech never bypasses confirmation checks.
+
+New memory summaries and conversation digests use English internally. The model can call bounded `recall_memories` with translated search terms when automatic lexical retrieval misses a question; results include the player's relevant journal episodes. The English treatment keyword fallback abstains on other scripts, accented text and wording without a recognised English opening, leaving semantic assessment to the model.
+
+See [the implementation plan and live rehearsal checklist](../docs/multilingual-villages.md) for scope, examples and limitations. Language preference is not persisted across fresh sessions, and ambient scenes, UI text and English phrase shortcuts are not localised.

@@ -240,7 +240,7 @@ test('semantic memory writes use the game-server route and resume only after the
   const f = await fixture(t);
   const config = f.received.find(event => event.type === 'session.update').session;
   assert.ok(config.tools.some(tool => tool.name === 'remember_conversation'));
-  assert.equal(config.tools.some(tool => tool.name === 'recall_memories'), false);
+  assert.equal(config.tools.some(tool => tool.name === 'recall_memories'), true);
   f.emit({ type: 'response.created', response: { id: 'memory-turn' } });
   for (const [callId, name, args] of [
     ['remember', 'remember_conversation', memoryArgs()],
@@ -1222,6 +1222,37 @@ test('Higgs receives next-reply vocal direction for model-selected emotions with
   assert.ok(f.received.filter(e => e.type === 'response.create').every(e => !e.response?.instructions), 'preserve dialogue and tool rules');
 });
 
+test('language switches preserve captions and route translated recall and semantic treatment with trusted turns', async t => {
+  const f = await fixture(t);
+  const session = f.bridge.sessions.get(f.sessionId);
+  const inputs = ['¿Recuerdas dónde encontré los diamantes?', 'तुम बहुत दयालु हो।', '好的'];
+  for (let i = 0; i < inputs.length; i++) {
+    const turn = i + 1, id = `language-${turn}`;
+    f.emit({ type: 'input_audio_buffer.speech_started' });
+    f.emit({ type: 'input_audio_buffer.speech_stopped' });
+    f.emit({ type: 'conversation.item.input_audio_transcription.completed', item_id: id, transcript: inputs[i] });
+    await until(() => f.events.some(e => e.type === 'transcript' && e.id === id));
+    assert.equal(f.events.find(e => e.type === 'transcript' && e.id === id).text, inputs[i]);
+    assert.equal([...session.pending.values()].some(t => t.name === 'report_treatment'), false,
+      'non-English captions cannot accidentally trigger the English keyword fallback');
+    // Mock provider choices verify transport and authority, not language understanding.
+    f.emit({ type: 'response.created', response: { id } });
+    const [name, args, result] = i === 0
+      ? ['recall_memories', { query: 'diamonds', scope: 'player' }, { memories: [{ summary: 'Diamonds beneath the well' }], episodes: [] }]
+      : i === 1 ? ['report_treatment', { treatment: 'polite' }, { status: 'assessed' }]
+      : ['confirm_trade', { proposalId: 'a'.repeat(36) }, { status: 'purchased' }];
+    f.emit({ type: 'response.function_call_arguments.done', response_id: id, call_id: id, name, arguments: JSON.stringify(args) });
+    await until(() => session.pending.has(id));
+    assert.equal(session.pending.get(id).turnId, turn);
+    assert.deepEqual(session.pending.get(id).arguments, name === 'report_treatment' ? { ...args, recipientEntityId: null } : args);
+    await f.request(`/sessions/${f.sessionId}/tools/${id}/result`, 'POST', { result });
+    await until(() => f.received.some(e => e.item?.call_id === id));
+    assert.deepEqual(JSON.parse(f.received.find(e => e.item?.call_id === id).item.output), result);
+    f.emit({ type: 'response.done', response: { id, status: 'completed' } });
+    await until(() => !session.pending.has(id));
+  }
+});
+
 test('coordinated conversation hands off only after playback and only once per player turn', async t => {
   const f = await fixture(t, { mode: 'ptt', context: { profession: 'farmer', name: 'Mira', coordinated: true, autoGreeting: true },
     companion: { entityId: 42, name: 'Idris', profession: 'librarian' } });
@@ -1415,6 +1446,11 @@ test('compliment speech and treatment share a recipient and model tools cannot r
   s.turnId = 3;
   s.reportTreatment('Idris, you are lovely.', 'explicit-companion');
   assert.equal(s.pending.get(`treatment-${s.id}-3`).arguments.recipientEntityId, 42);
+  for (const transcript of ['Mira, Das Kind spielt.', 'Idris, तुम stupid नहीं हो।']) {
+    s.turnId++;
+    s.reportTreatment(transcript, `foreign-${s.turnId}`);
+    assert.equal(s.pending.has(`treatment-${s.id}-${s.turnId}`), false);
+  }
 });
 
 test('addressing a companion binds the turn before tools and blocks the original merchant', async t => {

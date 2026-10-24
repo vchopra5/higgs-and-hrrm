@@ -13,7 +13,7 @@ import {
 import { completeToolBatch, expireTools, receiveToolCall } from './tools.js';
 import { MemoryContext } from './memory-context.js';
 import { TRADE_TOOLS, ungroundedTrade } from './grounding.js';
-import { Companion, addressedTo, askedToLeave, parseCompanion } from './companion.js';
+import { Companion, addressedTo, askedToLeave, callName, parseCompanion } from './companion.js';
 import { GAME_EVENTS, gameEventCue, parseGameEvent } from './game-events.js';
 // While haggling, the neighbour keeps quiet: the player is talking business with the main villager.
 const BARGAINING = new Set(['get_trades', 'preview_trade', 'propose_trade', 'confirm_trade', 'cancel_trade', 'offer_quest', 'complete_quest']);
@@ -701,7 +701,12 @@ export class BridgeSession {
       this.pending.set(callId, { callId, name: '_turn_recipient', internal: true, turnId: this.turnId, created: this.now(),
         arguments: { entityId: this.treatmentRecipient ?? this.context.entityId } });
     }
-    const treatment = classifyTreatment(transcript);
+    // A known name used as an address is not part of the English-language opening.
+    let treatmentText = String(transcript ?? '').trim();
+    for (const name of [this.context.name, this.companion?.spec.name].filter(Boolean).map(callName)) {
+      if (name.length > 1) treatmentText = treatmentText.replace(new RegExp(`^${name}\\s*[,!?:]\\s*`, 'iu'), '');
+    }
+    const treatment = classifyTreatment(treatmentText);
     const callId = `treatment-${this.id}-${this.turnId}`;
     const skipped = treatment === 'neutral' ? 'neutral' : this.turnId <= 0 ? 'no_player_turn'
       : this.pending.has(callId) || this.seen.has(callId) ? 'duplicate_turn' : null;

@@ -74,6 +74,10 @@ function validArguments(name, args) {
       && Array.isArray(args.audiences) && args.audiences.length >= 1 && args.audiences.length <= 4
       && args.audiences.every(audience => AUDIENCES.has(audience));
   }
+  if (name === 'recall_memories') return Object.keys(args).length === 2
+    && typeof args.query === 'string' && args.query.length <= 160
+    && !/[\u0000-\u001f\u007f-\u009f]/u.test(args.query)
+    && ['player', 'village'].includes(args.scope);
   if (name === 'get_trades' || name === 'cancel_trade') return true;
   if (['complete_quest', 'follow_player', 'stop_following', 'write_our_story'].includes(name)) return Object.keys(args).length === 0;
   if (name === 'set_nickname') return Object.keys(args).length === 1 && typeof args.nickname === 'string'
