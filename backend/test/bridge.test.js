@@ -22,6 +22,7 @@ test('authenticated session, one-use ticket, audio relay, tool batching and clea
   await until(() => events.some(e => e.message === 'Ready'));
   const reused = new WebSocket(base.replace('http:', 'ws:') + '/audio?mode=ptt&ticket=' + ticket); const rejected = once(reused, 'error'); await rejected;
   assert.equal(received[0].session.audio.input.turn_detection, null);
+  assert.equal(received[0].session.audio.input.transcription.model, 'higgs-stt-3.1');
   const audio = Buffer.alloc(4800).toString('base64');
   client.send(JSON.stringify({ type: 'audio', audio })); client.send(JSON.stringify({ type: 'commit' }));
   await until(() => received.some(e => e.type === 'input_audio_buffer.commit'));
@@ -151,4 +152,58 @@ test('hands-free VAD survives long silence, repeated turns, interruption and non
   await until(() => !bridge.sessions.has(sessionId));
   assert.ok(logs.some(e => e.event === 'session_closed' && e.reason === 'upstream_closed' && e.code === 1013));
   assert.equal(JSON.stringify(logs).includes('PRIVATE CLOSE DETAIL'), false);
+});
+
+test('voice confirmations carry trusted input-turn IDs, never model-supplied IDs', async t => {
+  const mock = new WebSocketServer({port: 0, host: '127.0.0.1'}); await once(mock, 'listening');
+  let upstream; const received=[];
+  mock.on('connection', ws => { upstream = ws; ws.on('message', data => {
+    received.push(JSON.parse(data));
+    if (JSON.parse(data).type === 'session.update') ws.send(JSON.stringify({type:'session.created'}));
+  }); });
+  const bridge = createBridge({token, apiKey:'test', upstreamUrl:`ws://127.0.0.1:${mock.address().port}`, log:()=>{}});
+  bridge.server.listen(0,'127.0.0.1'); await once(bridge.server,'listening');
+  t.after(async()=>{await bridge.close(); for(const ws of mock.clients) ws.terminate(); await new Promise(r=>mock.close(r));});
+  const base=`http://127.0.0.1:${bridge.server.address().port}`;
+  const response=await fetch(base+'/sessions',{method:'POST',headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({playerId:'p',villagerId:'v',context:{}})});
+  const {sessionId,ticket}=await response.json();
+  const client=new WebSocket(base.replace('http:','ws:')+'/audio?mode=ptt&ticket='+ticket);
+  const captions=[]; client.on('message',raw=>{ const event=JSON.parse(raw); if(event.type==='transcript')captions.push(event); });
+  await once(client,'open'); await until(()=>bridge.sessions.get(sessionId).ready);
+  const emit=e=>upstream.send(JSON.stringify(e));
+  emit({type:'conversation.item.input_audio_transcription.completed',item_id:'u1',transcript:'Bread please'});
+  emit({type:'response.created',response:{id:'captions'}});
+  emit({type:'response.output_audio_transcript.delta',response_id:'captions',item_id:'a1',delta:'Here '});
+  emit({type:'response.output_audio_transcript.done',response_id:'captions',item_id:'a1',transcript:'Here you go.'});
+  emit({type:'response.output_audio_transcript.delta',response_id:'stale',item_id:'a0',delta:'obsolete'});
+  await until(()=>captions.length===3);
+  assert.deepEqual(captions.map(e=>[e.speaker,e.text,e.replace]),[['you','Bread please',true],['villager','Here ',false],['villager','Here you go.',true]]);
+  const proposeId='a'.repeat(8)+'-aaaa-aaaa-aaaa-'+ 'a'.repeat(12);
+  for(let turn=1;turn<=2;turn++){
+    client.send(JSON.stringify({type:'audio',audio:Buffer.alloc(4800).toString('base64')}));
+    client.send(JSON.stringify({type:'commit'}));
+    await until(()=>bridge.sessions.get(sessionId).turnId===turn);
+    emit({type:'response.created',response:{id:'r'+turn}});
+    for(const suffix of ['a','b'])emit({type:'response.function_call_arguments.done',call_id:turn+suffix,name:'confirm_trade',arguments:JSON.stringify({proposalId:proposeId,turnId:999})});
+    await until(()=>bridge.sessions.get(sessionId).pending.has(turn+'b'));
+    for(const suffix of ['a','b'])assert.equal(bridge.sessions.get(sessionId).pending.get(turn+suffix).turnId,turn);
+  }
+  // A short yes can finish before cancellation acknowledgement arrives.
+  client.send(JSON.stringify({type:'interrupt'}));
+  await until(()=>received.some(e=>e.type==='response.cancel'));
+  const responses=received.filter(e=>e.type==='response.create').length;
+  client.send(JSON.stringify({type:'audio',audio:Buffer.alloc(9600).toString('base64')}));
+  client.send(JSON.stringify({type:'commit'}));
+  await until(()=>bridge.sessions.get(sessionId).turnId===3);
+  await delay(30);
+  assert.equal(received.filter(e=>e.type==='response.create').length,responses);
+  emit({type:'response.done',response:{id:'r2',status:'cancelled'}});
+  await until(()=>received.filter(e=>e.type==='response.create').length===responses+1);
+  emit({type:'response.created',response:{id:'confirmed'}});
+  emit({type:'response.function_call_arguments.done',response_id:'r2',call_id:'late-old',name:'confirm_trade',arguments:JSON.stringify({proposalId:proposeId})});
+  emit({type:'response.function_call_arguments.done',response_id:'confirmed',call_id:'yes',name:'confirm_trade',arguments:JSON.stringify({proposalId:proposeId})});
+  await until(()=>bridge.sessions.get(sessionId).pending.has('yes'));
+  assert.equal(bridge.sessions.get(sessionId).pending.get('yes').turnId,3);
+  assert.equal(bridge.sessions.get(sessionId).pending.has('late-old'),false);
+
 });

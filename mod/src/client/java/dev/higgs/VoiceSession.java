@@ -19,6 +19,7 @@ import javax.sound.sampled.*;
 final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private static final AudioFormat FORMAT = new AudioFormat(24000, 16, 1, true, false);
     private final Consumer<String> status;
+    final VoiceCaptions captions = new VoiceCaptions();
     private final Runnable ended;
     private record Outbound(String json, int audioBytes) {}
     private final ArrayBlockingQueue<Outbound> outgoing = new ArrayBlockingQueue<>(64);
@@ -90,10 +91,11 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         muted = !held;
         microphoneGeneration++;
         speaking = held;
+        if (held) clearPlayback();
         // Serialized with captured frames: release commits only the preceding turn.
         enqueue(held ? "{\"type\":\"interrupt\"}" : "{\"type\":\"commit\"}");
         notifyAll();
-        status.accept(held ? "Speaking… release B to send." : "Sent. Hold B to speak again; V to leave.");
+        status.accept(held ? "Speaking… release B to send." : "Sent. Hold B to speak again; ");
     }
 
     private void startMicrophone() {
@@ -199,8 +201,11 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                 String type = event.get("type").getAsString();
                 if (!"diagnostics".equals(type)) lastEvent = type;
                 switch (type) {
+                    case "transcript" -> captions.update(event.get("speaker").getAsString(), event.get("id").getAsString(),
+                        event.get("text").getAsString(), event.get("replace").getAsBoolean(), System.currentTimeMillis());
                     case "diagnostics" -> backendDiagnostics = event;
                     case "audio" -> {
+                        if (!muted) break; // Ignore packets already in flight when B was pressed.
                         byte[] bytes = Base64.getDecoder().decode(event.get("audio").getAsString());
                         receivedChunks++; receivedBytes += bytes.length;
                         if ((bytes.length & 1) != 0) throw new IllegalArgumentException("Invalid PCM");
@@ -219,7 +224,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                         if ("Ready".equalsIgnoreCase(message)) {
                             ready = true;
                             startMicrophone();
-                            status.accept("Ready. Hold B to speak; release to send. V to leave.");
+                            status.accept("Ready. Hold B to speak; release to send. ");
                         } else status.accept(message);
                     }
                     case "error" -> {

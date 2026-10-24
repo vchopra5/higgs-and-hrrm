@@ -6,8 +6,20 @@
   "description": "Speak to villagers through a local Higgs bridge and inspect native trades.",
   "environment": "*",
   "entrypoints": {
-    "main": ["dev.higgs.HiggsVillagers"],
-    "client": ["dev.higgs.HiggsVillagersClient"]
+    "main": [
+      "dev.higgs.HiggsVillagers"
+    ],
+    "client": [
+      "dev.higgs.HiggsVillagersClient"
+    ]
   },
-  "depends": {"fabricloader": ">=0.18.0", "minecraft": "26.1.2", "java": ">=25", "fabric-api": "*"}
+  "depends": {
+    "fabricloader": ">=0.18.0",
+    "minecraft": "26.1.2",
+    "java": ">=25",
+    "fabric-api": "*"
+  },
+  "mixins": [
+    "higgs_villagers.mixins.json"
+  ]
 }

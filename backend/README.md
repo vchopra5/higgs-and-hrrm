@@ -24,7 +24,7 @@ Connect the client to `ws://127.0.0.1:8787/audio?ticket=...` within 30 seconds. 
 
 Client messages are `{type:"audio",audio:"BASE64"}`, `{type:"commit"}`, `{type:"interrupt"}`, or `{type:"end"}`. Both audio directions use raw signed PCM16, little-endian, mono, 24 kHz. The default is hands-free: stream microphone audio continuously after `Ready`. Higgs detects turn boundaries and starts responses automatically. The bridge emits `{type:"speech",active:true/false}` on speech start/stop and `clear` on interruption to flush local playback. Output messages are `audio`, `speech`, `clear`, `status`, and `error`. Recoverable errors have `fatal:false` and a sanitized `code`; the client should display them without closing the session. Transport failure has `fatal:true`.
 
-The Minecraft client uses push-to-talk and connects with `&mode=ptt`: send `interrupt` on press and `commit` on release. In default hands-free mode, `commit` is ignored to avoid duplicate responses.
+The Minecraft client uses push-to-talk and connects with `&mode=ptt`: send `interrupt` on press and `commit` on release. If an interrupted response is still cancelling, the next response request waits for its completion acknowledgement; stale tool calls are discarded. In default hands-free mode, `commit` is ignored to avoid duplicate responses.
 
 Sessions last at most ten minutes. Hands-free streaming has no cumulative audio-byte cap: silence and repeated turns do not exhaust an input counter. Legacy push-to-talk turns are capped at sixty seconds; PTT turns under 100 ms are discarded. The ten-minute session limit is reported explicitly. Sessions never restart automatically. Unanswered tools fail after fifteen seconds. Pending audio is bounded; slow consumers are disconnected. There is no persistent audio recording or conversation storage.
 
@@ -36,9 +36,16 @@ The implementation follows Boson's [official session configuration](https://gith
 - Hands-free mode sets `audio.input.turn_detection` to `{type:"server_vad",silence_duration_ms:900}`. It sends only `input_audio_buffer.append`; Higgs owns commits, automatic replies and interruption of active generation. See Boson’s [turn-detection guide](https://github.com/boson-ai/Higgs-Realtime-Tutorial/blob/main/docs/part-2.md).
 - Optional manual push-to-talk sets `audio.input.turn_detection` to `null` and sends `input_audio_buffer.commit`, then `response.create`.
 - `response.output_audio.delta` is relayed to the Minecraft client.
+- Input transcription uses `higgs-stt-3.1`. Completed user transcripts and streaming villager audio transcripts are relayed as `{type:"transcript",speaker:"you"|"villager",id,text,replace}` for transient captions. User captions arrive after speech processing; final events replace accumulated text.
 - Tool results are serialized into `conversation.item.create` function-call outputs. One `response.create` follows the completed tool batch.
 
-`get_trades` queries authoritative game state. `propose_trade` opens the native trading screen; it never purchases anything or changes prices. The game server validates proximity, villager identity and offer availability.
+`get_trades` queries authoritative game state. `propose_trade` returns an exact
+player-specific quote without opening any screen. `confirm_trade` requires one
+spoken confirmation after the quote; the server guards a new input
+turn ID, expiry and single-use purchase. `cancel_trade` clears the quote when
+the player refuses. The final native trade happens entirely server-side, then
+its result is spoken by Higgs. The model interprets affirmative speech; the
+server enforces turn separation and transaction validation.
 
 Live API behavior and Minecraft microphone/playback still require testing with a real Boson key and game client. Interruption cancels generation and clears playback; precise conversation truncation to the last heard sample is not implemented in this MVP.
 

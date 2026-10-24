@@ -63,3 +63,27 @@ tasks.register('testAudioLevels', JavaExec) {
     mainClass = 'dev.higgs.AudioLevelsTest'
 }
 tasks.named('check') { dependsOn 'testAudioLevels' }
+
+tasks.register('compileVoiceConfirmationTest', JavaCompile) {
+    source = files('src/main/java/dev/higgs/VoiceConfirmation.java',
+        'src/confirmation/test/dev/higgs/VoiceConfirmationTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('voice-confirmation-test')
+}
+tasks.register('testVoiceConfirmation', JavaExec) {
+    dependsOn 'compileVoiceConfirmationTest'
+    classpath = files(layout.buildDirectory.dir('voice-confirmation-test'))
+    mainClass = 'dev.higgs.VoiceConfirmationTest'
+}
+tasks.named('check') { dependsOn 'testVoiceConfirmation' }
+tasks.register('compileVoiceCaptionsTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/VoiceCaptions.java', 'src/client/test/dev/higgs/VoiceCaptionsTest.java')
+    classpath = files()
+    destinationDirectory = layout.buildDirectory.dir('voice-captions-test')
+}
+tasks.register('testVoiceCaptions', JavaExec) {
+    dependsOn 'compileVoiceCaptionsTest'
+    classpath = files(layout.buildDirectory.dir('voice-captions-test'))
+    mainClass = 'dev.higgs.VoiceCaptionsTest'
+}
+tasks.named('check') { dependsOn 'testVoiceCaptions' }

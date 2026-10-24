@@ -9,8 +9,8 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.item.Items;
-import net.minecraft.world.InteractionHand;
+import dev.higgs.mixin.VillagerPrices;
+import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.core.registries.BuiltInRegistries;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -36,10 +36,13 @@ public final class HiggsVillagers implements ModInitializer {
         final Villager villager;
         String id;
         boolean polling;
+        Proposal proposal;
         int pollFailures;
         final Map<String, JsonObject> toolResults = new HashMap<>();
         Session(ServerPlayer player, Villager villager) { this.player = player; this.villager = villager; }
     }
+    private record Proposal(String id, int index, long expires, ItemStack costA,
+                            ItemStack costB, ItemStack result, VoiceConfirmation confirmation) { }
     @Override public void onInitialize() {
         Map<String, String> config = config();
         backend = config.getOrDefault("HIGGS_BACKEND_URL", "http://127.0.0.1:8787").replaceAll("/+$", "");
@@ -122,7 +125,7 @@ public final class HiggsVillagers implements ModInitializer {
             if (sessions.get(s.player.getUUID()) != s) return;
             if (failure != null) {
                 // A single transient HTTP failure must not tear down a healthy audio session.
-                if (++s.pollFailures >= 3) end(s.player, true, "Voice bridge unreachable after three attempts. Press V to reconnect.");
+                if (++s.pollFailures >= 3) end(s.player, true, "Voice bridge unreachable after three attempts. Look at a villager to reconnect.");
                 return;
             }
             s.pollFailures = 0;
@@ -137,21 +140,12 @@ public final class HiggsVillagers implements ModInitializer {
                         result = new JsonObject();
                         String name = call.get("name").getAsString();
                         if (name.equals("get_trades")) result.add("offers", offers(s.villager));
-                        else if (name.equals("propose_trade")) {
-                            JsonElement args = call.get("arguments");
-                            JsonObject arguments = args.isJsonPrimitive() ? JsonParser.parseString(args.getAsString()).getAsJsonObject() : args.getAsJsonObject();
-                            int index = arguments.get("offerIndex").getAsInt();
-                            var offers = s.villager.getOffers();
-                            if (!valid(s)) result.addProperty("error", "Move within 8 blocks of the villager to open trading.");
-                            else if (index < 0 || index >= offers.size() || offers.get(index).isOutOfStock()) result.addProperty("error", "Offer unavailable.");
-                            else if (s.villager.isTrading()) result.addProperty("error", "Villager already has a trade screen open.");
-                            else if (s.player.getMainHandItem().is(Items.VILLAGER_SPAWN_EGG)) result.addProperty("error", "Put away the villager spawn egg before trading.");
-                            else {
-                                // Native interaction applies reputation/Hero discounts and Minecraft trading rules.
-                                s.villager.mobInteract(s.player, InteractionHand.MAIN_HAND);
-                                result.addProperty("status", "Trade screen opened. Player must select and confirm the trade; no purchase was made.");
-                                result.addProperty("offerIndex", index);
-                            }
+                        else if (name.equals("cancel_trade")) {
+                            s.proposal = null; result = outcome("cancelled", "The proposal is cancelled. Nothing was purchased.");
+                        } else if (name.equals("propose_trade")) {
+                            result = proposeTrade(s, call.getAsJsonObject("arguments").get("offerIndex").getAsInt(), call.get("turnId").getAsInt());
+                        } else if (name.equals("confirm_trade")) {
+                            result = confirmTrade(s, call.getAsJsonObject("arguments").get("proposalId").getAsString(), call.get("turnId").getAsInt());
                         } else result.addProperty("error", "Unknown tool.");
                         // Store before sending: retries must never execute a game action twice.
                         s.toolResults.put(callId, result);
@@ -163,13 +157,87 @@ public final class HiggsVillagers implements ModInitializer {
             } catch (RuntimeException ex) { end(s.player, true); error(s.player, "Invalid voice bridge tool request."); }
         }));
     }
+    private JsonObject outcome(String status, String message) {
+        JsonObject result = new JsonObject(); result.addProperty("status", status); result.addProperty("message", message); return result;
+    }
+    private boolean availableForVoiceTrade(Session s) {
+        return valid(s) && s.player.containerMenu == s.player.inventoryMenu && !s.villager.isTrading();
+    }
+    private JsonObject quote(Proposal p, String status, String message) {
+        JsonObject result = outcome(status, message);
+        result.addProperty("proposalId", p.id()); result.add("costA", item(p.costA()));
+        result.add("costB", item(p.costB())); result.add("receive", item(p.result()));
+        return result;
+    }
+    private JsonObject proposeTrade(Session s, int index, int turn) {
+        s.proposal = null;
+        if (!availableForVoiceTrade(s)) return outcome("unavailable", "Move within eight blocks, close any inventory, and wait until the villager is free.");
+        if (index < 0 || index >= s.villager.getOffers().size()) return outcome("unavailable", "That offer does not exist.");
+        s.villager.setTradingPlayer(s.player);
+        try {
+            ((VillagerPrices) s.villager).higgs$updateSpecialPrices(s.player);
+            var offer = s.villager.getOffers().get(index);
+            if (offer.isOutOfStock()) return outcome("unavailable", "That offer is sold out.");
+            Proposal p = new Proposal(UUID.randomUUID().toString(), index, System.currentTimeMillis() + 120_000,
+                offer.getCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(), new VoiceConfirmation(turn, System.currentTimeMillis() + 120_000));
+            s.proposal = p;
+            return quote(p, "awaiting_confirmation", "Read the exact costs and received item aloud. Ask whether the player wants this trade, then wait for their spoken answer. Nothing has been purchased.");
+        } finally { s.villager.setTradingPlayer(null); }
+    }
+    private JsonObject confirmTrade(Session s, String id, int turn) {
+        Proposal p = s.proposal;
+        if (p == null || !p.id().equals(id)) return outcome("unavailable", "No matching proposal. Ask for a new quote.");
+        if (System.currentTimeMillis() >= p.expires() || !availableForVoiceTrade(s)) {
+            s.proposal = null; return outcome("unavailable", "Proposal expired or villager unavailable. Nothing was purchased.");
+        }
+        VoiceConfirmation.Result confirmation = p.confirmation().advance(turn, System.currentTimeMillis());
+        if (confirmation == VoiceConfirmation.Result.WAIT) return outcome("wait_for_player", "Wait for a new explicit spoken confirmation. Do not call again until the player answers.");
+        if (confirmation == VoiceConfirmation.Result.EXPIRED || confirmation == VoiceConfirmation.Result.CONSUMED) {
+            s.proposal = null; return outcome("unavailable", "Ask for a fresh proposal. Nothing was purchased.");
+        }
+        // Consume before mutation; retries and duplicate tool calls cannot purchase twice.
+        s.proposal = null;
+        s.villager.setTradingPlayer(s.player);
+        MerchantMenu menu = null;
+        try {
+            ((VillagerPrices) s.villager).higgs$updateSpecialPrices(s.player);
+            if (p.index() >= s.villager.getOffers().size()) return outcome("unavailable", "Offer no longer exists.");
+            var offer = s.villager.getOffers().get(p.index());
+            if (offer.isOutOfStock() || !ItemStack.matches(p.costA(), offer.getCostA())
+                || !ItemStack.matches(p.costB(), offer.getCostB()) || !ItemStack.matches(p.result(), offer.getResult()))
+                return outcome("changed", "The price or offer changed. Nothing was purchased. Get a fresh quote and a new spoken confirmation.");
+            // Server-only native menu: no open-screen packet, client menu, or launcher action.
+            menu = new MerchantMenu(-1, s.player.getInventory(), s.villager);
+            menu.setSelectionHint(p.index()); menu.tryMoveItems(p.index());
+            if (!offer.satisfiedBy(menu.getSlot(0).getItem(), menu.getSlot(1).getItem())
+                || !ItemStack.matches(menu.getSlot(2).getItem(), p.result()))
+                return outcome("missing_items", "You do not have the required items. Nothing was purchased.");
+            int space = 0;
+            for (int i = 3; i < 39; i++) {
+                var slot = menu.getSlot(i); ItemStack stack = slot.getItem();
+                if (stack.isEmpty()) space += Math.min(slot.getMaxStackSize(p.result()), p.result().getMaxStackSize());
+                else if (ItemStack.isSameItemSameComponents(stack, p.result()))
+                    space += Math.max(0, Math.min(slot.getMaxStackSize(p.result()), p.result().getMaxStackSize()) - stack.getCount());
+            }
+            if (space < p.result().getCount()) return outcome("inventory_full", "Your inventory is full. Nothing was purchased.");
+            boolean purchased = !menu.quickMoveStack(s.player, 2).isEmpty();
+            return outcome(purchased ? "purchased" : "unavailable", purchased
+                ? p.result().getCount() + " × " + p.result().getHoverName().getString() + " added to your inventory. Exactly one trade completed."
+                : "Nothing was purchased. Ask for a fresh proposal.");
+        } finally {
+            // Native cleanup returns all unused payment items, including on errors.
+            if (menu != null) menu.removed(s.player);
+            else s.villager.setTradingPlayer(null);
+            s.player.inventoryMenu.broadcastChanges();
+        }
+    }
     private JsonArray offers(Villager villager) {
         JsonArray result = new JsonArray(); int index = 0;
         for (var offer : villager.getOffers()) {
             JsonObject o = new JsonObject(); o.addProperty("offerIndex", index++);
             o.add("costA", item(offer.getCostA())); o.add("costB", item(offer.getCostB()));
             o.add("result", item(offer.getResult())); o.addProperty("outOfStock", offer.isOutOfStock());
-            o.addProperty("priceNote", "Preview only: player reputation and Hero discounts are applied in the native trade screen.");
+            o.addProperty("priceNote", "Preview only: propose_trade returns exact player-specific prices before spoken confirmation.");
             result.add(o);
         }
         return result;
