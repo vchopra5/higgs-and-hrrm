@@ -10,7 +10,7 @@ launch commands after installing equivalent tools.
 Install the desktop prerequisites using your package manager:
 
 ```sh
-sudo pacman -Syu --needed git curl python openssl jdk25-openjdk nodejs-lts-jod npm alsa-lib prismlauncher
+sudo pacman -Syu --needed git curl openssl jdk25-openjdk nodejs-lts-jod npm alsa-lib prismlauncher
 ```
 
 This selects Node.js 22 LTS; an existing Node.js 22 or newer installation is also
@@ -59,54 +59,35 @@ Keep both values private. The backend and game server read this same root `.env`
 when launched using the repository commands; environment variables take priority.
 Keep the default loopback addresses for this local setup.
 
+## Install mods, build the bridge and the mod
+
+Open the Prism instance's Minecraft folder (see [client setup](#set-up-the-minecraft-client))
+and pass its `mods/` directory to the setup script:
+
 ```sh
-npm --prefix backend ci
-./scripts/build-mod.sh
+./scripts/setup-linux.sh ~/.local/share/PrismLauncher/instances/YOUR_INSTANCE/.minecraft/mods
 ```
 
-The mod is `mod/build/libs/higgs-villagers-0.1.0.jar`. Install this same file on
-both client and server. `npm --prefix backend test` runs bridge tests without a
-Boson key. The build runs local Java checks; neither validates real audio hardware.
+The script:
+
+1. Downloads the Fabric server launcher, Cardboard, Fabric API and iCommon into
+   `server-cardboard/`, rejecting any file whose SHA-512 does not match the pin in
+   the script. Already verified files are not downloaded again.
+2. Builds the bridge with `npm ci`, which verifies `package-lock.json` integrity hashes.
+3. Checks the Gradle wrapper JAR's SHA-256 and builds the mod. Gradle verifies its
+   distribution and every dependency against `mod/gradle/verification-metadata.xml`.
+4. Copies `higgs-villagers-0.1.0.jar` into `server-cardboard/mods/`, and the mod
+   plus Fabric API into the client `mods/` directory. Cardboard and iCommon stay
+   on the server.
+
+Omit the argument to set up only the server. Re-run the script after changing the
+mod, with the server and client stopped. It also creates `server.properties` from
+the example if missing. `npm --prefix backend test` runs bridge tests without a
+Boson key; neither the build nor the tests validate real audio hardware.
 
 ## Prepare the server
 
-Server binaries, libraries, mods, worlds and EULA acceptance are not included in
-Git. Download the pinned Fabric server launcher from the repository root:
-
-```sh
-mkdir -p server-cardboard/mods
-curl --fail --location --output server-cardboard/fabric-server-launch.jar \
-  https://meta.fabricmc.net/v2/versions/loader/26.1.2/0.20.1/1.1.2/server/jar
-```
-
-Download every mod listed in
-[`server-cardboard/components.json`](../server-cardboard/components.json) into
-`server-cardboard/mods/`, using each entry's `filename` and `url`. Verify its
-SHA-512 checksum against `hashes.sha512`. The following downloads and checks the
-pinned files without adding unrelated mods:
-
-```sh
-python3 - <<'PY'
-import hashlib
-import json
-from pathlib import Path
-from urllib.request import urlopen
-
-manifest = json.loads(Path('server-cardboard/components.json').read_text())
-directory = Path('server-cardboard/mods')
-directory.mkdir(parents=True, exist_ok=True)
-for mod in manifest['mods']:
-    for entry in mod['files']:
-        data = urlopen(entry['url'], timeout=60).read()
-        if hashlib.sha512(data).hexdigest() != entry['hashes']['sha512']:
-            raise SystemExit('Checksum mismatch: ' + entry['filename'])
-        (directory / entry['filename']).write_bytes(data)
-        print('Verified', entry['filename'])
-PY
-cp mod/build/libs/higgs-villagers-0.1.0.jar server-cardboard/mods/
-cp server-cardboard/server.properties.example server-cardboard/server.properties
-```
-
+Server binaries, libraries, worlds and EULA acceptance are not included in Git.
 Read the [Minecraft EULA](https://aka.ms/MinecraftEULA). If you agree, create
 `server-cardboard/eula.txt` containing `eula=true`. Then start the server:
 
@@ -137,15 +118,14 @@ it, because both use the same port.
    if needed, and select `/usr/lib/jvm/java-25-openjdk/bin/java`. Use Prism's Java
    test to check it. Native Linux packages may require manual Java selection;
    see [Prism's Java setup](https://prismlauncher.org/wiki/getting-started/installing-java/).
-4. Open the instance's Minecraft folder through Prism. In its `mods/` directory,
-   copy `higgs-villagers-0.1.0.jar` and the verified
-   `fabric-api-0.155.3+26.1.2.jar` from `server-cardboard/mods/`.
-   Cardboard and iCommon belong on the server; do not copy them into the client.
+4. Open the instance's Minecraft folder through Prism and note its `mods/` path.
+   `./scripts/setup-linux.sh` copies `higgs-villagers-0.1.0.jar` and the verified
+   Fabric API there. Cardboard and iCommon belong on the server only.
 5. Launch the instance. Select **Multiplayer → Direct Connection** and enter
    `localhost:25565`.
 
-Prism creates and manages the instance; this repository does not install a game
-client or modify its mods directory automatically. For a Flatpak installation,
+Prism creates and manages the instance; the setup script only writes to the
+`mods/` directory you pass it. For a Flatpak installation,
 select a Java runtime available inside its sandbox and check its audio
 permissions. Native Prism avoids that additional sandbox layer during diagnosis.
 

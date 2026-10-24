@@ -9,6 +9,7 @@ import net.fabricmc.fabric.api.client.keymapping.v1.KeyMappingHelper;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.hud.HudElementRegistry;
+import net.minecraft.ChatFormatting;
 import net.minecraft.client.KeyMapping;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
@@ -77,35 +78,6 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     int right = x + 8 + (bar + 1) * (width - 16) / 12 - 2;
                     int barColor = bar >= 11 ? 0xFFFF7070 : bar >= 9 ? 0xFFFFCF70 : 0xFF70EF9B;
                     graphics.fill(left, y + 39, right, y + 44, bar < lit ? barColor : 0xFF384451);
-                }
-            });
-        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "captions"),
-            (graphics, delta) -> {
-                Minecraft client = Minecraft.getInstance();
-                if (client.player == null || client.options.hideGui || client.screen != null) return;
-                VoiceSession source = voice != null ? voice : lastVoice;
-                if (source == null) return;
-                long now = System.currentTimeMillis();
-                var captions = source.captions.visible(now);
-                int width = Math.min(300, graphics.guiWidth() - 24);
-                int x = 10;
-                int bottom = graphics.guiHeight() - 58;
-                // Bottom-anchor the newest reply; limit each speaker to two wrapped lines.
-                for (int i = captions.size() - 1; i >= 0; i--) {
-                    var caption = captions.get(i);
-                    var lines = client.font.split(Component.literal(caption.text()), width - 20);
-                    int start = Math.max(0, lines.size() - 2), count = lines.size() - start;
-                    int height = 21 + count * 11;
-                    int top = bottom - height;
-                    int alpha = Math.max(5, (int) (255 * caption.opacity(now)));
-                    graphics.fill(x, top, x + width, bottom, ((alpha * 3 / 4) << 24) | 0x101B20);
-                    int tint = caption.speaker().equals("you") ? 0xA5D8FF : 0xA6E9BA;
-                    graphics.fill(x, top + 5, x + 2, bottom - 5, (alpha << 24) | tint);
-                    graphics.text(client.font, caption.speaker().equals("you") ? "YOU" : "VILLAGER",
-                        x + 10, top + 6, (alpha << 24) | tint, false);
-                    for (int row = 0; row < count; row++) graphics.text(client.font, lines.get(start + row),
-                        x + 10, top + 19 + row * 11, (alpha << 24) | 0xF2F5F4, false);
-                    bottom = top - 5;
                 }
             });
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "diagnostics"),
@@ -229,8 +201,9 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     pending = false;
                     activeSessionId = message.get("sessionId").getAsString();
                     long current = ++generation;
+                    String villagerName = villagerName(targetId);
                     voice = new VoiceSession(message.get("url").getAsString(), message.get("ticket").getAsString(),
-                        HiggsVillagersClient::status, () -> Minecraft.getInstance().execute(() -> {
+                        HiggsVillagersClient::status, line -> postChat(villagerName, line), () -> Minecraft.getInstance().execute(() -> {
                             if (generation == current) stop(true);
                         }));
                 }
@@ -260,6 +233,25 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         if (previous != null) { lastVoice = previous; previous.close(); }
         if (notifyServer && active && ClientPlayNetworking.canSend(ControlPayload.TYPE))
             ClientPlayNetworking.send(new ControlPayload("{\"type\":\"end\"}"));
+    }
+
+    private static String villagerName(int entityId) {
+        var level = Minecraft.getInstance().level;
+        var entity = level == null ? null : level.getEntity(entityId);
+        return entity == null ? "Villager" : entity.getName().getString();
+    }
+
+    /** Local-only chat lines; nothing is sent to the server. Called from network threads. */
+    private static void postChat(String villagerName, VoiceCaptions.Line line) {
+        Minecraft client = Minecraft.getInstance();
+        client.execute(() -> {
+            if (client.player == null) return;
+            boolean you = line.speaker().equals("you");
+            String name = you ? client.player.getName().getString() : villagerName;
+            client.gui.getChat().addClientSystemMessage(Component.literal("<" + name + "> ")
+                .withStyle(you ? ChatFormatting.AQUA : ChatFormatting.GREEN)
+                .append(Component.literal(line.text()).withStyle(ChatFormatting.WHITE)));
+        });
     }
 
     private static void status(String message) {

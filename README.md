@@ -168,7 +168,7 @@ Backend tests use a local fake Higgs endpoint. The build compiles the mod; neith
   <sub>Unofficial Minecraft project. Banner artwork is illustrative, not a gameplay screenshot.</sub>
 </p>
 
-Captions for YOU and VILLAGER remain for eight seconds, then fade over three. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F8 toggles additional diagnostics.
+Each finished turn from you and the villager is added to Minecraft chat, so the conversation stacks up and can be scrolled back with T. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F8 toggles additional diagnostics.
 
 Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
 
@@ -197,7 +197,7 @@ A compact, non-interactive trade tracker shows the villager and the current serv
 
 Repeated quotes with identical terms retain the original proposal ID, confirmation turn, and expiry. A repeated confirmation returns the existing purchase receipt without buying again. Trade diagnostics log tool names, turn numbers, and outcomes without speech content.
 
-Trade suggestions now use an optional “Interested?” preview, which cannot be purchased. Interest leads to an exact “Confirm trade?” quote; one yes then completes it. Direct purchase requests skip browsing. The tracker sits at the right edge, and captions use the native crisp font at bottom left with two lines per speaker. Villagers are instructed to keep trading replies to one short sentence.
+Trade suggestions now use an optional “Interested?” preview, which cannot be purchased. Interest leads to an exact “Confirm trade?” quote; one yes then completes it. Direct purchase requests skip browsing. The tracker sits at the right edge, and conversation lines appear in Minecraft chat. Villagers are instructed to keep trading replies to one short sentence.
 
 ### Environmental reactions
 
