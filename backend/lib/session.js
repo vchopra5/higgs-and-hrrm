@@ -1,6 +1,7 @@
 import { resolveCharacter, isVoiceSelectionError } from './personalities.js';
 
 import { repeatedReaction } from './reaction-variety.js';
+import { classifyTreatment } from './treatment.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { WebSocket } from 'ws';
 import { LIMITS, sanitizeCode, sendJson, sessionConfig } from './protocol.js';
@@ -228,6 +229,7 @@ export class BridgeSession {
         case 'conversation.item.input_audio_transcription.completed':
           this.sendClient({ type: 'transcript', speaker: 'you', id: event.item_id ?? 'input',
             text: String(event.transcript ?? '').slice(0, 4000), replace: true });
+          this.reportTreatment(String(event.transcript ?? '').slice(0, 4000));
           break;
         case 'conversation.item.input_audio_transcription.failed':
           this.sendClient({ type: 'transcript', speaker: 'you', id: event.item_id ?? 'input',
@@ -312,6 +314,16 @@ export class BridgeSession {
           turnId: this.turnId, created: this.now() });
       }
     }
+  }
+
+  // Queued for the game server only (internal); the model never sees it.
+  reportTreatment(transcript) {
+    const treatment = classifyTreatment(transcript);
+    const callId = `treatment-${this.id}-${this.turnId}`;
+    if (treatment === 'neutral' || this.turnId <= 0 || this.pending.has(callId) || this.seen.has(callId)) return;
+    this.seen.add(callId);
+    this.pending.set(callId, { callId, name: 'report_treatment', arguments: { treatment }, internal: true,
+      turnId: this.turnId, created: this.now() });
   }
 
   startResponse(responseId) {

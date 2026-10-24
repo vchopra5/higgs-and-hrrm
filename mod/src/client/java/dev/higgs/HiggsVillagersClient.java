@@ -40,6 +40,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
 
     @Override public void onInitializeClient() {
         VillagerExpressions.initializeAnimations();
+        ReputationBar.register();
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("higgs_villagers", "voice"));
         KeyMapping talk = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.talk", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category));
         KeyMapping diagnostics = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.diagnostics", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, category));
@@ -184,7 +185,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             JsonObject message = JsonParser.parseString(raw).getAsJsonObject();
             switch (message.get("type").getAsString()) {
                 case "villager_expression" -> VillagerExpressions.update(
-                    java.util.UUID.fromString(message.get("villagerId").getAsString()), message.get("expression").getAsString());
+                    java.util.UUID.fromString(message.get("villagerId").getAsString()), message.get("expression").getAsString(),
+                    message.has("standing") ? message.get("standing").getAsInt() : 0);
                 case "trade_complete" -> handoff.start(Minecraft.getInstance(), message);
                 case "trade_status" -> {
                     if (activeSessionId != null && activeSessionId.equals(message.get("sessionId").getAsString())

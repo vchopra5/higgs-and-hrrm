@@ -1,14 +1,17 @@
 package dev.higgs;
 
-/** Integer-only pricing. Every returned bundle stays inside its relationship band. */
+/** Integer-only pricing. Every returned bundle stays inside the band for the player's standing. */
 final class Negotiation {
     record Band(String name, int min, int max) {}
     record Bundle(int payment, int secondary, int quantity, int stockUses, boolean counteroffer) {}
-    static Band band(int relationship, int mood, int nativeReputation) {
-        int score = relationship + mood;
-        if (nativeReputation < -10 || score <= -2) return new Band("annoyed", 110, 125);
-        if (nativeReputation >= 25 || score >= 2) return new Band("friendly", 80, 100);
-        return new Band("neutral", 95, 110);
+    /**
+     * One saved standing per player and villager, -5 to 5, starting at 0. Each point moves the price 4%:
+     * +5 centres on 80%, 0 on 100% and -5 on 120%. A discount request may go 5% below the centre.
+     */
+    static Band band(int standing) {
+        int score = Math.max(-5, Math.min(5, standing));
+        int centre = 100 - 4 * score;
+        return new Band(score <= -2 ? "annoyed" : score >= 2 ? "friendly" : "neutral", centre - 5, centre + 5);
     }
     static Bundle quote(int cost, int secondary, int output, int remainingUses,
                         int maxPayment, int maxSecondary, int maxOutput, Band band,
@@ -16,7 +19,7 @@ final class Negotiation {
         if (cost < 1 || output < 1 || remainingUses < 1) return null;
         if ((quantity != null && (quantity < 1 || quantity > 64))
             || (payment != null && (payment < 1 || payment > 64))) throw new IllegalArgumentException("Counts must be 1–64");
-        int targetRate = discount ? band.min : Math.max(band.min, Math.min(band.max, 100));
+        int targetRate = discount ? band.min : (band.min + band.max) / 2;
         Integer budget = payment != null ? payment : discount && quantity == null ? cost : null;
         int desiredQuantity = quantity != null ? quantity : budget != null
             ? Math.max(1, budget * output * 100 / (cost * targetRate)) : output;

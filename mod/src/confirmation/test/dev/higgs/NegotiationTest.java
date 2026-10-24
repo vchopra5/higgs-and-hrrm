@@ -2,19 +2,32 @@ package dev.higgs;
 
 public final class NegotiationTest {
     public static void main(String[] args) {
-        var neutral = Negotiation.band(0, 0, 0);
-        var friendly = Negotiation.band(1, 1, 0);
-        var annoyed = Negotiation.band(-2, 0, 0);
-        check(friendly.min() == 80 && annoyed.min() == 110, "relationship limits");
-        check(Negotiation.band(5, 1, -20).min() == 110, "native mistreatment overrides compliments");
+        var neutral = Negotiation.band(0);
+        var friendly = Negotiation.band(2);
+        var annoyed = Negotiation.band(-2);
+        var charmed = Negotiation.band(5);
+        check(neutral.min() == 95 && neutral.max() == 105, "fresh standing is the normal price");
+        check(charmed.min() == 75 && Negotiation.band(-5).max() == 125, "standing extremes");
+        check(Negotiation.band(9).equals(charmed) && Negotiation.band(-9).equals(Negotiation.band(-5)), "standing clamped");
+        for (int standing = -5; standing < 5; standing++) {
+            var now = Negotiation.band(standing);
+            var complimented = Negotiation.band(standing + 1);
+            check(complimented.min() == now.min() - 4 && complimented.max() == now.max() - 4, "every compliment is 4% cheaper");
+            check(now.name().equals(standing <= -2 ? "annoyed" : standing >= 2 ? "friendly" : "neutral"), "band name follows standing");
+        }
         expect(quote(neutral, null, 2, false), 2, 6);
         expect(quote(neutral, 24, null, false), 8, 24);
-        expect(quote(friendly, 15, 4, false), 4, 15);
+        expect(quote(charmed, 15, 4, false), 4, 15);
         var counter = quote(neutral, 15, 4, false);
         expect(counter, 5, 15);
         check(counter.counteroffer(), "underpriced offer must counter");
-        expect(quote(friendly, null, 4, true), 4, 15);
-        expect(Negotiation.quote(1, 0, 6, 12, 64, 64, 64, friendly, null, null, true), 1, 7);
+        check(quote(friendly, 15, 4, false).counteroffer(), "a little goodwill is not 80% off");
+        expect(quote(charmed, null, 4, true), 4, 16);
+        expect(Negotiation.quote(1, 0, 6, 12, 64, 64, 64, charmed, null, null, true), 1, 8);
+        // 48 items normally cost 16; whole emeralds hide changes below one emerald on small bundles.
+        expect(quote(neutral, 48, null, false), 16, 48);
+        expect(quote(annoyed, 48, null, false), 18, 48);
+        expect(quote(friendly, 48, null, false), 15, 48);
         check(Negotiation.quote(4, 0, 12, 0, 64, 64, 64, neutral, null, null, false) == null, "sold out");
         check(Negotiation.quote(4, 0, 12, 1, 64, 64, 64, neutral, 24, null, false).quantity() <= 12, "stock bounds");
         var twoCosts = Negotiation.quote(4, 2, 12, 10, 64, 64, 64, neutral, 6, 2, false);
@@ -23,7 +36,7 @@ public final class NegotiationTest {
         try { quote(neutral, -1, null, false); } catch (IllegalArgumentException e) { rejected = true; }
         check(rejected, "invalid counts rejected");
         // Exhaustively check integer bounds, stock accounting, and budget ceilings across bands.
-        for (var band : new Negotiation.Band[]{neutral, friendly, annoyed}) {
+        for (var band : new Negotiation.Band[]{neutral, friendly, annoyed, charmed, Negotiation.band(-5)}) {
             for (int budget = 1; budget <= 64; budget++) {
                 for (int cost = 1; cost <= 16; cost++) {
                     var result = Negotiation.quote(cost, 2, 7, 4, 64, 64, 64, band, null, budget, true);

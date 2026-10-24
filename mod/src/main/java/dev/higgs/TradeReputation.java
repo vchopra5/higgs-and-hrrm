@@ -8,7 +8,8 @@ record TradeReputation(int score, long updated, long lastHit) {
         return new TradeReputation(Math.max(-5, score - 2), now, now);
     }
     TradeReputation treatment(String tone, long now) {
-        if (tone.equals("neutral") || updated != 0 && now - updated < 60_000) return this;
+        // No cooldown: every polite or rude turn counts. HiggsVillagers assesses each turn once.
+        if (tone.equals("neutral")) return this;
         return new TradeReputation(Math.max(-5, Math.min(5, score + (tone.equals("polite") ? 1 : -2))), now, lastHit);
     }
 }

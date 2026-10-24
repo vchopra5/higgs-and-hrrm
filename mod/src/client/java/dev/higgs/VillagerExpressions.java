@@ -6,17 +6,22 @@ import java.util.UUID;
 
 /** Per-viewer reputation; drives the optional Fresh Animations expression overlay. */
 public final class VillagerExpressions {
-    private record Opinion(String face, long expires) {}
+    private record Opinion(String face, int standing, long expires) {}
     private static final Map<UUID, Opinion> opinions = new HashMap<>();
-    public static void update(UUID villager, String face) {
+    public static void update(UUID villager, String face, int standing) {
         opinions.entrySet().removeIf(entry -> entry.getValue().expires() < System.currentTimeMillis());
-        opinions.put(villager, new Opinion(face, System.currentTimeMillis() + 3000));
+        opinions.put(villager, new Opinion(face, standing, System.currentTimeMillis() + 3000));
     }
     public static void clear() { opinions.clear(); }
     public static String face(UUID villager, boolean hurt) {
         if (hurt) return "hurt";
         Opinion opinion = opinions.get(villager);
         return opinion == null || opinion.expires() < System.currentTimeMillis() ? "neutral" : opinion.face();
+    }
+    /** Standing from -5 to 5 towards this player, or null when the server has not reported one recently. */
+    public static Integer standing(UUID villager) {
+        Opinion opinion = opinions.get(villager);
+        return opinion == null || opinion.expires() < System.currentTimeMillis() ? null : opinion.standing();
     }
     /** Optional integration: Fresh Animations owns the geometry/textures. */
     public static void initializeAnimations() {

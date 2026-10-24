@@ -1,1 +1,1 @@
-{"required": true, "package": "dev.higgs.mixin", "compatibilityLevel": "JAVA_25", "mixins": ["VillagerPrices"], "injectors": {"defaultRequire": 1}}
+{"required": true, "package": "dev.higgs.mixin", "compatibilityLevel": "JAVA_25", "mixins": [], "injectors": {"defaultRequire": 1}}

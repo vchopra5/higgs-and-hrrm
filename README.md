@@ -179,11 +179,12 @@ Ask for an item, a quantity, a budget, or a better deal: “I only have two emer
 The server quotes exact whole-item amounts; say yes in a new turn to buy. A changed
 or counteroffered bundle always needs a fresh yes.
 
-Prices are relative to the native player-specific default trade: friendly 80–100%,
-neutral 95–110%, annoyed 110–125%. Explicit politeness and insults affect mood;
-bargaining or declining alone is neutral. Relationship scores persist per player
-and villager in the world data folder, are capped at -5 to +5, and change at most
-once per minute. Existing Minecraft reputation also matters. Higgs classifies the
+Each villager keeps one reputation score towards you, from -5 to +5, starting at 0
+(the middle of the bar above its head). A compliment adds 1; a hit or insult takes 2.
+Bargaining or declining alone is neutral. Each point moves prices 4% from the villager's
+base price: +5 is about 80%, 0 is 100%, -5 is about 120%, and asking for a discount can
+go 5% lower. Vanilla Minecraft reputation does not affect these voice quotes. Scores
+persist per player and villager in the world data folder. Higgs classifies the
 utterance, while the server enforces every limit. Quotes remain valid for two minutes.
 
 Bundles are limited to one stack per item (at most 64); secondary payments scale
@@ -203,7 +204,7 @@ Trade suggestions now use an optional “Interested?” preview, which cannot be
 
 Hitting a nearby adult villager starts voice automatically, including invulnerable demo villagers. A rolling 30-second window records attack count, elapsed time between the first and latest hits, and time since the previous hit. Higgs chooses the wording and emotional delivery from these statistics and the conversation; there are no fixed reaction tiers or scripted lines. These are attack attempts, not measured damage.
 
-A hit cancels an active quoted trade and worsens the current conversation's mood. Only an active trade shows cancellation feedback, which fades after six seconds; repeated hits do not restart the fade. Hits outside a trade do not open the tracker. Reactions cannot execute trade tools or count as spoken confirmation.
+A hit cancels an active quoted trade and costs 2 reputation. Only an active trade shows cancellation feedback, which fades after six seconds; repeated hits do not restart the fade. Hits outside a trade do not open the tracker. Reactions cannot execute trade tools or count as spoken confirmation.
 
 The bridge keeps only the latest queued statistics, waits until player speech/provider work finishes, and drops events older than 10 seconds. Higgs delivery uses per-response `instructions` for tone and energy: https://docs.boson.ai/models/higgs-realtime/guides/audio-and-voices.
 

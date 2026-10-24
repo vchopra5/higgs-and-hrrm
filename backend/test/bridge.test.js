@@ -207,3 +207,37 @@ test('voice confirmations carry trusted input-turn IDs, never model-supplied IDs
   assert.equal(bridge.sessions.get(sessionId).pending.has('late-old'),false);
 
 });
+
+test('compliments in the transcript reach the game server even if the model skips report_treatment', async t => {
+  const mock = new WebSocketServer({port: 0, host: '127.0.0.1'}); await once(mock, 'listening');
+  let upstream; const received=[];
+  mock.on('connection', ws => { upstream = ws; ws.on('message', data => {
+    received.push(JSON.parse(data));
+    if (JSON.parse(data).type === 'session.update') ws.send(JSON.stringify({type:'session.created'}));
+  }); });
+  const bridge = createBridge({token, apiKey:'test', upstreamUrl:`ws://127.0.0.1:${mock.address().port}`, log:()=>{}});
+  bridge.server.listen(0,'127.0.0.1'); await once(bridge.server,'listening');
+  t.after(async()=>{await bridge.close(); for(const ws of mock.clients) ws.terminate(); await new Promise(r=>mock.close(r));});
+  const base=`http://127.0.0.1:${bridge.server.address().port}`;
+  const auth={Authorization:`Bearer ${token}`,'Content-Type':'application/json'};
+  const response=await fetch(base+'/sessions',{method:'POST',headers:auth,body:JSON.stringify({playerId:'p',villagerId:'v',context:{}})});
+  const {sessionId,ticket}=await response.json();
+  const client=new WebSocket(base.replace('http:','ws:')+'/audio?mode=ptt&ticket='+ticket);
+  await once(client,'open'); await until(()=>bridge.sessions.get(sessionId).ready);
+  const emit=e=>upstream.send(JSON.stringify(e));
+  client.send(JSON.stringify({type:'audio',audio:Buffer.alloc(4800).toString('base64')}));
+  client.send(JSON.stringify({type:'commit'}));
+  await until(()=>bridge.sessions.get(sessionId).turnId===1);
+  emit({type:'conversation.item.input_audio_transcription.completed',item_id:'u1',transcript:'Your eyes are beautiful'});
+  emit({type:'conversation.item.input_audio_transcription.completed',item_id:'u1',transcript:'Your eyes are beautiful'});
+  await until(()=>bridge.sessions.get(sessionId).pending.size>0);
+  const tools=await (await fetch(base+`/sessions/${sessionId}/tools`,{headers:auth})).json();
+  assert.deepEqual(tools.map(({name,arguments:args,internal,turnId})=>({name,args,internal,turnId})),
+    [{name:'report_treatment',args:{treatment:'polite'},internal:true,turnId:1}]);
+  const posted=await fetch(base+`/sessions/${sessionId}/tools/${encodeURIComponent(tools[0].callId)}/result`,
+    {method:'POST',headers:auth,body:JSON.stringify({result:{status:'assessed'}})});
+  assert.equal(posted.status,200);
+  await delay(30);
+  assert.equal(received.some(e=>e.type==='conversation.item.create'&&e.item?.type==='function_call_output'),false,
+    'the model never sees the internal assessment');
+});

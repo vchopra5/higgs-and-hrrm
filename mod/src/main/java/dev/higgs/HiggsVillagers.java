@@ -9,7 +9,6 @@ import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
-import dev.higgs.mixin.VillagerPrices;
 import net.minecraft.world.inventory.MerchantMenu;
 import net.minecraft.world.item.trading.MerchantOffer;
 import net.minecraft.world.item.trading.ItemCost;
@@ -57,10 +56,8 @@ public final class HiggsVillagers implements ModInitializer {
             level.sendParticles(net.minecraft.core.particles.ParticleTypes.CRIT,
                 villager.getX(), villager.getY() + villager.getBbHeight() * 0.65, villager.getZ(),
                 6, 0.2, 0.25, 0.2, 0.08);
-            if (stats.count() > 1) level.sendParticles(net.minecraft.core.particles.ParticleTypes.ANGRY_VILLAGER,
-                villager.getX(), villager.getY() + villager.getBbHeight() + 0.2, villager.getZ(),
-                1, 0.1, 0.05, 0.1, 0);
         }
+        moodParticles(player, villager, false);
         // Physical treatment is authoritative and persists even without a voice connection.
         TradeReputation previousOpinion = relationships.getOrDefault(key, TradeReputation.neutral());
         TradeReputation hurtOpinion = previousOpinion.hit(now);
@@ -78,7 +75,6 @@ public final class HiggsVillagers implements ModInitializer {
             s = sessions.get(player.getUUID());
         }
         if (s == null || s.villager != villager) return;
-        s.mood = -2;
         boolean wasTrading = s.proposal != null && s.proposal.expires() > now;
         s.proposal = null;
         if (wasTrading) tradeStatus(s, outcome("cancelled", "Trade cancelled after being hit."));
@@ -91,13 +87,18 @@ public final class HiggsVillagers implements ModInitializer {
         s.hitEvent = event;
         s.hitAt = now;
     }
+    /** Opinion is per player, so only that player sees the hearts or angry clouds. */
+    private static void moodParticles(ServerPlayer player, Villager villager, boolean happy) {
+        player.level().sendParticles(player,
+            happy ? net.minecraft.core.particles.ParticleTypes.HEART : net.minecraft.core.particles.ParticleTypes.ANGRY_VILLAGER,
+            false, false, villager.getX(), villager.getY() + villager.getBbHeight() + 0.25, villager.getZ(),
+            happy ? 5 : 3, 0.3, 0.15, 0.3, 0);
+    }
     private final Map<String, TradeReputation> relationships = new HashMap<>();
     private Path relationshipFile;
     private String relationshipKey(Session s) { return s.player.getUUID() + ":" + s.villager.getUUID(); }
-    private Negotiation.Band band(Session s) {
-        return Negotiation.band(relationships.getOrDefault(relationshipKey(s), TradeReputation.neutral()).score(),
-            s.mood, s.villager.getPlayerReputation(s.player));
-    }
+    private int standing(Session s) { return relationships.getOrDefault(relationshipKey(s), TradeReputation.neutral()).score(); }
+    private Negotiation.Band band(Session s) { return Negotiation.band(standing(s)); }
     private void saveTradeReputations() {
         if (relationshipFile == null) return;
         try {
@@ -113,7 +114,7 @@ public final class HiggsVillagers implements ModInitializer {
         if (!Set.of("polite", "neutral", "rude").contains(tone)) return outcome("invalid", "Unknown treatment");
         if (turn <= 0 || turn <= s.treatmentTurn) return outcome("unchanged", "Treatment already assessed for this turn");
         s.treatmentTurn = turn;
-        s.mood = tone.equals("polite") ? 1 : tone.equals("rude") ? -1 : s.mood;
+        if (!tone.equals("neutral")) moodParticles(s.player, s.villager, tone.equals("polite"));
         String key = relationshipKey(s);
         TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
         long now = System.currentTimeMillis();
@@ -123,7 +124,9 @@ public final class HiggsVillagers implements ModInitializer {
             saveTradeReputations();
         }
         Negotiation.Band limits = band(s);
-        JsonObject result = outcome("assessed", "Treatment affects future quotes; existing quotes keep their agreed price.");
+        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Treatment turn={} tone={} relationship={} band={}",
+            turn, tone, next.score(), limits.name());
+        JsonObject result = outcome("assessed","Treatment affects future quotes; existing quotes keep their agreed price.");
         result.addProperty("relationship", limits.name());
         result.addProperty("minPricePercent", limits.min()); result.addProperty("maxPricePercent", limits.max());
         return result;
@@ -136,7 +139,7 @@ public final class HiggsVillagers implements ModInitializer {
         boolean polling;
         Proposal proposal;
         int pollFailures;
-        int mood, treatmentTurn;
+        int treatmentTurn;
         JsonObject hitEvent;
         long hitAt;
         int lastPurchaseTurn = -1;
@@ -202,6 +205,7 @@ public final class HiggsVillagers implements ModInitializer {
                         expression.addProperty("type", "villager_expression");
                         expression.addProperty("villagerId", villager.getUUID().toString());
                         expression.addProperty("expression", band(opinion).name());
+                        expression.addProperty("standing", standing(opinion));
                         send(viewer, expression);
                     }
                 }
@@ -474,7 +478,7 @@ public final class HiggsVillagers implements ModInitializer {
         if (index < 0 || index >= s.villager.getOffers().size()) return outcome("unavailable", "That offer does not exist.");
         s.villager.setTradingPlayer(s.player);
         try {
-            ((VillagerPrices) s.villager).higgs$updateSpecialPrices(s.player);
+            // Base prices only: vanilla gossip discounts would apply reputation twice.
             var offer = s.villager.getOffers().get(index);
             if (offer.isOutOfStock()) return outcome("unavailable", "That offer is sold out.");
             Integer quantity = arguments.has("quantity") ? arguments.get("quantity").getAsInt() : null;
@@ -535,7 +539,6 @@ public final class HiggsVillagers implements ModInitializer {
         MerchantMenu menu = null;
         MerchantOffer original = null;
         try {
-            ((VillagerPrices) s.villager).higgs$updateSpecialPrices(s.player);
             if (p.index() >= s.villager.getOffers().size()) return outcome("unavailable", "Offer no longer exists.");
             var offer = s.villager.getOffers().get(p.index());
             if (offer.isOutOfStock() || offer.getMaxUses() - offer.getUses() < p.stockUses() || !ItemStack.matches(p.baseA(), offer.getCostA())
@@ -573,6 +576,7 @@ public final class HiggsVillagers implements ModInitializer {
                 feedback.add("costB", item(p.costB()));
                 feedback.add("receive", item(p.result()));
                 send(s.player, feedback);
+                moodParticles(s.player, s.villager, true);
             }
             JsonObject receipt = outcome(purchased ? "purchased" : "unavailable", purchased
                 ? p.result().getCount() + " × " + p.result().getHoverName().getString() + " added to your inventory. Trade is FINISHED. Briefly confirm success; do not ask for confirmation or propose it again."
