@@ -40,6 +40,7 @@ public final class HiggsVillagers implements ModInitializer {
     private VillagerPersonalityService personalities;
     private VillagerChatter chatter;
     private VillageTracker villages;
+    private boolean companions = true;
     private int ticks;
     private final Map<String, RecentHits> hits = new HashMap<>();
     private void hit(MinecraftServer server, ServerPlayer player, Villager villager) {
@@ -108,6 +109,74 @@ public final class HiggsVillagers implements ModInitializer {
             golem.setPersistentAngerTarget(EntityReference.<LivingEntity>of(player));
             golem.startPersistentAngerTimer();
         }
+    }
+    private static void face(Villager villager, ServerPlayer player) {
+        double dx = player.getX() - villager.getX();
+        double dz = player.getZ() - villager.getZ();
+        if (dx * dx + dz * dz < 0.001) return;
+        float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90);
+        float turn = net.minecraft.util.Mth.approachDegrees(villager.getYRot(), yaw, 12);
+        villager.setYRot(turn);
+        villager.setYBodyRot(turn);
+        villager.setYHeadRot(turn);
+        villager.getLookControl().setLookAt(player, 30, 30);
+        villager.getNavigation().stop();
+    }
+    /** A neighbour wandering within four blocks mid-conversation may join in. */
+    private void maybeJoin(MinecraftServer server, Session s) {
+        if (s.id == null || s.companion != null || s.companionJoining || java.util.concurrent.ThreadLocalRandom.current().nextDouble() >= 0.2) return;
+        Villager joining = companionFor(s);
+        if (joining == null) return;
+        s.companionJoining = true;
+        personalities.prepare(joining).whenComplete((prepared, failure) -> {
+            if (server.isStopped()) return;
+            server.execute(() -> {
+                if (failure != null || sessions.get(s.player.getUUID()) != s || s.companion != null || !joining.isAlive()) { s.companionJoining = false; return; }
+                personalities.applyName(joining, prepared);
+                request("POST", "/sessions/" + s.id + "/companion", chatter.speaker(s.player, joining, prepared.profile()))
+                    .whenComplete((reply, error) -> server.execute(() -> {
+                        s.companionJoining = false;
+                        if (error != null || sessions.get(s.player.getUUID()) != s || s.companion != null) return;
+                        s.companion = joining;
+                        s.companionProfile = prepared.profile();
+                        chatter.villagerBusy(joining);
+                        JsonObject message = new JsonObject();
+                        message.addProperty("type", "companion_join");
+                        message.addProperty("sessionId", s.id);
+                        message.addProperty("entityId", joining.getId());
+                        message.addProperty("name", joining.getName().getString());
+                        send(s.player, message);
+                        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("{} joined {}'s conversation with {}",
+                            joining.getName().getString(), s.player.getName().getString(), s.villager.getName().getString());
+                    }));
+            });
+        });
+    }
+    /** The companion was asked to leave and agreed: it walks off and will not rejoin this player for a while. */
+    private void companionLeft(Session s) {
+        Villager leaving = s.companion;
+        if (leaving == null) return;
+        s.companion = null;
+        s.companionProfile = null;
+        companionCooldown.put(s.player.getUUID() + ":" + leaving.getUUID(), System.currentTimeMillis() + COMPANION_COOLDOWN_MS);
+        stepAway(s.player, leaving);
+        s.player.sendSystemMessage(net.minecraft.network.chat.Component.literal(leaving.getName().getString() + " leaves you to it")
+            .withStyle(net.minecraft.ChatFormatting.GRAY), true);
+    }
+    /** The nearest idle neighbour within four blocks may join; never one already talking or hostile to the player. */
+    private final Map<String, Long> companionCooldown = new HashMap<>();
+    private static final long COMPANION_COOLDOWN_MS = 2 * 60_000;
+    private Villager companionFor(Session s) {
+        if (!companions) return null;
+        long now = System.currentTimeMillis();
+        companionCooldown.values().removeIf(until -> until < now);
+        return s.villager.level().getEntitiesOfClass(Villager.class, s.villager.getBoundingBox().inflate(8),
+                v -> v != s.villager && v.isAlive() && !v.isBaby() && !v.isSleeping() && !v.isTrading()
+                    && (v.distanceToSqr(s.villager) <= 16 || v.distanceToSqr(s.player) <= 16)
+                    && !companionCooldown.containsKey(s.player.getUUID() + ":" + v.getUUID())
+                    && !Negotiation.hostile(standing(new Session(s.player, v)))
+                    && sessions.values().stream().noneMatch(other -> other.villager == v || other.companion == v))
+            .stream().min(java.util.Comparator.comparingDouble(v -> v.distanceToSqr(s.villager))).orElse(null);
     }
     /** Opinion is per player, so only that player sees the hearts or angry clouds. */
     private static void moodParticles(ServerPlayer player, Villager villager, boolean happy) {
@@ -181,6 +250,10 @@ public final class HiggsVillagers implements ModInitializer {
         JsonObject lastReceipt;
         JsonObject openingContext;
         QuestOffer questOffer;
+        /** A neighbour who joined the conversation; it speaks but never trades. */
+        Villager companion;
+        VillagerPersonalityStore.Profile companionProfile;
+        boolean companionJoining;
         final Map<String, JsonObject> purchases = new HashMap<>();
         final Map<String, JsonObject> toolResults = new HashMap<>();
         final Set<String> pendingTools = new HashSet<>();
@@ -279,6 +352,7 @@ public final class HiggsVillagers implements ModInitializer {
         token = config.getOrDefault("HIGGS_BRIDGE_TOKEN", "");
         personalities = new VillagerPersonalityService();
         memory = new VillagerMemoryService(config, personalities);
+        companions = !"false".equalsIgnoreCase(config.getOrDefault("HIGGS_COMPANION_ENABLED", "true"));
         villages = new VillageTracker(config, (player, villager) ->
             relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral()).score());
         ServerLifecycleEvents.SERVER_STARTED.register(villages::start);
@@ -287,7 +361,9 @@ public final class HiggsVillagers implements ModInitializer {
             public void send(ServerPlayer player, JsonObject message) { HiggsVillagers.this.send(player, message); }
             public boolean canSend(ServerPlayer player) { return ServerPlayNetworking.canSend(player, ControlPayload.TYPE); }
             public boolean talking(ServerPlayer player) { return sessions.containsKey(player.getUUID()); }
-            public boolean talking(Villager villager) { return sessions.values().stream().anyMatch(s -> s.villager == villager); }
+            public boolean talking(Villager villager) {
+                return sessions.values().stream().anyMatch(s -> s.villager == villager || s.companion == villager);
+            }
             public TradeReputation opinion(ServerPlayer player, Villager villager) {
                 return relationships.getOrDefault(player.getUUID() + ":" + villager.getUUID(), TradeReputation.neutral());
             }
@@ -347,17 +423,10 @@ public final class HiggsVillagers implements ModInitializer {
                 facing.merge(s.villager.getUUID(), s, (a, b) ->
                     a.player.distanceToSqr(a.villager) <= b.player.distanceToSqr(b.villager) ? a : b);
             }
-            for (Session s : facing.values()) {
-                double dx = s.player.getX() - s.villager.getX();
-                double dz = s.player.getZ() - s.villager.getZ();
-                if (dx * dx + dz * dz < 0.001) continue;
-                float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90);
-                float turn = net.minecraft.util.Mth.approachDegrees(s.villager.getYRot(), yaw, 12);
-                s.villager.setYRot(turn);
-                s.villager.setYBodyRot(turn);
-                s.villager.setYHeadRot(turn);
-                s.villager.getLookControl().setLookAt(s.player, 30, 30);
-                s.villager.getNavigation().stop();
+            for (Session s : facing.values()) face(s.villager, s.player);
+            if (ticks % 40 == 0) for (Session s : List.copyOf(sessions.values())) if (valid(s)) maybeJoin(server, s);
+            for (Session s : sessions.values()) {
+                if (s.companion != null && s.companion.isAlive() && s.companion.distanceToSqr(s.player) <= 144) face(s.companion, s.player);
             }
             if (ticks % 20 == 0) {
                 for (ServerPlayer viewer : server.getPlayerList().getPlayers()) {
@@ -475,7 +544,22 @@ public final class HiggsVillagers implements ModInitializer {
                     if (failure != null) { end(player, true); error(player, "Could not save villager identity. Check world save permissions or cast tags."); return; }
                     personalities.applyName(villager, prepared);
                     s.profile = prepared.profile();
-                    startVoice(server, s, autoGreeting);
+                    Villager companion = companionFor(s);
+                    if (companion == null) { startVoice(server, s, autoGreeting); return; }
+                    personalities.prepare(companion).whenComplete((joined, joinFailure) -> {
+                        if (server.isStopped()) return;
+                        server.execute(() -> {
+                            if (sessions.get(player.getUUID()) != s) return;
+                            // A failed or now-busy companion just means a two-way conversation.
+                            if (joinFailure == null && companion.isAlive() && !companion.isSleeping()) {
+                                personalities.applyName(companion, joined);
+                                s.companion = companion;
+                                s.companionProfile = joined.profile();
+                                chatter.villagerBusy(companion);
+                            }
+                            startVoice(server, s, autoGreeting);
+                        });
+                    });
                 });
             });
         } catch (RuntimeException ex) { error(player, "Invalid villager request."); }
@@ -496,6 +580,13 @@ public final class HiggsVillagers implements ModInitializer {
             JsonObject village = villages.context(player, villager);
             if (village != null) context.add("village", village);
             context.add("gifts", giftContext(player, villager));
+            if (s.companion != null) {
+                JsonObject neighbour = new JsonObject();
+                neighbour.addProperty("name", s.companion.getName().getString());
+                neighbour.addProperty("profession", VillagerMemoryService.profession(s.companion));
+                context.add("companion", neighbour);
+                body.add("companion", chatter.speaker(player, s.companion, s.companionProfile));
+            }
             JsonObject errands = errandContext(player, villager);
             if (!errands.isEmpty()) context.add("errands", errands);
             memory.conversationContext(villager, player).entrySet().forEach(entry -> context.add(entry.getKey(), entry.getValue()));
@@ -524,6 +615,10 @@ public final class HiggsVillagers implements ModInitializer {
                     response.addProperty("type", "session"); response.addProperty("sessionId", s.id);
                     String ticket = r.get("ticket").getAsString(); response.addProperty("ticket", ticket);
                     response.addProperty("url", publicBackend.replaceFirst("^http", "ws") + "/audio?ticket=" + URLEncoder.encode(ticket, StandardCharsets.UTF_8));
+                    if (s.companion != null) {
+                        response.addProperty("companionEntityId", s.companion.getId());
+                        response.addProperty("companionName", s.companion.getName().getString());
+                    }
                     send(player, response);
                     Quest open = quests.get(relationshipKey(s));
                     if (open != null) questStatus(s, open, open.delivered() ? "quest_delivered" : "quest", "");
@@ -569,6 +664,13 @@ public final class HiggsVillagers implements ModInitializer {
                                 s.openingContext = null;
                             }
                             result.addProperty("status", "offered");
+                            s.toolResults.put(callId, result);
+                            submitToolResult(s, callId, result);
+                            continue;
+                        }
+                        if (name.equals("_companion_left") && call.has("internal") && call.get("internal").getAsBoolean()) {
+                            companionLeft(s);
+                            result.addProperty("status", "left");
                             s.toolResults.put(callId, result);
                             submitToolResult(s, callId, result);
                             continue;
@@ -1034,6 +1136,16 @@ public final class HiggsVillagers implements ModInitializer {
         return true;
     }
     private void walkAway(ServerPlayer player, Villager villager) {
+        stepAway(player, villager);
+        villager.playSound(SoundEvents.VILLAGER_NO);
+        moodParticles(player, villager, false);
+        player.sendSystemMessage(net.minecraft.network.chat.Component.literal(villager.getName().getString() + " turns away from you")
+            .withStyle(net.minecraft.ChatFormatting.GOLD), true);
+        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("{} shunned {} (standing {})", villager.getName().getString(),
+            player.getName().getString(), standing(new Session(player, villager)));
+    }
+    /** Turn away from the player and walk about eight blocks off. */
+    private static void stepAway(ServerPlayer player, Villager villager) {
         var away = villager.position().subtract(player.position()).multiply(1, 0, 1);
         if (away.lengthSqr() < 0.01) away = new net.minecraft.world.phys.Vec3(1, 0, 0);
         away = away.normalize().scale(8);
@@ -1044,12 +1156,6 @@ public final class HiggsVillagers implements ModInitializer {
         // Villagers walk through their brain; NoAI villagers (like demo ones) can only turn their back.
         if (!villager.isNoAi()) villager.getBrain().setMemory(net.minecraft.world.entity.ai.memory.MemoryModuleType.WALK_TARGET,
             new net.minecraft.world.entity.ai.memory.WalkTarget(villager.position().add(away), 0.6f, 1));
-        villager.playSound(SoundEvents.VILLAGER_NO);
-        moodParticles(player, villager, false);
-        player.sendSystemMessage(net.minecraft.network.chat.Component.literal(villager.getName().getString() + " turns away from you")
-            .withStyle(net.minecraft.ChatFormatting.GOLD), true);
-        org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("{} shunned {} (standing {})", villager.getName().getString(),
-            player.getName().getString(), standing(new Session(player, villager)));
     }
     /** Quest options for a lowball offer: only from villagers who are not annoyed, one open quest at a time. */
     private QuestOffer questOffer(Session s, MerchantOffer offer, Negotiation.Band limits, int index, Integer quantity, Integer payment) {

@@ -11,6 +11,7 @@ import {
 import { completeToolBatch, expireTools, receiveToolCall } from './tools.js';
 import { MemoryContext } from './memory-context.js';
 import { TRADE_TOOLS, ungroundedTrade } from './grounding.js';
+import { Companion, addressedTo, askedToLeave, parseCompanion } from './companion.js';
 
 const DURATION_MESSAGE = 'The ten-minute conversation limit was reached. '
   + 'Start a new conversation to continue.';
@@ -70,6 +71,13 @@ export class BridgeSession {
     this.trade = { turnId: -1, tools: new Set(), purchased: false, quote: null };
     this.correctedTurn = -1;
     this.responseText = '';
+    // An optional neighbour who joins the conversation without tools.
+    this.companionSpec = parseCompanion(body.companion);
+    this.companion = null;
+    this.lastTranscript = null;
+    this.lastCommitAt = 0;
+    // Recent lines, so a neighbour joining mid-conversation can catch up.
+    this.recentLines = [];
     this.timer = setTimeout(() => {
       this.sendError(true, 'session_duration_limit', DURATION_MESSAGE);
       this.close('session_duration_limit');
@@ -244,6 +252,7 @@ export class BridgeSession {
       elapsedMs: now - this.created, limitMs: LIMITS.sessionMs,
       events: this.debugEvents.map(({ at, ...event }) => ({ ...event, ageMs: now - at })),
       tools: this.debugTools.map(({ at, ...tool }) => ({ ...tool, ageMs: now - at })),
+      companion: this.companion?.state() ?? null,
       pending: [...this.pending.values()].map(tool => ({ name: tool.name, internal: Boolean(tool.internal),
         arguments: debugText(tool.arguments), ageMs: now - tool.created })),
     };
@@ -274,6 +283,17 @@ export class BridgeSession {
   flushPreparedResponse() {
     if (this.closed || this.recording || this.muted || this.awaitingCancellation
         || !this.responseDone || !this.queuedResponse || this.queuedAudioCommit !== null || this.memoryContext.waiting) return;
+    // Addressed by name (or asked to leave), the companion answers instead; the main villager just hears it.
+    if (this.companion && this.lastTranscript && this.lastTranscript.at >= this.lastCommitAt) {
+      const said = this.lastTranscript.text, partner = this.context.name ?? '';
+      const routed = askedToLeave(said, this.companion.spec.name, partner) ? this.companion.askToLeave()
+        : addressedTo(said, this.companion.spec.name, partner) && this.companion.answer();
+      if (routed) {
+        this.queuedResponse = false;
+        this.stage('companion_answer', { turnId: this.turnId });
+        return;
+      }
+    }
     this.queuedResponse = false;
     this.cancelled = false;
     this.responseDone = false;
@@ -281,6 +301,7 @@ export class BridgeSession {
   }
 
   commitAudioTurn(turnId) {
+    this.lastCommitAt = this.now();
     this.memoryContext.beginTurn(turnId);
     this.sendProvider({ type: 'input_audio_buffer.commit', event_id: `audio-commit-${this.id}-${turnId}` });
   }
@@ -408,6 +429,9 @@ export class BridgeSession {
           this.sendClient({ type: 'transcript', speaker: 'you', id: event.item_id ?? 'input',
             text: String(event.transcript ?? '').slice(0, 4000), replace: true });
           this.reportTreatment(String(event.transcript ?? '').slice(0, 4000), event.item_id);
+          this.lastTranscript = { text: String(event.transcript ?? '').slice(0, 4000), at: this.now() };
+          this.remember(this.context.playerName ?? 'The player', this.lastTranscript.text);
+          this.companion?.hear(this.context.playerName ?? 'The player', this.lastTranscript.text);
           if (this.mode === 'ptt') this.memoryContext.transcript(event.item_id, event.transcript);
           break;
         case 'conversation.item.input_audio_transcription.failed':
@@ -424,7 +448,11 @@ export class BridgeSession {
             if (typeof text === 'string') this.reactionText = (final ? text : this.reactionText + text).slice(0, 4000);
             break;
           }
-          if (final && typeof text === 'string') this.responseText += ' ' + text;
+          if (final && typeof text === 'string') {
+            this.responseText += ' ' + text;
+            this.remember(this.context.name ?? 'The villager', text);
+            this.companion?.hear(this.context.name ?? 'Your neighbour', text.slice(0, 600));
+          }
           if (typeof text === 'string') this.sendClient({ type: 'transcript', speaker: 'villager',
             id: event.item_id ?? event.response_id ?? this.responseId ?? 'output',
             text: text.slice(0, 4000), replace: final });
@@ -484,6 +512,13 @@ export class BridgeSession {
         turnId: this.turnId, created: this.now() });
     }
     this.stage('upstream_ready');
+    if (this.companionSpec && !this.companion) {
+      this.companion = new Companion(this, this.companionSpec, {
+        partner: { name: this.context.name ?? 'your neighbour', profession: this.context.profession ?? 'villager' },
+        playerName: this.context.playerName ?? 'the traveller',
+      });
+      this.companion.start();
+    }
     this.sendClient({ type: 'status', message: 'Ready' });
     this.sendClient({
       type: 'debug_context', context: this.context, voice: this.requestedVoice ?? null, voiceFallback: this.voiceFallback,
@@ -546,9 +581,60 @@ export class BridgeSession {
       this.queuedAudioCommit = null;
       this.commitAudioTurn(turnId);
     }
+    const spoken = this.responseText.trim();
     if (this.queuedResponse) {
       this.flushPreparedResponse();
     } else if (!this.correctUngroundedTrade(response)) completeToolBatch(this);
+    // Nothing else started: the neighbour may chime in after a finished spoken line.
+    if (response?.status === 'completed' && spoken && this.responseDone && !this.hasTools && !this.recording
+        && !this.queuedResponse && ![...this.pending.values()].some(tool => !tool.internal)) this.companion?.maybeInterject(this.turnId);
+  }
+
+  remember(speaker, text) {
+    if (!text) return;
+    this.recentLines.push({ speaker, text: String(text).slice(0, 600) });
+    if (this.recentLines.length > 8) this.recentLines.shift();
+  }
+
+  /** Nobody is speaking or about to: safe for a joining neighbour to say hello. */
+  quiet() {
+    return this.responseDone && !this.recording && !this.queuedResponse && !this.awaitingCancellation && !this.closed;
+  }
+
+  /** A neighbour walked up mid-conversation (sent by the game server). */
+  addCompanion(body) {
+    if (this.closed || !this.ready) return 'unavailable';
+    if (this.companion) return 'occupied';
+    const spec = parseCompanion(body);
+    if (!spec) return 'invalid';
+    this.companion = new Companion(this, spec, {
+      partner: { name: this.context.name ?? 'your neighbour', profession: this.context.profession ?? 'villager' },
+      playerName: this.context.playerName ?? 'the traveller',
+      history: this.recentLines.slice(-6),
+    });
+    this.companion.connect(); // The main session is long since ready: no stagger needed.
+    this.stage('companion_joined', { name: spec.name });
+    return 'joined';
+  }
+
+  /** The companion said goodbye: the game server walks it away, the client stops outlining it. */
+  companionLeft(companion) {
+    if (this.companion !== companion) return;
+    this.companion = null;
+    companion.close();
+    this.sendClient({ type: 'companion_left', entityId: companion.spec.entityId });
+    const callId = `companion-left-${this.id}-${companion.spec.entityId}-${this.now()}`;
+    this.pending.set(callId, { callId, name: '_companion_left', arguments: { entityId: companion.spec.entityId }, internal: true,
+      turnId: this.turnId, created: this.now() });
+    this.stage('companion_left', { name: companion.spec.name });
+  }
+
+  /** The companion spoke: the main villager hears it as context, never as player speech. */
+  hearCompanion(name, line) {
+    this.remember(name, line);
+    this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user',
+      content: [{ type: 'input_text', text: `[${name}, your neighbour, said] ${line}` }] } });
+    this.stage('companion_line', { turnId: this.turnId });
   }
 
   finishReaction(response) {
@@ -559,6 +645,7 @@ export class BridgeSession {
         this.recentReactionLines.push(text.slice(0, 500));
         this.recentReactionLines = this.recentReactionLines.slice(-6);
         this.sendClient({ type: 'transcript', speaker: 'villager', id: response.id ?? 'reaction', text, replace: true });
+        this.companion?.hear(this.context.name ?? 'Your neighbour', text);
         for (const event of this.reactionAudio) relayProviderAudio(this, event);
       } else {
         this.stage('reaction_filtered', { repeated, retry: this.currentReaction.retry ?? 0 });
@@ -631,6 +718,7 @@ export class BridgeSession {
     clearTimeout(this.timer);
     clearTimeout(this.connectTimer);
     this.memoryContext.close();
+    this.companion?.close();
     for (const socket of [this.client, this.upstream]) {
       if (socket?.readyState === WebSocket.OPEN) socket.close(1000, reason);
       else if (socket?.readyState === WebSocket.CONNECTING) socket.terminate();

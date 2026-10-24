@@ -26,6 +26,9 @@ final class DebugPages {
         lines.add("Responses " + number(diagnostics, "responses") + "  first audio " + text(diagnostics, "firstAudioLatencyMs", "—")
             + "ms  VAD " + number(diagnostics, "speechStarts") + "/" + number(diagnostics, "speechStops"));
         lines.add("Last event " + text(diagnostics, "lastEvent", "?") + "  error " + text(diagnostics, "lastError", "none"));
+        JsonObject companion = object(debug, "companion");
+        if (companion != null) lines.add("Companion " + text(companion, "name", "?") + "  " + (bool(companion, "ready") ? "ready" : "connecting")
+            + (bool(companion, "speaking") ? "  speaking" : "") + "  lines " + number(companion, "lines"));
         JsonObject suppressed = object(diagnostics, "suppressedAudio");
         if (suppressed != null) {
             StringBuilder counts = new StringBuilder();

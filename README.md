@@ -199,6 +199,26 @@ remembers what you gave and what it refused (saved in `data/higgs-gifts.json`). 
 what it likes. A villager that says it took a gift without actually receiving one is
 corrected, like an invented trade.
 
+## Three-way conversations
+
+When you start talking to a villager, the nearest idle neighbour within four blocks (one
+that is not hostile to you) joins in, outlined alongside your partner and turned to face
+you. It hears everything, and now and then adds a short remark of its own after your
+partner speaks: agreeing, teasing, or gossiping about you from its own opinion. Say its
+name (“Bram, what do you think?”) and it answers instead. The neighbour has its own
+personality and voice and speaks from where it stands, never over your partner, but it
+never trades, takes gifts, or hands out quests or errands; talk to it directly for that.
+Its lines appear in chat under its name.
+
+Villagers who wander within four blocks of you or your partner mid-conversation may join
+too (a one-in-five chance every two seconds while nobody else has joined): they catch up
+on the last few lines and greet you or react to what was said. Ask a companion to leave
+(“Bram, could you give us a moment?”, “leave us alone, please”): one who likes you always
+says goodbye and walks off; a neutral one goes half the time, and an annoyed one usually
+stays to listen, with a nosy or pointed reply. One that leaves will not rejoin you for two
+minutes. Each three-way conversation uses a second Boson session; set
+`HIGGS_COMPANION_ENABLED=false` in `.env` to turn it off.
+
 ## Errands
 
 Ask a villager for work (“anything I can help with?”) and it may send you to a neighbour

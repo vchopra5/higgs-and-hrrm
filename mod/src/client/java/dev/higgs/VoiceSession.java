@@ -25,6 +25,12 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private final ArrayBlockingQueue<Outbound> outgoing = new ArrayBlockingQueue<>(64);
     private final net.minecraft.world.entity.Entity villager;
     private volatile SpatialVoice playback;
+    /** The joining neighbour, if any. Its lines wait for the main villager to finish so the two never overlap. */
+    private volatile net.minecraft.world.entity.Entity companion;
+    private SpatialVoice companionPlayback;
+    private final java.util.ArrayDeque<byte[]> companionPending = new java.util.ArrayDeque<>();
+    private int companionPendingBytes;
+    private long mainQuietSince = -1;
     private volatile long playbackGeneration;
     private final AtomicBoolean closed = new AtomicBoolean();
     private final AtomicBoolean microphoneStarted = new AtomicBoolean();
@@ -49,7 +55,13 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private final Thread sender;
 
     VoiceSession(String url, String ticket, net.minecraft.world.entity.Entity villager, Consumer<String> status, Consumer<VoiceCaptions.Line> chat, Runnable ended) {
+        this(url, ticket, villager, null, status, chat, ended);
+    }
+
+    VoiceSession(String url, String ticket, net.minecraft.world.entity.Entity villager, net.minecraft.world.entity.Entity companion,
+                 Consumer<String> status, Consumer<VoiceCaptions.Line> chat, Runnable ended) {
         this.villager = villager;
+        this.companion = companion;
         this.status = status;
         this.chat = chat;
         this.ended = ended;
@@ -187,7 +199,55 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
             SpatialVoice previous = playback;
             playback = null;
             if (previous != null) previous.cancel();
+            companionPending.clear();
+            companionPendingBytes = 0;
+            if (companionPlayback != null) companionPlayback.cancel();
+            companionPlayback = null;
         });
+    }
+
+    private void playCompanion(byte[] bytes) {
+        long generation = playbackGeneration;
+        net.minecraft.client.Minecraft.getInstance().execute(() -> {
+            if (closed.get() || !muted || companion == null || generation != playbackGeneration
+                || companionPendingBytes + bytes.length > 48000 * 30) return;
+            companionPending.addLast(bytes);
+            companionPendingBytes += bytes.length;
+            pumpCompanion();
+        });
+    }
+
+    /** A neighbour joined or (null) left; what it already said finishes playing. Client thread. */
+    void setCompanion(net.minecraft.world.entity.Entity entity) {
+        companion = entity;
+        ConversationOutline.setCompanion(entity == null ? -1 : entity.getId());
+    }
+
+    /** Client tick: start held companion audio once the main villager has been quiet for a moment. */
+    void tick() { if (!closed.get()) pumpCompanion(); }
+
+    private void pumpCompanion() {
+        long now = System.currentTimeMillis();
+        if (playback != null && !playback.closed() && playback.queuedBytes() > 0) { mainQuietSince = -1; return; }
+        if (mainQuietSince < 0) mainQuietSince = now;
+        if (companionPending.isEmpty()) return;
+        boolean speaking = companionPlayback != null && !companionPlayback.closed() && companionPlayback.queuedBytes() > 0;
+        // Native buffers still hold ~400 ms of the main villager after its queue empties.
+        if (!speaking && now - mainQuietSince < 450) return;
+        if (companionPlayback == null || companionPlayback.closed()) {
+            if (companionPlayback != null) companionPlayback.cancel();
+            companionPlayback = new SpatialVoice(companion);
+            if (net.minecraft.client.Minecraft.getInstance().getSoundManager().play(companionPlayback)
+                == net.minecraft.client.sounds.SoundEngine.PlayResult.NOT_STARTED) {
+                companionPlayback.cancel();
+                companionPlayback = null;
+                companionPending.clear();
+                companionPendingBytes = 0;
+                return;
+            }
+        }
+        while (!companionPending.isEmpty()) companionPlayback.offer(companionPending.removeFirst());
+        companionPendingBytes = 0;
     }
 
     private void play(byte[] bytes) {
@@ -217,8 +277,15 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                 String type = event.get("type").getAsString();
                 if (!"diagnostics".equals(type) && !"debug_context".equals(type)) lastEvent = type;
                 switch (type) {
-                    case "transcript" -> captions.update(event.get("speaker").getAsString(), event.get("id").getAsString(),
-                        event.get("text").getAsString(), event.get("replace").getAsBoolean()).forEach(chat);
+                    case "transcript" -> {
+                        String speaker = event.get("speaker").getAsString();
+                        // Companion lines arrive final only; the caption assembler handles player and main villager.
+                        if (speaker.equals("companion")) {
+                            String line = event.get("text").getAsString().replaceAll("§.", "").replaceAll("[\\p{Cntrl}]", " ").strip();
+                            if (!line.isEmpty()) chat.accept(new VoiceCaptions.Line("companion", line));
+                        } else captions.update(speaker, event.get("id").getAsString(),
+                            event.get("text").getAsString(), event.get("replace").getAsBoolean()).forEach(chat);
+                    }
                     case "diagnostics" -> backendDiagnostics = event;
                     case "debug_context" -> debugContext = event;
                     case "audio" -> {
@@ -226,9 +293,11 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                         byte[] bytes = Base64.getDecoder().decode(event.get("audio").getAsString());
                         receivedChunks++; receivedBytes += bytes.length;
                         if ((bytes.length & 1) != 0) throw new IllegalArgumentException("Invalid PCM");
-                        if (bytes.length > 0) play(bytes);
+                        if (bytes.length > 0 && event.has("speaker") && "companion".equals(event.get("speaker").getAsString())) playCompanion(bytes);
+                        else if (bytes.length > 0) play(bytes);
                     }
                     case "clear" -> clearPlayback();
+                    case "companion_left" -> net.minecraft.client.Minecraft.getInstance().execute(() -> setCompanion(null));
                     case "speech" -> speaking = event.get("active").getAsBoolean();
                     case "status" -> {
                         String message = event.get("message").getAsString();

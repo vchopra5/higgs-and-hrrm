@@ -39,6 +39,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     private boolean tutorialDisabled;
     private VoiceSession lastVoice;
     private AmbientChatter chatter;
+    private volatile String companionName = "Villager";
     private long diagnosticRefresh;
     private int diagnosticWidth;
     private List<String> diagnosticLines = List.of();
@@ -149,6 +150,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             handoff.tick(client);
             if (client.player == null || client.level == null) { stop(false); stopChatter(); return; }
+            if (voice != null) voice.tick();
             if (chatter != null) {
                 chatter.tick(client);
                 if (chatter.closed()) chatter = null;
@@ -260,6 +262,15 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     java.util.UUID.fromString(message.get("villagerId").getAsString()), message.get("expression").getAsString(),
                     message.has("standing") ? message.get("standing").getAsInt() : 0);
                 case "trade_complete" -> handoff.start(Minecraft.getInstance(), message);
+                case "companion_join" -> {
+                    if (voice == null || activeSessionId == null || !activeSessionId.equals(message.get("sessionId").getAsString())) return;
+                    var entity = Minecraft.getInstance().level.getEntity(message.get("entityId").getAsInt());
+                    if (entity == null) return;
+                    companionName = message.get("name").getAsString();
+                    voice.setCompanion(entity);
+                    Minecraft.getInstance().gui.getChat().addClientSystemMessage(Component.literal(companionName + " joins the conversation")
+                        .withStyle(ChatFormatting.GRAY, ChatFormatting.ITALIC));
+                }
                 case "chatter" -> {
                     if (voice != null || pending) return;
                     stopChatter();
@@ -286,9 +297,14 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                     activeSessionId = message.get("sessionId").getAsString();
                     long current = ++generation;
                     String villagerName = villagerName(targetId);
+                    int companionId = message.has("companionEntityId") ? message.get("companionEntityId").getAsInt() : -1;
+                    companionName = message.has("companionName") ? message.get("companionName").getAsString() : "Villager";
+                    if (companionId >= 0) ConversationOutline.setCompanion(companionId);
                     voice = new VoiceSession(message.get("url").getAsString(), message.get("ticket").getAsString(),
                         Minecraft.getInstance().level.getEntity(targetId),
-                        HiggsVillagersClient::status, line -> postChat(villagerName, line), () -> Minecraft.getInstance().execute(() -> {
+                        companionId < 0 ? null : Minecraft.getInstance().level.getEntity(companionId),
+                        HiggsVillagersClient::status, line -> postChat(line.speaker().equals("companion") ? companionName : villagerName, line),
+                        () -> Minecraft.getInstance().execute(() -> {
                             if (generation == current) stop(true);
                         }));
                 }

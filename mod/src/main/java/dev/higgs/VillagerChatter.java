@@ -172,7 +172,8 @@ final class VillagerChatter {
         if (next != listener) facts.addProperty("stanceOnPlayer", next > listener ? "praise" : "badmouth");
     }
 
-    private JsonObject speaker(ServerPlayer player, Villager villager, VillagerPersonalityStore.Profile profile) {
+    /** A villager's persona and what it may say about the player; shared with conversation companions. */
+    JsonObject speaker(ServerPlayer player, Villager villager, VillagerPersonalityStore.Profile profile) {
         JsonObject speaker = new JsonObject();
         speaker.addProperty("entityId", villager.getId());
         speaker.addProperty("name", villager.getName().getString());

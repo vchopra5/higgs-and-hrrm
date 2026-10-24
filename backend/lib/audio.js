@@ -4,6 +4,7 @@ import { interruptTools } from './tools.js';
 export function interruptAudio(session, cancelProvider) {
   session.recording = true;
   session.cancelled = true;
+  session.companion?.cancel();
   session.memoryContext.cancel();
   session.queuedResponse = false;
   if (session.queuedAudioCommit !== null) {

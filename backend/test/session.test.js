@@ -30,15 +30,17 @@ async function prepareMemory(f, itemId = 'spoken-turn', memories = []) {
   await f.request(`/sessions/${f.sessionId}/tools/${call.callId}/result`, 'POST', { result: { memories } });
 }
 
-async function fixture(t, { now = Date.now, connectAudio = true, context = { profession: 'farmer' }, confirmConfig = true, mode = 'vad' } = {}) {
+async function fixture(t, { now = Date.now, connectAudio = true, context = { profession: 'farmer' }, confirmConfig = true, mode = 'vad', companion } = {}) {
   const provider = new WebSocketServer({ port: 0, host: '127.0.0.1' });
   await once(provider, 'listening');
   const received = [];
   const events = [];
   const logs = [];
   let upstream;
+  const sockets = [];
   provider.on('connection', socket => {
     upstream = socket;
+    sockets.push(socket);
     socket.on('message', data => {
       const event = JSON.parse(data);
       received.push(event);
@@ -67,7 +69,7 @@ async function fixture(t, { now = Date.now, connectAudio = true, context = { pro
     body: body === undefined ? undefined : JSON.stringify(body),
   });
   const response = await request('/sessions', 'POST', {
-    playerId: 'player', villagerId: 'villager', context,
+    playerId: 'player', villagerId: 'villager', context, ...(companion ? { companion } : {}),
   });
   assert.equal(response.status, 201);
   const { sessionId, ticket } = await response.json();
@@ -82,6 +84,8 @@ async function fixture(t, { now = Date.now, connectAudio = true, context = { pro
   return {
     bridge, events, logs, received, request, sessionId, client, audioUrl,
     emit: event => upstream.send(JSON.stringify(event)),
+    emitTo: (index, event) => sockets[index].send(JSON.stringify(event)),
+    sockets,
   };
 }
 
@@ -764,4 +768,119 @@ test('a gift during a conversation gets one spoken reaction, and malformed gifts
   assert.match(note, /^\[Game event, not player speech\] The player just handed you a gift: "Rotten Flesh"\. You do not want it and already refused it before/);
   assert.equal(session.responseDone, false);
   assert.ok(f.logs.some(entry => entry.stage === 'gift_reaction' && entry.verdict === 'disliked'));
+});
+
+test('a companion answers when named, hears every line, and its lines reach the main villager', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { name: 'Iris', profession: 'librarian', playerName: 'Steve' },
+    companion: { entityId: 7, name: 'Bram 2', profession: 'farmer', facts: { opinionOfPlayer: 'friendly' } } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  await until(() => session.companion?.ready);
+  const companionConfig = f.received.filter(e => e.type === 'session.update').at(-1).session;
+  assert.match(companionConfig.instructions, /^You are Bram 2, a Minecraft villager who works as a farmer\. You are standing with your neighbour Iris/);
+  assert.equal(companionConfig.tools, undefined, 'the companion has no tools');
+  const creates = () => f.received.filter(e => e.type === 'response.create').length;
+  const before = creates();
+  // The player addresses Bram by his call name.
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+  f.client.send(JSON.stringify({ type: 'commit' }));
+  await until(() => f.received.some(e => e.type === 'input_audio_buffer.commit'));
+  f.emitTo(0, { type: 'input_audio_buffer.committed', item_id: 'turn-1' });
+  f.emitTo(0, { type: 'conversation.item.input_audio_transcription.completed', item_id: 'turn-1', transcript: 'Bram, what do you make of her prices?' });
+  await until(() => [...session.pending.values()].some(tool => tool.memoryContext));
+  const recall = [...session.pending.values()].find(tool => tool.memoryContext);
+  await f.request(`/sessions/${f.sessionId}/tools/${recall.callId}/result`, 'POST', { result: { memories: [] } });
+  await until(() => creates() === before + 1);
+  assert.ok(f.logs.some(e => e.stage === 'companion_answer'));
+  assert.equal(session.responseDone, true, 'the main villager stays quiet this turn');
+  const items = () => f.received.filter(e => e.type === 'conversation.item.create').map(e => e.item.content[0].text);
+  assert.ok(items().includes('[Steve said] Bram, what do you make of her prices?'), 'the companion heard the player');
+  assert.ok(items().includes('[The player Steve is speaking to you] Answer what they just said, briefly.'));
+  // Bram replies: the client gets companion audio and a caption, and Iris hears it as context.
+  f.emitTo(1, { type: 'response.created', response: { id: 'bram-1' } });
+  f.emitTo(1, { type: 'response.output_audio.delta', response_id: 'bram-1', delta: 'QlJBTQ==' });
+  f.emitTo(1, { type: 'response.output_audio_transcript.done', response_id: 'bram-1', transcript: 'Fair enough, for a librarian.' });
+  f.emitTo(1, { type: 'response.done', response: { id: 'bram-1', status: 'completed' } });
+  await until(() => f.events.some(e => e.type === 'transcript' && e.speaker === 'companion'));
+  assert.ok(f.events.some(e => e.type === 'audio' && e.speaker === 'companion' && e.audio === 'QlJBTQ=='));
+  await until(() => items().includes('[Bram 2, your neighbour, said] Fair enough, for a librarian.'));
+  assert.equal(session.companion.speaking, false);
+});
+
+test('pressing talk cancels a companion mid-sentence', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { name: 'Iris', profession: 'librarian', playerName: 'Steve' },
+    companion: { entityId: 7, name: 'Bram', profession: 'farmer' } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  await until(() => session.companion?.ready);
+  session.companion.random = () => 0;
+  assert.equal(session.companion.maybeInterject(1), true);
+  assert.equal(session.companion.maybeInterject(1), false, 'at most one remark per turn');
+  f.emitTo(1, { type: 'response.created', response: { id: 'remark' } });
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  await until(() => f.received.some(e => e.type === 'response.cancel'));
+  f.emitTo(1, { type: 'response.output_audio.delta', response_id: 'remark', delta: 'TEFURQ==' });
+  await delay(50);
+  assert.equal(f.events.some(e => e.audio === 'TEFURQ=='), false, 'audio after the cancel is dropped');
+});
+
+async function spokenTurn(f, session, itemId, transcript) {
+  f.client.send(JSON.stringify({ type: 'interrupt' }));
+  f.client.send(JSON.stringify({ type: 'audio', audio: Buffer.alloc(4800).toString('base64') }));
+  f.client.send(JSON.stringify({ type: 'commit' }));
+  await until(() => f.received.filter(e => e.type === 'input_audio_buffer.commit').length >= session.turnId);
+  f.emitTo(0, { type: 'input_audio_buffer.committed', item_id: itemId });
+  f.emitTo(0, { type: 'conversation.item.input_audio_transcription.completed', item_id: itemId, transcript });
+  await until(() => [...session.pending.values()].some(tool => tool.memoryContext));
+  const recall = [...session.pending.values()].find(tool => tool.memoryContext);
+  await f.request(`/sessions/${f.sessionId}/tools/${recall.callId}/result`, 'POST', { result: { memories: [] } });
+}
+
+test('a neighbour joins mid-conversation, catches up, and leaves when a friend asks', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { name: 'Iris', profession: 'librarian', playerName: 'Steve' } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  await spokenTurn(f, session, 'turn-1', 'Any news from the mine?');
+  await until(() => !session.queuedResponse);
+  f.emitTo(0, { type: 'response.created', response: { id: 'iris-1' } });
+  f.emitTo(0, { type: 'response.output_audio_transcript.done', response_id: 'iris-1', transcript: 'They found silver, I hear.' });
+  f.emitTo(0, { type: 'response.done', response: { id: 'iris-1', status: 'completed' } });
+  await until(() => session.responseDone);
+  const join = await f.request(`/sessions/${f.sessionId}/companion`, 'POST',
+    { entityId: 9, name: 'Bram', profession: 'farmer', facts: { opinionOfPlayer: 'friendly' } });
+  assert.equal(join.status, 200);
+  assert.equal((await f.request(`/sessions/${f.sessionId}/companion`, 'POST', { entityId: 10, name: 'Dot', profession: 'mason' })).status, 409, 'one companion at a time');
+  await until(() => session.companion?.ready);
+  const items = () => f.received.filter(e => e.type === 'conversation.item.create').map(e => e.item.content[0].text);
+  await until(() => items().some(text => text.startsWith('[You just walked up and joined]')));
+  assert.ok(items().includes('[Steve said] Any news from the mine?') && items().includes('[Iris said] They found silver, I hear.'), 'caught up on recent lines');
+  f.emitTo(1, { type: 'response.done', response: { id: 'hello', status: 'completed' } });
+  await until(() => !session.companion.speaking);
+  // A friendly companion always obliges.
+  await spokenTurn(f, session, 'turn-2', 'Bram, could you give us a moment?');
+  await until(() => items().some(text => text.startsWith('[The player asked you to leave them and Iris to talk] You oblige')));
+  assert.equal(session.responseDone, true, 'Iris stays quiet while Bram answers');
+  const bram = session.companion;
+  f.emitTo(1, { type: 'response.created', response: { id: 'bye' } });
+  f.emitTo(1, { type: 'response.output_audio_transcript.done', response_id: 'bye', transcript: 'Of course, I will leave you two be.' });
+  f.emitTo(1, { type: 'response.done', response: { id: 'bye', status: 'completed' } });
+  await until(() => f.events.some(e => e.type === 'companion_left' && e.entityId === 9));
+  assert.equal(session.companion, null);
+  assert.equal(bram.closed, true);
+  const pending = await (await f.request(`/sessions/${f.sessionId}/tools`)).json();
+  assert.ok(pending.some(tool => tool.name === '_companion_left' && tool.internal && tool.arguments.entityId === 9), 'the game server walks Bram off');
+});
+
+test('a companion who does not like the player may stay to listen', async t => {
+  const f = await fixture(t, { mode: 'ptt', context: { name: 'Iris', profession: 'librarian', playerName: 'Steve' },
+    companion: { entityId: 7, name: 'Bram', profession: 'farmer', facts: { opinionOfPlayer: 'annoyed' } } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  await until(() => session.companion?.ready);
+  session.companion.random = () => 0.9;
+  await spokenTurn(f, session, 'turn-1', 'Leave us alone, please.');
+  const items = () => f.received.filter(e => e.type === 'conversation.item.create').map(e => e.item.content[0].text);
+  await until(() => items().some(text => text.includes('You would rather stay and hear what is said')));
+  assert.match(items().find(text => text.includes('rather stay')), /pointed edge/);
+  f.emitTo(1, { type: 'response.done', response: { id: 'stay', status: 'completed' } });
+  await delay(50);
+  assert.ok(session.companion, 'still there');
+  assert.equal(f.events.some(e => e.type === 'companion_left'), false);
 });
