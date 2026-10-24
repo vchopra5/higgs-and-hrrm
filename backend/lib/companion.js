@@ -157,8 +157,10 @@ export class Companion {
         this.responseId = event.response?.id ?? null;
         break;
       case 'response.output_audio.delta':
-        if (this.speaking && typeof event.delta === 'string' && (!event.response_id || event.response_id !== this.cancelledId))
+        if (this.speaking && typeof event.delta === 'string' && (!event.response_id || event.response_id !== this.cancelledId)) {
           this.session.sendClient({ type: 'audio', speaker: 'companion', audio: event.delta });
+          if (event.delta.length) this.answerTurn = null;
+        }
         break;
       case 'response.output_audio_transcript.done': {
         if (!this.speaking || (event.response_id && event.response_id === this.cancelledId)) break;
@@ -171,10 +173,23 @@ export class Companion {
         break;
       }
       case 'response.done':
+        if (this.cancelling) {
+          this.cancelling = false;
+          clearTimeout(this.replyTimer);
+          break;
+        }
+        if (event.response?.id && event.response.id === this.cancelledId) break;
+        if (this.answerTurn != null) { this.close(); break; }
+        clearTimeout(this.replyTimer);
         this.speaking = false;
         if (this.leaving) this.session.companionLeft(this);
         break;
       case 'error':
+        if (this.cancelling && (event.error?.code ?? event.error?.type) === 'response_cancel_not_active') {
+          this.cancelling = false;
+          clearTimeout(this.replyTimer);
+          break;
+        }
         if (!this.ready && !this.fallback && isVoiceSelectionError(event.error)) {
           this.fallback = true;
           this.configure();
@@ -187,7 +202,7 @@ export class Companion {
           timer.unref();
         } else {
           this.session.log({ event: 'companion_provider_error', sessionId: this.session.id, code: sanitizeCode(event.error?.code ?? 'provider_error') });
-          if (!this.ready) this.close();
+          this.close();
         }
         break;
     }
@@ -205,31 +220,27 @@ export class Companion {
 
   /** The player spoke to the companion by name; its words were already heard. */
   answer() {
-    if (!this.ready || this.speaking) return false;
-    this.respond(`[The player ${this.playerName} is speaking to you] Answer what they just said, briefly.`);
-    return true;
+    return this.respond(`[The player ${this.playerName} is speaking to you] Answer what they just said, briefly.`, true);
   }
 
   /** The player asked the companion to go. Returns true when it replies; leaving depends on its opinion. */
   askToLeave() {
-    if (!this.ready || this.speaking) return false;
+    if (!this.available()) return false;
     const opinion = this.spec.facts?.opinionOfPlayer ?? 'neutral';
     this.leaving = this.random() < leaveChance(opinion);
     this.session.stage('companion_asked_to_leave', { opinion, leaving: this.leaving });
-    this.respond(this.leaving
+    return this.respond(this.leaving
       ? `[The player asked you to leave them and ${this.partner.name} to talk] You oblige: say a friendly goodbye in one short sentence. You are walking away now.`
       : `[The player asked you to leave] You would rather stay and hear what is said: refuse in one short, nosy sentence`
-        + (opinion === 'annoyed' ? ' with a pointed edge, since you do not much like them.' : ', teasing but good-natured.') + ' You do not leave.');
-    return true;
+        + (opinion === 'annoyed' ? ' with a pointed edge, since you do not much like them.' : ', teasing but good-natured.') + ' You do not leave.', true);
   }
 
   /** Maybe add a remark after the main villager finished speaking, at most once per player turn. */
   maybeInterject(turnId) {
-    if (!this.ready || this.speaking || turnId === this.lastInterjection || this.random() >= INTERJECT_CHANCE) return false;
+    if (!this.available() || turnId === this.lastInterjection || this.random() >= INTERJECT_CHANCE) return false;
     this.lastInterjection = turnId;
-    this.respond(`[Your turn to chime in] Add one short remark of your own to what ${this.partner.name} just said, `
+    return this.respond(`[Your turn to chime in] Add one short remark of your own to what ${this.partner.name} just said, `
       + 'such as agreeing, teasing, or a quick aside about the player. Do not repeat them.');
-    return true;
   }
 
   /** One item per reply: the recent conversation, quoted and marked as context, then the cue. */
@@ -239,19 +250,42 @@ export class Companion {
       + prompt + ' Say only your own new words.';
   }
 
-  respond(prompt) {
+  available() {
+    return !this.closed && this.ready && !this.speaking && !this.cancelling && this.upstream?.readyState === WebSocket.OPEN;
+  }
+
+  respond(prompt, routed = false) {
+    if (!this.available()) return false;
     this.speaking = true;
     this.cancelledId = null;
-    sendJson(this.upstream, { type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: this.cue(prompt) }] } });
-    sendJson(this.upstream, { type: 'response.create' });
+    try {
+      if (!sendJson(this.upstream, { type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text', text: this.cue(prompt) }] } })
+          || !sendJson(this.upstream, { type: 'response.create' })) {
+        this.close();
+        return false;
+      }
+    } catch {
+      this.close();
+      return false;
+    }
+    this.answerTurn = routed ? this.session.turnId : null;
+    this.replyTimer = setTimeout(() => this.close(), 20_000);
+    this.replyTimer.unref?.();
+    return true;
   }
 
   /** The player pressed talk: stop mid-sentence like the main villager does. */
   cancel() {
     if (!this.speaking) return;
     this.speaking = false;
+    this.answerTurn = null;
+    clearTimeout(this.replyTimer);
     this.cancelledId = this.responseId;
-    sendJson(this.upstream, { type: 'response.cancel' });
+    this.cancelling = true;
+    this.replyTimer = setTimeout(() => this.close(), 3000);
+    this.replyTimer.unref?.();
+    try { if (!sendJson(this.upstream, { type: 'response.cancel' })) this.close(); }
+    catch { this.close(); }
   }
 
   state() {
@@ -261,6 +295,13 @@ export class Companion {
   close() {
     if (this.closed) return;
     this.closed = true;
+    this.ready = false;
+    this.speaking = false;
+    clearTimeout(this.replyTimer);
+    const turnId = this.answerTurn;
+    this.answerTurn = null;
+    // Defer recovery so a failed synchronous send can return false to its caller first.
+    queueMicrotask(() => this.session.companionFailed(this, turnId));
     const upstream = this.upstream;
     this.upstream = null;
     if (upstream?.readyState === WebSocket.OPEN) upstream.close(1000, 'conversation_ended');

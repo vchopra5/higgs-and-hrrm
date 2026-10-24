@@ -221,6 +221,7 @@ export class BridgeSession {
     this.responseDone = true;
     this.traceEvent('cancellation_released');
     this.stage('cancellation_released', { reason });
+    if (this.context.bedtime === true) { this.close('bedtime'); return; }
     // Same hand-off as finishResponse: commit the deferred turn, then answer it once memory is ready.
     if (this.queuedAudioCommit !== null && !this.recording && !this.muted) {
       const turnId = this.queuedAudioCommit;
@@ -331,7 +332,10 @@ export class BridgeSession {
 
   flushPreparedResponse() {
     // At bedtime the villager has said goodnight and will not take up a new topic.
-    if (this.context.bedtime === true) { this.queuedResponse = false; return; }
+    if (this.context.bedtime === true) {
+      if (this.queuedResponse) this.close('bedtime');
+      return;
+    }
     if (this.closed || this.recording || this.muted || this.awaitingCancellation
         || !this.responseDone || !this.queuedResponse || this.queuedAudioCommit !== null || this.memoryContext.waiting) return;
     // Addressed by name (or asked to leave), the companion answers instead; the main villager just hears it.
@@ -564,6 +568,11 @@ export class BridgeSession {
         turnId: this.turnId, created: this.now() });
     }
     this.stage('upstream_ready');
+    // A missing greeting completion must never leave a bedtime session connected indefinitely.
+    if (this.context.bedtime === true) {
+      this.bedtimeDeadline = setTimeout(() => this.close('bedtime'), 30_000);
+      this.bedtimeDeadline.unref?.();
+    }
     if (this.companionSpec && !this.companion) {
       this.notePresent(this.companionSpec);
       this.companion = new Companion(this, this.companionSpec, {
@@ -706,6 +715,18 @@ export class BridgeSession {
     return 'joined';
   }
 
+  /** Recover a routed turn only if it is still current and the companion produced no audio. */
+  companionFailed(companion, turnId) {
+    if (this.companion !== companion || this.closed) return;
+    this.companion = null;
+    this.sendClient({ type: 'companion_left', entityId: companion.spec.entityId });
+    if (turnId !== this.turnId || this.recording || this.muted || this.queuedResponse || !this.responseDone) return;
+    this.cancelled = false;
+    this.responseDone = false;
+    this.stage('companion_fallback', { turnId });
+    this.createConversationResponse();
+  }
+
   /** The companion said goodbye: the game server walks it away, the client stops outlining it. */
   companionLeft(companion) {
     if (this.companion !== companion) return;
@@ -811,6 +832,7 @@ export class BridgeSession {
     clearTimeout(this.timer);
     clearTimeout(this.connectTimer);
     clearTimeout(this.bedtimeTimer);
+    clearTimeout(this.bedtimeDeadline);
     this.memoryContext.close();
     this.companion?.close();
     for (const socket of [this.client, this.upstream]) {

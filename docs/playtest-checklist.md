@@ -67,6 +67,8 @@ One pass through every feature in a running game. Everything here has unit or in
 | --- | --- | --- | --- |
 | 6.1 | `/time set night`, then talk to a villager | One line refusing ("off to bed… come back in the morning"); the conversation ends | Backend `bedtime` |
 | 6.2 | Try again within 90 s | Action bar "heading to bed"; no new conversation | No new session in the backend |
+| 6.2a | Interrupt the goodnight before it begins, then `/time set day` and reconnect | The bedtime session ends; a fresh daytime conversation answers normally | No connected-but-silent session |
+| 6.2b | Switch to day while the goodnight is playing, including with a NoAI villager | The old bedtime session ends within the server check interval; targeting reconnects | No stale REST refusal |
 | 6.3 | `/summon zombie` near a villager | The villager screams for help in its own voice; repeats every 8–14 s | Backend `shout_finished` |
 
 ## 7. Long-term memory

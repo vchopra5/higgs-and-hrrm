@@ -239,7 +239,7 @@ minutes. Each three-way conversation uses a second Boson session; set
 
 ## Night and danger
 
-From dusk (in-game 12500, or whenever a villager's routine switches to rest) villagers
+From dusk until dawn (in-game 12500–23500) villagers
 want to go to bed: try to talk to one and it says a short goodnight in character, then
 the conversation ends once the line has played. For the next 90 seconds it just shows
 “heading to bed” instead of starting another conversation. Chatter and companions also

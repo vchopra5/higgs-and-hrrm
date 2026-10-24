@@ -44,10 +44,10 @@ public final class HiggsVillagers implements ModInitializer {
     private VillagerOuting outings;
     private final Map<String, Long> bedtimeUntil = new HashMap<>();
     private static final long BEDTIME_MS = 90_000;
-    /** Villagers wind down for the night: their rest schedule, or the clock for villagers without AI. */
+    /** The clock is authoritative: REST can be stale after a time command, especially with NoAI. */
     static boolean bedtime(Villager villager) {
         long time = Math.floorMod(villager.level().getOverworldClockTime(), 24000L);
-        return villager.getBrain().isActive(net.minecraft.world.entity.schedule.Activity.REST) || (time >= 12500 && time < 23500);
+        return time >= 12500 && time < 23500;
     }
     private VillageTracker villages;
     private boolean companions = true;
@@ -551,7 +551,11 @@ public final class HiggsVillagers implements ModInitializer {
             if (ticks % 100 == 0 && !token.isBlank()) collectDigests(server);
             if (ticks % 10 != 0) return;
             for (Session s : List.copyOf(sessions.values())) {
-                if (!valid(s, 144)) end(s.player, true, "Conversation ended: stay within 12 blocks of an awake villager.");
+                if (s.bedtime && !bedtime(s.villager)) {
+                    bedtimeUntil.remove(s.player.getUUID() + ":" + s.villager.getUUID());
+                    end(s.player, true, "Morning has arrived. You can talk to this villager again.");
+                }
+                else if (!valid(s, 144)) end(s.player, true, "Conversation ended: stay within 12 blocks of an awake villager.");
                 else {
                     if (s.proposal != null && System.currentTimeMillis() >= s.proposal.expires()) {
                         s.proposal = null;
