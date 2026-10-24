@@ -24,6 +24,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     private String activeSessionId;
     private boolean pending;
     private int targetId = -1;
+    private final SwitchTalkGate switchTalkGate = new SwitchTalkGate();
     private boolean wasTalking;
     private long nextConnectAt;
     private long requestTime;
@@ -37,6 +38,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     private static volatile long lastStatusAt;
 
     @Override public void onInitializeClient() {
+        VillagerExpressions.initializeAnimations();
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("higgs_villagers", "voice"));
         KeyMapping talk = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.talk", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category));
         KeyMapping diagnostics = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.diagnostics", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, category));
@@ -137,7 +139,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             (graphics, delta) -> tracker.render(graphics));
         ClientPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) ->
             context.client().execute(() -> receive(payload.json())));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); handoff.clear(); });
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); handoff.clear(); VillagerExpressions.clear(); });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             handoff.tick(client);
             if (client.player == null || client.level == null) { stop(false); return; }
@@ -164,32 +166,38 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             boolean held = client.screen == null && client.isWindowActive() && talk.isDown();
             Villager target = client.hitResult instanceof EntityHitResult hit && hit.getEntity() instanceof Villager v
                 && !v.isBaby() && client.player.distanceToSqr(v) <= 64 ? v : null;
+            // With no partner selected, B also finds a nearby villager in any direction.
+            // Keep the existing partner when glancing away during a conversation.
+            if (target == null && voice == null && !pending && held && !wasTalking) {
+                target = client.level.getEntitiesOfClass(Villager.class, client.player.getBoundingBox().inflate(8),
+                    v -> v.isAlive() && !v.isBaby() && !v.isSleeping()
+                        && client.player.distanceToSqr(v) <= 64 && client.player.hasLineOfSight(v))
+                    .stream().min(java.util.Comparator.comparingDouble(v -> client.player.distanceToSqr(v))).orElse(null);
+            }
             // Warm up the connection while looking at a villager. Switch partners only
             // on a fresh push-to-talk press, never halfway through an utterance.
             if (held && !wasTalking && target != null && target.getId() != targetId && !pending) {
+                switchTalkGate.switched();
                 stop(false); // The start request replaces the server session without an old end acknowledgement.
                 nextConnectAt = Math.max(System.currentTimeMillis(), requestTime + 1500);
             }
             if (voice == null && !pending && target != null && System.currentTimeMillis() >= nextConnectAt
-                && client.screen == null && client.isWindowActive()) start(client);
-            if (voice != null) voice.setTalking(held);
+                && client.screen == null && client.isWindowActive()) start(client, target);
+            boolean recordSpeech = switchTalkGate.talking(held);
+            if (voice != null) voice.setTalking(recordSpeech);
             wasTalking = held;
         });
     }
 
-    private void start(Minecraft client) {
+    private void start(Minecraft client, Villager target) {
         if (!ClientPlayNetworking.canSend(ControlPayload.TYPE)) {
             status("This server needs the Higgs Villagers mod.");
             return;
         }
-        if (!(client.hitResult instanceof EntityHitResult hit) || !(hit.getEntity() instanceof Villager)) {
-            status("Look at a nearby villager and hold B to talk.");
-            return;
-        }
         JsonObject request = new JsonObject();
         request.addProperty("type", "start");
-        request.addProperty("entityId", hit.getEntity().getId());
-        targetId = hit.getEntity().getId();
+        request.addProperty("entityId", target.getId());
+        targetId = target.getId();
         nextConnectAt = System.currentTimeMillis() + 5000;
         pending = true;
         lastVoice = null;
@@ -203,6 +211,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         try {
             JsonObject message = JsonParser.parseString(raw).getAsJsonObject();
             switch (message.get("type").getAsString()) {
+                case "villager_expression" -> VillagerExpressions.update(
+                    java.util.UUID.fromString(message.get("villagerId").getAsString()), message.get("expression").getAsString());
                 case "trade_complete" -> handoff.start(Minecraft.getInstance(), message);
                 case "trade_status" -> {
                     if (activeSessionId != null && activeSessionId.equals(message.get("sessionId").getAsString())

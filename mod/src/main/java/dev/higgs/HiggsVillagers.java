@@ -46,6 +46,27 @@ public final class HiggsVillagers implements ModInitializer {
         // At most one attack per server tick; retain rapid attacks in the statistics.
         if (history.latest() != Long.MIN_VALUE && now - history.latest() < 50) return;
         RecentHits.Stats stats = history.record(now);
+        // Invulnerable demo villagers skip vanilla damage feedback. Reproduce only
+        // its visual animation; health, invulnerability, and position are unchanged.
+        if (villager.isInvulnerable() && villager.hurtTime == 0) {
+            villager.animateHurt(0);
+            var level = player.level();
+            level.getChunkSource().sendToTrackingPlayers(villager,
+                new net.minecraft.network.protocol.game.ClientboundHurtAnimationPacket(villager));
+            level.sendParticles(net.minecraft.core.particles.ParticleTypes.CRIT,
+                villager.getX(), villager.getY() + villager.getBbHeight() * 0.65, villager.getZ(),
+                6, 0.2, 0.25, 0.2, 0.08);
+            if (stats.count() > 1) level.sendParticles(net.minecraft.core.particles.ParticleTypes.ANGRY_VILLAGER,
+                villager.getX(), villager.getY() + villager.getBbHeight() + 0.2, villager.getZ(),
+                1, 0.1, 0.05, 0.1, 0);
+        }
+        // Physical treatment is authoritative and persists even without a voice connection.
+        TradeReputation previousOpinion = relationships.getOrDefault(key, TradeReputation.neutral());
+        TradeReputation hurtOpinion = previousOpinion.hit(now);
+        if (!hurtOpinion.equals(previousOpinion)) {
+            relationships.put(key, hurtOpinion);
+            saveTradeReputations();
+        }
         Session s = sessions.get(player.getUUID());
         if (s == null || s.villager != villager) {
             if (now - lastStart.getOrDefault(player.getUUID(), 0L) < 1500 || token.isBlank()) return;
@@ -69,15 +90,14 @@ public final class HiggsVillagers implements ModInitializer {
         s.hitEvent = event;
         s.hitAt = now;
     }
-    private final Map<String, Relationship> relationships = new HashMap<>();
+    private final Map<String, TradeReputation> relationships = new HashMap<>();
     private Path relationshipFile;
-    private record Relationship(int score, long updated) {}
     private String relationshipKey(Session s) { return s.player.getUUID() + ":" + s.villager.getUUID(); }
     private Negotiation.Band band(Session s) {
-        return Negotiation.band(relationships.getOrDefault(relationshipKey(s), new Relationship(0, 0)).score(),
+        return Negotiation.band(relationships.getOrDefault(relationshipKey(s), TradeReputation.neutral()).score(),
             s.mood, s.villager.getPlayerReputation(s.player));
     }
-    private void saveRelationships() {
+    private void saveTradeReputations() {
         if (relationshipFile == null) return;
         try {
             Files.createDirectories(relationshipFile.getParent());
@@ -94,11 +114,12 @@ public final class HiggsVillagers implements ModInitializer {
         s.treatmentTurn = turn;
         s.mood = tone.equals("polite") ? 1 : tone.equals("rude") ? -1 : s.mood;
         String key = relationshipKey(s);
-        Relationship previous = relationships.getOrDefault(key, new Relationship(0, 0));
+        TradeReputation previous = relationships.getOrDefault(key, TradeReputation.neutral());
         long now = System.currentTimeMillis();
-        if (!tone.equals("neutral") && now - previous.updated() >= 60_000) {
-            relationships.put(key, new Relationship(Math.max(-5, Math.min(5, previous.score() + (tone.equals("polite") ? 1 : -2))), now));
-            saveRelationships();
+        TradeReputation next = previous.treatment(tone, now);
+        if (!next.equals(previous)) {
+            relationships.put(key, next);
+            saveTradeReputations();
         }
         Negotiation.Band limits = band(s);
         JsonObject result = outcome("assessed", "Treatment affects future quotes; existing quotes keep their agreed price.");
@@ -146,6 +167,40 @@ public final class HiggsVillagers implements ModInitializer {
         });
         ServerTickEvents.END_SERVER_TICK.register(server -> {
             memory.tick(server, ++ticks);
+            // Rotate explicitly: the demo villagers have NoAI, so look controls alone do nothing.
+            Map<UUID, Session> facing = new HashMap<>();
+            for (Session s : sessions.values()) {
+                if (!valid(s, 144)) continue;
+                facing.merge(s.villager.getUUID(), s, (a, b) ->
+                    a.player.distanceToSqr(a.villager) <= b.player.distanceToSqr(b.villager) ? a : b);
+            }
+            for (Session s : facing.values()) {
+                double dx = s.player.getX() - s.villager.getX();
+                double dz = s.player.getZ() - s.villager.getZ();
+                if (dx * dx + dz * dz < 0.001) continue;
+                float yaw = (float) (Math.toDegrees(Math.atan2(dz, dx)) - 90);
+                float turn = net.minecraft.util.Mth.approachDegrees(s.villager.getYRot(), yaw, 12);
+                s.villager.setYRot(turn);
+                s.villager.setYBodyRot(turn);
+                s.villager.setYHeadRot(turn);
+                s.villager.getLookControl().setLookAt(s.player, 30, 30);
+                s.villager.getNavigation().stop();
+            }
+            if (ticks % 20 == 0) {
+                for (ServerPlayer viewer : server.getPlayerList().getPlayers()) {
+                    if (!ServerPlayNetworking.canSend(viewer, ControlPayload.TYPE)) continue;
+                    for (Villager villager : viewer.level().getEntitiesOfClass(Villager.class,
+                            viewer.getBoundingBox().inflate(16), v -> v.isAlive() && !v.isBaby())) {
+                        Session active = sessions.get(viewer.getUUID());
+                        Session opinion = active != null && active.villager == villager ? active : new Session(viewer, villager);
+                        JsonObject expression = new JsonObject();
+                        expression.addProperty("type", "villager_expression");
+                        expression.addProperty("villagerId", villager.getUUID().toString());
+                        expression.addProperty("expression", band(opinion).name());
+                        send(viewer, expression);
+                    }
+                }
+            }
             if (ticks % 10 != 0) return;
             for (Session s : List.copyOf(sessions.values())) {
                 if (!valid(s, 144)) end(s.player, true, "Conversation ended: stay within 12 blocks of an awake villager.");
@@ -172,8 +227,8 @@ public final class HiggsVillagers implements ModInitializer {
             if (Files.exists(relationshipFile)) try {
                 JsonObject saved = JsonParser.parseString(Files.readString(relationshipFile)).getAsJsonObject();
                 for (var entry : saved.entrySet()) {
-                    Relationship value = GSON.fromJson(entry.getValue(), Relationship.class);
-                    relationships.put(entry.getKey(), new Relationship(Math.max(-5, Math.min(5, value.score())), value.updated()));
+                    TradeReputation value = GSON.fromJson(entry.getValue(), TradeReputation.class);
+                    relationships.put(entry.getKey(), new TradeReputation(Math.max(-5, Math.min(5, value.score())), value.updated(), value.lastHit()));
                 }
             } catch (Exception e) { org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not load villager relationships"); }
         });
