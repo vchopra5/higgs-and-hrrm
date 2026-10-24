@@ -165,7 +165,7 @@ Open trading manually and identify that action as manual. Treat the voice-to-act
 | What makes this an agent? | It can request live offers with `get_trades` and request a game action with `propose_trade`. Our server integration executes and validates those calls. |
 | What did you build? | The Fabric client/server integration, audio capture and playback, authenticated local bridge, session lifecycle, and trade-tool handlers. Higgs supplies the voice model and tool-call generation. |
 | Why use Higgs? | The interaction needs streaming speech and tool calls in the same conversation. We integrate those capabilities through Higgs Realtime. |
-| Can it negotiate or buy for me? | The tools look up offers, quote native prices, and buy once after an explicit spoken yes. They cannot negotiate prices. |
+| Can it negotiate or buy for me? | The tools look up offers, quote native prices, and buy once after an explicit spoken yes. They can negotiate bounded prices and proportional quantities; every changed quote needs a fresh yes. |
 | How do you keep trade information accurate? | Offer lookup reads server state, and the server rechecks availability before purchasing. The prompt instructs the model to use those tools and avoid invented offers. Final prices are validated server-side; model mistakes remain possible. |
 | Does each villager remember me? | The current prototype uses a shared prompt, villager context, and conversation history within a session. Persistent memory and distinct saved personalities are future work. |
 | Is the audio spatial? | Currently it plays through the default system device for the speaking player. Spatial sound and nearby-player playback are future work. |
@@ -177,7 +177,7 @@ Open trading manually and identify that action as manual. Treat the voice-to-act
 
 The script describes the intended live flow implemented in this repository. **Rehearsal must establish that it works on the actual presentation setup.** This document does not certify a successful in-game demo.
 
-Use **push-to-talk** for the Minecraft demo: hold **B**, release to send. The bridge also supports hands-free mode, but the current game client uses push-to-talk. Claim interruption only if verified in rehearsal. Do not describe the system as having persistent memory, unique voices for every villager, autonomous purchasing, negotiated prices.
+Use **push-to-talk** for the Minecraft demo: hold **B**, release to send. The bridge also supports hands-free mode, but the current game client uses push-to-talk. Claim interruption only if verified in rehearsal. Do not describe the system as having persistent memory, unique voices for every villager, autonomous purchasing.
 
 For implementation details and current evidence, see the [project README](README.md), [architecture](docs/architecture.md), and [bridge documentation](backend/README.md).
 

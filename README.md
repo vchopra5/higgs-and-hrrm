@@ -116,7 +116,7 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and w
 
 This is a hackathon prototype. The voice bridge, Fabric integration, and trade tools are implemented. Full microphone, playback, and in-game trade validation still need confirmation on the target setup; local mock tests and synthetic voice probes cover only part of that path.
 
-Current scope: push-to-talk in the game client, system audio for the speaking player, and conversation history within a session. Persistent character memory, negotiated prices, and spatial or shared audio are future directions.
+Current scope: push-to-talk in the game client, system audio for the speaking player, and conversation history within a session. Negotiated prices and bounded per-villager relationship scores are implemented. Persistent conversation memory and spatial or shared audio are future directions.
 
 <details>
 <summary><strong>Development checks</strong></summary>
@@ -151,3 +151,26 @@ Backend tests use a local fake Higgs endpoint. The build compiles the mod; neith
 </p>
 
 Captions for YOU and VILLAGER remain for eight seconds, then fade over three. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F8 toggles additional diagnostics.
+
+Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
+
+## Voice negotiation
+
+Ask for an item, a quantity, a budget, or a better deal: “I only have two emeralds,”
+“Could I get fifteen bread for four emeralds?” or “Could you give me a better price, please?”
+The server quotes exact whole-item amounts; say yes in a new turn to buy. A changed
+or counteroffered bundle always needs a fresh yes.
+
+Prices are relative to the native player-specific default trade: friendly 80–100%,
+neutral 95–110%, annoyed 110–125%. Explicit politeness and insults affect mood;
+bargaining or declining alone is neutral. Relationship scores persist per player
+and villager in the world data folder, are capped at -5 to +5, and change at most
+once per minute. Existing Minecraft reputation also matters. Higgs classifies the
+utterance, while the server enforces every limit. Quotes remain valid for two minutes.
+
+Bundles are limited to one stack per item (at most 64); secondary payments scale
+proportionally, rounding up to whole items. Unrepresentable prices receive a nearby
+valid counteroffer. Larger quantities consume proportional stock, rounded up to
+native trade uses; small purchases still use one stock unit. The native inventory
+transaction handles item components, space, trade statistics and rewards. Price
+negotiation cannot bypass missing payment, stock, proximity or inventory checks.

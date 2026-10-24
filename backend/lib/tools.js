@@ -30,7 +30,10 @@ function validArguments(name, args) {
   if (!args || typeof args !== 'object' || Array.isArray(args)) return false;
   if (name === 'get_trades' || name === 'cancel_trade') return true;
   if (name === 'confirm_trade') return typeof args.proposalId === 'string' && /^[a-f0-9-]{36}$/.test(args.proposalId);
-  return name === 'propose_trade' && Number.isInteger(args.offerIndex) && args.offerIndex >= 0;
+  if (name === 'report_treatment') return ['polite', 'neutral', 'rude'].includes(args.treatment);
+  return name === 'propose_trade' && Number.isInteger(args.offerIndex) && args.offerIndex >= 0
+    && ['quantity', 'payment'].every(key => args[key] === undefined || (Number.isInteger(args[key]) && args[key] >= 1 && args[key] <= 64))
+    && (args.discount === undefined || typeof args.discount === 'boolean');
 }
 
 export function receiveToolCall(session, event) {

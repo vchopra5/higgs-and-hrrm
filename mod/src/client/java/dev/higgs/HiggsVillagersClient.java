@@ -19,6 +19,7 @@ import org.lwjgl.glfw.GLFW;
 
 public final class HiggsVillagersClient implements ClientModInitializer {
     private VoiceSession voice;
+    private final TradeHandoff handoff = new TradeHandoff();
     private boolean pending;
     private int targetId = -1;
     private boolean wasTalking;
@@ -130,10 +131,13 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 graphics.fill(x + 6, y + height - 5, x + width - 6, y + height - 3, 0xFF384451);
                 if (meter > 0) graphics.fill(x + 6, y + height - 5, x + 6 + meter, y + height - 3, dbfs > -3 ? 0xFFFF7070 : 0xFF70EF9B);
             });
+        HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "trade_receipt"),
+            (graphics, delta) -> handoff.render(graphics));
         ClientPlayNetworking.registerGlobalReceiver(ControlPayload.TYPE, (payload, context) ->
             context.client().execute(() -> receive(payload.json())));
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> stop(false));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> { stop(false); handoff.clear(); });
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
+            handoff.tick(client);
             if (client.player == null || client.level == null) { stop(false); return; }
             if (!tutorialDisabled) {
                 client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
@@ -189,6 +193,7 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         try {
             JsonObject message = JsonParser.parseString(raw).getAsJsonObject();
             switch (message.get("type").getAsString()) {
+                case "trade_complete" -> handoff.start(Minecraft.getInstance(), message);
                 case "session" -> {
                     if (!pending) return;
                     pending = false;

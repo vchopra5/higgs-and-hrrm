@@ -11,6 +11,9 @@ import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.item.ItemStack;
 import dev.higgs.mixin.VillagerPrices;
 import net.minecraft.world.inventory.MerchantMenu;
+import net.minecraft.world.item.trading.MerchantOffer;
+import net.minecraft.world.item.trading.ItemCost;
+import net.minecraft.world.level.storage.LevelResource;
 import net.minecraft.core.registries.BuiltInRegistries;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -31,6 +34,43 @@ public final class HiggsVillagers implements ModInitializer {
     private final Map<UUID, Long> lastStart = new HashMap<>();
     private String backend, token, publicBackend;
     private int ticks;
+    private final Map<String, Relationship> relationships = new HashMap<>();
+    private Path relationshipFile;
+    private record Relationship(int score, long updated) {}
+    private String relationshipKey(Session s) { return s.player.getUUID() + ":" + s.villager.getUUID(); }
+    private Negotiation.Band band(Session s) {
+        return Negotiation.band(relationships.getOrDefault(relationshipKey(s), new Relationship(0, 0)).score(),
+            s.mood, s.villager.getPlayerReputation(s.player));
+    }
+    private void saveRelationships() {
+        if (relationshipFile == null) return;
+        try {
+            Files.createDirectories(relationshipFile.getParent());
+            Path temporary = relationshipFile.resolveSibling("higgs-relationships.json.tmp");
+            Files.writeString(temporary, GSON.toJson(relationships));
+            Files.move(temporary, relationshipFile, StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.io.IOException e) {
+            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not save villager relationships");
+        }
+    }
+    private JsonObject treatment(Session s, String tone, int turn) {
+        if (!Set.of("polite", "neutral", "rude").contains(tone)) return outcome("invalid", "Unknown treatment");
+        if (turn <= 0 || turn <= s.treatmentTurn) return outcome("unchanged", "Treatment already assessed for this turn");
+        s.treatmentTurn = turn;
+        s.mood = tone.equals("polite") ? 1 : tone.equals("rude") ? -1 : s.mood;
+        String key = relationshipKey(s);
+        Relationship previous = relationships.getOrDefault(key, new Relationship(0, 0));
+        long now = System.currentTimeMillis();
+        if (!tone.equals("neutral") && now - previous.updated() >= 60_000) {
+            relationships.put(key, new Relationship(Math.max(-5, Math.min(5, previous.score() + (tone.equals("polite") ? 1 : -2))), now));
+            saveRelationships();
+        }
+        Negotiation.Band limits = band(s);
+        JsonObject result = outcome("assessed", "Treatment affects future quotes; existing quotes keep their agreed price.");
+        result.addProperty("relationship", limits.name());
+        result.addProperty("minPricePercent", limits.min()); result.addProperty("maxPricePercent", limits.max());
+        return result;
+    }
     private static final class Session {
         final ServerPlayer player;
         final Villager villager;
@@ -38,11 +78,12 @@ public final class HiggsVillagers implements ModInitializer {
         boolean polling;
         Proposal proposal;
         int pollFailures;
+        int mood, treatmentTurn;
         final Map<String, JsonObject> toolResults = new HashMap<>();
         Session(ServerPlayer player, Villager villager) { this.player = player; this.villager = villager; }
     }
     private record Proposal(String id, int index, long expires, ItemStack costA,
-                            ItemStack costB, ItemStack result, VoiceConfirmation confirmation) { }
+                            ItemStack costB, ItemStack result, VoiceConfirmation confirmation, ItemStack baseA, ItemStack baseB, ItemStack baseResult, int stockUses) { }
     @Override public void onInitialize() {
         Map<String, String> config = config();
         backend = config.getOrDefault("HIGGS_BACKEND_URL", "http://127.0.0.1:8787").replaceAll("/+$", "");
@@ -61,6 +102,17 @@ public final class HiggsVillagers implements ModInitializer {
                 if (!valid(s, 144)) end(s.player, true, "Conversation ended: stay within 12 blocks of an awake villager.");
                 else if (s.id != null && !s.polling) poll(server, s);
             }
+        });
+        ServerLifecycleEvents.SERVER_STARTED.register(server -> {
+            relationshipFile = server.getWorldPath(LevelResource.ROOT).resolve("data/higgs-relationships.json");
+            relationships.clear();
+            if (Files.exists(relationshipFile)) try {
+                JsonObject saved = JsonParser.parseString(Files.readString(relationshipFile)).getAsJsonObject();
+                for (var entry : saved.entrySet()) {
+                    Relationship value = GSON.fromJson(entry.getValue(), Relationship.class);
+                    relationships.put(entry.getKey(), new Relationship(Math.max(-5, Math.min(5, value.score())), value.updated()));
+                }
+            } catch (Exception e) { org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Could not load villager relationships"); }
         });
         ServerLifecycleEvents.SERVER_STOPPING.register(server -> {
             for (Session s : List.copyOf(sessions.values())) end(s.player, false);
@@ -140,10 +192,12 @@ public final class HiggsVillagers implements ModInitializer {
                         result = new JsonObject();
                         String name = call.get("name").getAsString();
                         if (name.equals("get_trades")) result.add("offers", offers(s.villager));
-                        else if (name.equals("cancel_trade")) {
+                        else if (name.equals("report_treatment")) {
+                            result = treatment(s, call.getAsJsonObject("arguments").get("treatment").getAsString(), call.get("turnId").getAsInt());
+                        } else if (name.equals("cancel_trade")) {
                             s.proposal = null; result = outcome("cancelled", "The proposal is cancelled. Nothing was purchased.");
                         } else if (name.equals("propose_trade")) {
-                            result = proposeTrade(s, call.getAsJsonObject("arguments").get("offerIndex").getAsInt(), call.get("turnId").getAsInt());
+                            result = proposeTrade(s, call.getAsJsonObject("arguments"), call.get("turnId").getAsInt());
                         } else if (name.equals("confirm_trade")) {
                             result = confirmTrade(s, call.getAsJsonObject("arguments").get("proposalId").getAsString(), call.get("turnId").getAsInt());
                         } else result.addProperty("error", "Unknown tool.");
@@ -169,7 +223,8 @@ public final class HiggsVillagers implements ModInitializer {
         result.add("costB", item(p.costB())); result.add("receive", item(p.result()));
         return result;
     }
-    private JsonObject proposeTrade(Session s, int index, int turn) {
+    private JsonObject proposeTrade(Session s, JsonObject arguments, int turn) {
+        int index = arguments.get("offerIndex").getAsInt();
         s.proposal = null;
         if (!availableForVoiceTrade(s)) return outcome("unavailable", "Move within eight blocks, close any inventory, and wait until the villager is free.");
         if (index < 0 || index >= s.villager.getOffers().size()) return outcome("unavailable", "That offer does not exist.");
@@ -178,10 +233,27 @@ public final class HiggsVillagers implements ModInitializer {
             ((VillagerPrices) s.villager).higgs$updateSpecialPrices(s.player);
             var offer = s.villager.getOffers().get(index);
             if (offer.isOutOfStock()) return outcome("unavailable", "That offer is sold out.");
+            Integer quantity = arguments.has("quantity") ? arguments.get("quantity").getAsInt() : null;
+            Integer payment = arguments.has("payment") ? arguments.get("payment").getAsInt() : null;
+            Negotiation.Band limits = band(s);
+            Negotiation.Bundle bundle;
+            try {
+                bundle = Negotiation.quote(offer.getCostA().getCount(), offer.getCostB().getCount(), offer.getResult().getCount(),
+                    offer.getMaxUses() - offer.getUses(), offer.getCostA().getMaxStackSize(),
+                    offer.getCostB().isEmpty() ? 64 : offer.getCostB().getMaxStackSize(), offer.getResult().getMaxStackSize(),
+                    limits, quantity, payment, arguments.has("discount") && arguments.get("discount").getAsBoolean());
+            } catch (IllegalArgumentException e) { return outcome("invalid", "Use whole quantities from one to sixty-four."); }
+            if (bundle == null) return outcome("unavailable", "No whole-item bundle fits this price range and remaining stock. Try a different offer.");
             Proposal p = new Proposal(UUID.randomUUID().toString(), index, System.currentTimeMillis() + 120_000,
-                offer.getCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(), new VoiceConfirmation(turn, System.currentTimeMillis() + 120_000));
+                offer.getCostA().copyWithCount(bundle.payment()), offer.getCostB().isEmpty() ? ItemStack.EMPTY : offer.getCostB().copyWithCount(bundle.secondary()),
+                offer.getResult().copyWithCount(bundle.quantity()), new VoiceConfirmation(turn, System.currentTimeMillis() + 120_000),
+                offer.getCostA().copy(), offer.getCostB().copy(), offer.getResult().copy(), bundle.stockUses());
             s.proposal = p;
-            return quote(p, "awaiting_confirmation", "Read the exact costs and received item aloud. Ask whether the player wants this trade, then wait for their spoken answer. Nothing has been purchased.");
+            JsonObject result = quote(p, bundle.counteroffer() ? "counteroffer" : "awaiting_confirmation",
+                "Read these exact costs and received quantity aloud, including any adjusted amounts. Wait for a new spoken yes. Nothing has been purchased.");
+            result.addProperty("relationship", limits.name());
+            result.addProperty("minPricePercent", limits.min()); result.addProperty("maxPricePercent", limits.max());
+            return result;
         } finally { s.villager.setTradingPlayer(null); }
     }
     private JsonObject confirmTrade(Session s, String id, int turn) {
@@ -199,13 +271,21 @@ public final class HiggsVillagers implements ModInitializer {
         s.proposal = null;
         s.villager.setTradingPlayer(s.player);
         MerchantMenu menu = null;
+        MerchantOffer original = null;
         try {
             ((VillagerPrices) s.villager).higgs$updateSpecialPrices(s.player);
             if (p.index() >= s.villager.getOffers().size()) return outcome("unavailable", "Offer no longer exists.");
             var offer = s.villager.getOffers().get(p.index());
-            if (offer.isOutOfStock() || !ItemStack.matches(p.costA(), offer.getCostA())
-                || !ItemStack.matches(p.costB(), offer.getCostB()) || !ItemStack.matches(p.result(), offer.getResult()))
+            if (offer.isOutOfStock() || offer.getMaxUses() - offer.getUses() < p.stockUses() || !ItemStack.matches(p.baseA(), offer.getCostA())
+                || !ItemStack.matches(p.baseB(), offer.getCostB()) || !ItemStack.matches(p.baseResult(), offer.getResult()))
                 return outcome("changed", "The price or offer changed. Nothing was purchased. Get a fresh quote and a new spoken confirmation.");
+            // Temporarily offer this exact server-approved bundle through the native transaction path.
+            // Restore the real offer in finally; its stock is charged by default-bundle equivalents.
+            original = offer;
+            ItemCost primary = new ItemCost(offer.getItemCostA().item(), p.costA().getCount(), offer.getItemCostA().components());
+            Optional<ItemCost> secondary = offer.getItemCostB().map(cost -> new ItemCost(cost.item(), p.costB().getCount(), cost.components()));
+            offer = new MerchantOffer(primary, secondary, p.result().copy(), 1, original.getXp() * p.stockUses(), 0f);
+            s.villager.getOffers().set(p.index(), offer);
             // Server-only native menu: no open-screen packet, client menu, or launcher action.
             menu = new MerchantMenu(-1, s.player.getInventory(), s.villager);
             menu.setSelectionHint(p.index()); menu.tryMoveItems(p.index());
@@ -221,14 +301,32 @@ public final class HiggsVillagers implements ModInitializer {
             }
             if (space < p.result().getCount()) return outcome("inventory_full", "Your inventory is full. Nothing was purchased.");
             boolean purchased = !menu.quickMoveStack(s.player, 2).isEmpty();
+            if (purchased) {
+                for (int use = 0; use < p.stockUses(); use++) original.increaseUses();
+                JsonObject feedback = new JsonObject();
+                feedback.addProperty("type", "trade_complete");
+                feedback.addProperty("tradeId", p.id());
+                feedback.addProperty("entityId", s.villager.getId());
+                feedback.add("costA", item(p.costA()));
+                feedback.add("costB", item(p.costB()));
+                feedback.add("receive", item(p.result()));
+                send(s.player, feedback);
+            }
             return outcome(purchased ? "purchased" : "unavailable", purchased
                 ? p.result().getCount() + " × " + p.result().getHoverName().getString() + " added to your inventory. Exactly one trade completed."
                 : "Nothing was purchased. Ask for a fresh proposal.");
         } finally {
             // Native cleanup returns all unused payment items, including on errors.
-            if (menu != null) menu.removed(s.player);
-            else s.villager.setTradingPlayer(null);
-            s.player.inventoryMenu.broadcastChanges();
+            try {
+                if (menu != null) menu.removed(s.player);
+                else s.villager.setTradingPlayer(null);
+            } finally {
+                if (original != null) {
+                    original.resetSpecialPriceDiff();
+                    s.villager.getOffers().set(p.index(), original);
+                }
+                s.player.inventoryMenu.broadcastChanges();
+            }
         }
     }
     private JsonArray offers(Villager villager) {

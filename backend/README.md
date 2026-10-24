@@ -102,3 +102,18 @@ or confirm account access to Higgs 1.5.
 - The available original game log shows the session ending when the player died;
   it predates the microphone counters and cannot establish whether speech reached
   Higgs. The synthetic probes do not validate the actual game microphone or speakers.
+
+## Negotiation tools
+
+`propose_trade` accepts optional integer `quantity` (output count) and `payment`
+(primary input count), each 1–64, and optional boolean `discount`. Omitting quantity
+with payment requests a budget-based bundle. Omitting both requests the default
+bundle; `discount:true` can increase output for the same budget when the price
+cannot be reduced by a whole payment item. Always read the returned quote or
+counteroffer and obtain a fresh spoken confirmation.
+
+`report_treatment` accepts `polite`, `neutral`, or `rude` for explicit treatment in
+the latest utterance. Its trusted input-turn ID prevents duplicate assessments;
+the game server bounds mood, persistent relationship changes, and pricing. Polite
+requests or thanks qualify; bargaining, refusals, accents and speaking style do not
+qualify as rudeness. Relationship data stores scores and timestamps, not transcripts.
