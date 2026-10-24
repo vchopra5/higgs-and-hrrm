@@ -18,7 +18,8 @@ import javax.sound.sampled.*;
 /** PCM16 little-endian mono at 24 kHz. All device and network IO runs off the game thread. */
 final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private final Consumer<String> status;
-    final VoiceCaptions captions = new VoiceCaptions();
+    private final VoiceCaptions captions = new VoiceCaptions();
+    private final Consumer<VoiceCaptions.Line> chat;
     private final Runnable ended;
     private record Outbound(String json, int audioBytes) {}
     private final ArrayBlockingQueue<Outbound> outgoing = new ArrayBlockingQueue<>(64);
@@ -48,8 +49,9 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private final Thread sender;
     private final Thread player;
 
-    VoiceSession(String url, String ticket, Consumer<String> status, Runnable ended) {
+    VoiceSession(String url, String ticket, Consumer<String> status, Consumer<VoiceCaptions.Line> chat, Runnable ended) {
         this.status = status;
+        this.chat = chat;
         this.ended = ended;
         sender = Thread.ofVirtual().name("higgs-audio-send").unstarted(this::sendLoop);
         player = Thread.ofVirtual().name("higgs-audio-play").unstarted(this::playLoop);
@@ -224,7 +226,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
                 if (!"diagnostics".equals(type)) lastEvent = type;
                 switch (type) {
                     case "transcript" -> captions.update(event.get("speaker").getAsString(), event.get("id").getAsString(),
-                        event.get("text").getAsString(), event.get("replace").getAsBoolean(), System.currentTimeMillis());
+                        event.get("text").getAsString(), event.get("replace").getAsBoolean()).forEach(chat);
                     case "diagnostics" -> backendDiagnostics = event;
                     case "audio" -> {
                         if (!muted) break; // Ignore packets already in flight when B was pressed.
@@ -322,6 +324,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         });
         outgoing.clear();
         playback.clear();
+        captions.flush().forEach(chat);
         ended.run();
     }
 }

@@ -83,9 +83,11 @@ quote. Say yes in a new push-to-talk turn to complete one native trade. Saying n
 cancels. Prices, stock, inventory capacity, and proximity are checked before purchase.
 Quotes expire after two minutes and cannot be purchased twice. Start within eight
 blocks and remain within twelve; purchasing requires eight. Sessions last ten minutes.
-Captions labeled YOU and VILLAGER remain for eight seconds, then fade over three.
-User transcripts arrive after speech processing; villager text streams with the reply.
-Captions are transient and never saved or logged.
+Each finished turn appears in Minecraft chat as `<YourName>` or `<VillagerName>`, stacking
+like normal chat; press T to scroll back.
+User transcripts arrive after speech processing; villager lines post when the reply finishes (or is interrupted).
+These lines are local to your client and never sent to the server, but Minecraft
+writes chat to the client `logs/latest.log`.
 
 Validation: `npm --prefix backend test` tests against a local fake Higgs endpoint;
 `./scripts/build-mod.sh` compiles both mod entrypoints. These checks do not prove
