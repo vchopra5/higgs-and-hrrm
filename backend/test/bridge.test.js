@@ -150,6 +150,12 @@ test('hands-free VAD survives long silence, repeated turns, interruption and non
   assert.equal(diagnostic.pendingTools, 0);
   assert.equal(diagnostic.lastError, 'response_cancel_not_active');
   assert.equal(diagnostic.lastEvent, 'response.output_audio.delta');
+  assert.equal(diagnostic.debug.sessionId, sessionId);
+  assert.equal(diagnostic.debug.mode, 'vad');
+  assert.ok(diagnostic.debug.events.some(e => e.type === 'response.output_audio.delta' && e.count >= 1));
+  assert.ok(diagnostic.debug.events.length <= 12);
+  assert.equal(JSON.stringify(diagnostic.debug).includes('PRIVATE PROVIDER DETAIL'), false);
+  assert.ok(events.some(e => e.type === 'debug_context' && typeof e.context === 'object'));
   assert.ok(diagnostic.suppressedAudio.speaking > 0);
   assert.ok(diagnostic.suppressedAudio.staleResponse > 0);
   assert.ok(logs.some(e => e.stage === 'speech_stopped'));

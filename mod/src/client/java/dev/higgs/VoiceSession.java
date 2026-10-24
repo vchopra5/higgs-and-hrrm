@@ -43,6 +43,7 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
     private volatile String lastEvent = "connecting", lastError = "";
     private volatile String inputDevice = "opening", outputDevice = "Minecraft positional audio / Friendly Creatures";
     private volatile JsonObject backendDiagnostics = new JsonObject();
+    private volatile JsonObject debugContext;
     private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
     private final Thread sender;
 
@@ -216,11 +217,12 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
             try {
                 JsonObject event = JsonParser.parseString(incoming.toString()).getAsJsonObject();
                 String type = event.get("type").getAsString();
-                if (!"diagnostics".equals(type)) lastEvent = type;
+                if (!"diagnostics".equals(type) && !"debug_context".equals(type)) lastEvent = type;
                 switch (type) {
                     case "transcript" -> captions.update(event.get("speaker").getAsString(), event.get("id").getAsString(),
                         event.get("text").getAsString(), event.get("replace").getAsBoolean()).forEach(chat);
                     case "diagnostics" -> backendDiagnostics = event;
+                    case "debug_context" -> debugContext = event;
                     case "audio" -> {
                         if (!muted) break; // Ignore packets already in flight when B was pressed.
                         byte[] bytes = Base64.getDecoder().decode(event.get("audio").getAsString());
@@ -269,13 +271,16 @@ final class VoiceSession implements AutoCloseable, WebSocket.Listener {
         return muted || System.currentTimeMillis() - lastMicFrame > 1000 ? -96 : micDbfs;
     }
 
+    JsonObject backendDiagnostics() { return backendDiagnostics; }
+    JsonObject debugContext() { return debugContext; }
+
     String[] diagnosticLines() {
         JsonObject remote = backendDiagnostics;
         long age = lastMicFrame == 0 ? -1 : System.currentTimeMillis() - lastMicFrame;
         String latency = field(remote, "firstAudioLatencyMs", "—");
         String remoteError = field(remote, "lastError", "");
         return new String[] {
-            "Higgs diagnostics [F8]  " + (closed.get() ? "ENDED" : ready ? "READY" : "CONNECTING"),
+            "Socket " + (closed.get() ? "ENDED" : ready ? "READY" : "CONNECTING"),
             String.format(java.util.Locale.ROOT, "Mic %.1f dBFS  frame %s  %s", microphoneDbfs(), age < 0 ? "none" : age + "ms ago", muted ? "MUTED" : isTransmitting() ? "LIVE" : "INACTIVE"),
             "Input " + inputDevice,
             "Output " + outputDevice,

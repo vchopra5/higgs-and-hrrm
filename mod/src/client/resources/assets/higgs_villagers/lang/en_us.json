@@ -1,5 +1,9 @@
 {
   "key.category.higgs_villagers.voice": "HIGGS HRRM · Voice",
   "key.higgs_villagers.talk": "Hold to talk to villager",
-  "key.higgs_villagers.diagnostics": "Show / hide voice diagnostics"
+  "key.higgs_villagers.debug_conversation": "Debug: conversation / Boson",
+  "key.higgs_villagers.debug_context": "Debug: conversation context",
+  "key.higgs_villagers.diagnostics": "Debug: audio & connection",
+  "key.higgs_villagers.debug_scroll_up": "Debug: scroll up",
+  "key.higgs_villagers.debug_scroll_down": "Debug: scroll down"
 }

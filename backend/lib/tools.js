@@ -27,6 +27,7 @@ function sendToolOutput(session, callId, result) {
 export function submitToolResult(session, callId, result) {
   const pending = session.pending.get(callId);
   if (!pending || !session.pending.delete(callId)) return false;
+  session.traceTool?.(pending, result);
   if (pending.memoryContext) {
     session.memoryContext.acceptResult(pending, result);
     return true;

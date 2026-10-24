@@ -127,7 +127,10 @@ Join `localhost:25565`, face an adult, awake villager within eight blocks, and w
 | :--- | :--- |
 | **Look at a villager** | Connect automatically; look at another and press B to switch |
 | **Hold B → release** | Speak, then send your turn |
-| **F8** | Show or hide voice diagnostics |
+| **F6** | Debug: conversation / Boson session (state, tool calls, provider events) |
+| **F7** | Debug: context sent to Boson (personality, rumours, memories, offers) |
+| **F8** | Debug: audio & connection (devices, mic level, queues, status history) |
+| **PgUp / PgDn** | Scroll the open debug page |
 
 ## On the workbench
 
@@ -168,7 +171,7 @@ Backend tests use a local fake Higgs endpoint. The build compiles the mod; neith
   <sub>Unofficial Minecraft project. Banner artwork is illustrative, not a gameplay screenshot.</sub>
 </p>
 
-Each finished turn from you and the villager is added to Minecraft chat, so the conversation stacks up and can be scrolled back with T. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F8 toggles additional diagnostics.
+Each finished turn from you and the villager is added to Minecraft chat, so the conversation stacks up and can be scrolled back with T. Your transcript arrives after speech processing. The microphone HUD stays visible during conversations; F6, F7 and F8 toggle the debug pages.
 
 Successful voice trades show a gentle handoff: cosmetic payment items float toward the villager, then the purchased item floats back. A soft chime and a fading receipt confirm the exchange. These client-only copies never become dropped items or affect inventory.
 

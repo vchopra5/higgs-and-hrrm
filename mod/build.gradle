@@ -120,6 +120,18 @@ tasks.register('testVoiceCaptions', JavaExec) {
 }
 tasks.named('check') { dependsOn 'testVoiceCaptions' }
 
+tasks.register('compileDebugPagesTest', JavaCompile) {
+    source = files('src/client/java/dev/higgs/DebugPages.java', 'src/client/test/dev/higgs/DebugPagesTest.java')
+    classpath = sourceSets.main.compileClasspath
+    destinationDirectory = layout.buildDirectory.dir('debug-pages-test')
+}
+tasks.register('testDebugPages', JavaExec) {
+    dependsOn 'compileDebugPagesTest'
+    classpath = files(layout.buildDirectory.dir('debug-pages-test')) + sourceSets.main.compileClasspath
+    mainClass = 'dev.higgs.DebugPagesTest'
+}
+tasks.named('check') { dependsOn 'testDebugPages' }
+
 tasks.register('compileNegotiationTest', JavaCompile) {
     source = files('src/main/java/dev/higgs/Negotiation.java', 'src/confirmation/test/dev/higgs/NegotiationTest.java')
     classpath = files()

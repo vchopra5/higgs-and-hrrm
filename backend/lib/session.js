@@ -14,6 +14,9 @@ import { MemoryContext } from './memory-context.js';
 const DURATION_MESSAGE = 'The ten-minute conversation limit was reached. '
   + 'Start a new conversation to continue.';
 const RESPONSE_STATUSES = new Set(['completed', 'cancelled', 'failed', 'incomplete']);
+const DEBUG_EVENTS = 12;
+const DEBUG_TOOLS = 8;
+const debugText = value => (typeof value === 'string' ? value : JSON.stringify(value) ?? '').slice(0, 240);
 
 export class BridgeSession {
   constructor(body, { apiKey, upstreamUrl, connect, now, log, onClose, voiceOverrides = {} }) {
@@ -57,6 +60,9 @@ export class BridgeSession {
       firstAudioLatencyMs: null, lastEvent: 'session_allocated', lastError: null,
       suppressedAudio: { speaking: 0, cancelled: 0, staleResponse: 0, backpressure: 0 },
     };
+    // Player-facing debug HUD (F6): provider event codes only, never provider error text.
+    this.debugEvents = [];
+    this.debugTools = [];
     this.timer = setTimeout(() => {
       this.sendError(true, 'session_duration_limit', DURATION_MESSAGE);
       this.close('session_duration_limit');
@@ -115,6 +121,35 @@ export class BridgeSession {
       'You are the Minecraft villager who was just hit. ' + (this.character?.instructions ?? '') + delivery
       + ' Express that emotion in your voice. No narration, trading, or tool calls.' } });
     this.stage('environment_reaction', { hitCount: reaction.count, windowMs: reaction.windowMs });
+  }
+
+  traceEvent(type) {
+    const last = this.debugEvents.at(-1);
+    // Collapse streams such as audio deltas into one counted row.
+    if (last?.type === type) { last.count++; last.at = this.now(); return; }
+    this.debugEvents.push({ type, count: 1, at: this.now() });
+    if (this.debugEvents.length > DEBUG_EVENTS) this.debugEvents.shift();
+  }
+
+  traceTool(tool, result) {
+    this.debugTools.push({ name: tool.name, internal: Boolean(tool.internal), turnId: tool.turnId,
+      arguments: debugText(tool.arguments), result: debugText(result), durationMs: this.now() - tool.created, at: this.now() });
+    if (this.debugTools.length > DEBUG_TOOLS) this.debugTools.shift();
+  }
+
+  debugState() {
+    const now = this.now();
+    const state = this.reactionActive ? 'reaction' : this.recording ? 'listening' : this.awaitingCancellation ? 'cancelling'
+      : this.queuedResponse ? 'queued' : !this.responseDone ? 'responding'
+        : [...this.pending.values()].some(tool => !tool.internal) ? 'tools' : 'idle';
+    return {
+      sessionId: this.id, model: 'higgs-realtime', mode: this.mode ?? null, state, turnId: this.turnId,
+      elapsedMs: now - this.created, limitMs: LIMITS.sessionMs,
+      events: this.debugEvents.map(({ at, ...event }) => ({ ...event, ageMs: now - at })),
+      tools: this.debugTools.map(({ at, ...tool }) => ({ ...tool, ageMs: now - at })),
+      pending: [...this.pending.values()].map(tool => ({ name: tool.name, internal: Boolean(tool.internal),
+        arguments: debugText(tool.arguments), ageMs: now - tool.created })),
+    };
   }
 
   sendClient(event) { return sendJson(this.client, event); }
@@ -252,6 +287,7 @@ export class BridgeSession {
     try {
       const event = JSON.parse(data);
       this.diagnostics.lastEvent = sanitizeCode(event.type ?? 'unknown');
+      this.traceEvent(this.diagnostics.lastEvent);
       switch (event.type) {
         case 'session.created':
         case 'session.updated':
@@ -351,6 +387,10 @@ export class BridgeSession {
     }
     this.stage('upstream_ready');
     this.sendClient({ type: 'status', message: 'Ready' });
+    this.sendClient({
+      type: 'debug_context', context: this.context, voice: this.requestedVoice ?? null, voiceFallback: this.voiceFallback,
+      characterInstructions: this.character?.instructions ?? null, instructionsChars: this.requestedInstructions?.length ?? 0,
+    });
     this.flushReaction();
     if (this.context.autoGreeting === true && this.responseDone && !this.recording
         && !this.awaitingCancellation && !this.queuedResponse && !this.reactionActive) {
@@ -470,6 +510,7 @@ export class BridgeSession {
       voice: this.requestedVoice ?? null, voiceFallback: this.voiceFallback,
       upstreamReady: Boolean(this.ready && this.upstream?.readyState === WebSocket.OPEN),
       speaking: Boolean(this.recording), cancelled: Boolean(this.cancelled),
+      debug: this.debugState(),
     });
     expireTools(this);
     this.flushReaction();

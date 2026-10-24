@@ -17,6 +17,10 @@ import net.minecraft.resources.Identifier;
 import net.minecraft.world.entity.npc.villager.Villager;
 import net.minecraft.world.phys.EntityHitResult;
 import org.lwjgl.glfw.GLFW;
+import java.util.ArrayList;
+import java.util.Deque;
+import java.util.List;
+import java.util.concurrent.ConcurrentLinkedDeque;
 
 public final class HiggsVillagersClient implements ClientModInitializer {
     private VoiceSession voice;
@@ -30,20 +34,26 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     private long nextConnectAt;
     private long requestTime;
     private long generation;
-    private boolean showDiagnostics;
+    private int debugPage; // 0 hidden; otherwise the F-key of the page shown.
+    private int debugScroll;
     private boolean tutorialDisabled;
     private VoiceSession lastVoice;
     private long diagnosticRefresh;
-    private String[] diagnosticLines = new String[0];
-    private static volatile String lastStatus = "";
-    private static volatile long lastStatusAt;
+    private int diagnosticWidth;
+    private List<String> diagnosticLines = List.of();
+    private record Status(long at, String message) {}
+    private static final Deque<Status> STATUS_HISTORY = new ConcurrentLinkedDeque<>();
 
     @Override public void onInitializeClient() {
         VillagerExpressions.initializeAnimations();
         ReputationBar.register();
         KeyMapping.Category category = KeyMapping.Category.register(Identifier.fromNamespaceAndPath("higgs_villagers", "voice"));
         KeyMapping talk = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.talk", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_B, category));
+        KeyMapping conversationDebug = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.debug_conversation", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F6, category));
+        KeyMapping contextDebug = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.debug_context", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F7, category));
         KeyMapping diagnostics = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.diagnostics", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_F8, category));
+        KeyMapping scrollUp = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.debug_scroll_up", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_PAGE_UP, category));
+        KeyMapping scrollDown = KeyMappingHelper.registerKeyMapping(new KeyMapping("key.higgs_villagers.debug_scroll_down", InputConstants.Type.KEYSYM, GLFW.GLFW_KEY_PAGE_DOWN, category));
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "voice_indicator"),
             (graphics, delta) -> {
                 Minecraft client = Minecraft.getInstance();
@@ -84,29 +94,51 @@ public final class HiggsVillagersClient implements ClientModInitializer {
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "diagnostics"),
             (graphics, delta) -> {
                 Minecraft client = Minecraft.getInstance();
+                if (debugPage == 0 || client.player == null || client.options.hideGui) return;
                 long now = System.currentTimeMillis();
-                if (!showDiagnostics || client.player == null || client.options.hideGui
-                    || (voice == null && !pending && now - lastStatusAt > 15_000)) return;
                 VoiceSession source = voice != null ? voice : lastVoice;
-                if (now - diagnosticRefresh >= 250) {
+                // Leave the top-right corner to the voice indicator.
+                int width = Math.max(160, Math.min(420, graphics.guiWidth() - 170));
+                if (now - diagnosticRefresh >= 250 || width != diagnosticWidth) {
                     diagnosticRefresh = now;
-                    diagnosticLines = source == null ? new String[]{"Higgs diagnostics [F8]", pending ? "Connecting…" : "No active session"} : source.diagnosticLines();
+                    diagnosticWidth = width;
+                    List<String> raw = switch (debugPage) {
+                        case 6 -> source == null ? List.of(pending ? "Connecting…" : "No conversation yet.") : DebugPages.conversation(source.backendDiagnostics());
+                        case 7 -> DebugPages.context(source == null ? null : source.debugContext());
+                        default -> connectionLines(client, source, now);
+                    };
+                    List<String> wrapped = new ArrayList<>();
+                    for (String line : raw) wrapped.addAll(DebugPages.wrap(line, width - 12, client.font::width));
+                    diagnosticLines = wrapped;
                 }
-                int width = Math.min(390, graphics.guiWidth() - 20);
+                String state = source == null ? pending ? "CONNECTING" : "IDLE" : voice == null ? "ENDED" : source.isReady() ? "LIVE" : "CONNECTING";
+                String title = switch (debugPage) {
+                    case 6 -> "Conversation · Boson [F6]";
+                    case 7 -> "Conversation context [F7]";
+                    default -> "Audio & connection [F8]";
+                } + "  " + state;
+                int footer = debugPage == 8 ? 6 : 0;
+                int rows = Math.max(1, (graphics.guiHeight() - 20 - 21 - footer) / 11);
+                debugScroll = Math.max(0, Math.min(debugScroll, diagnosticLines.size() - rows));
+                int shown = Math.min(rows, diagnosticLines.size() - debugScroll);
+                if (diagnosticLines.size() > rows)
+                    title += "  PgUp/PgDn " + (debugScroll + 1) + "–" + (debugScroll + shown) + "/" + diagnosticLines.size();
                 int x = 10, y = 10;
-                int height = (diagnosticLines.length + 1) * 11 + 16;
+                int height = (shown + 1) * 11 + 10 + footer;
                 graphics.fill(x, y, x + width, y + height, 0xE0141B24);
-                int row = y + 5;
-                for (String text : diagnosticLines) {
-                    graphics.text(client.font, client.font.plainSubstrByWidth(text, width - 12), x + 6, row, 0xFFD3DBE5, false);
+                graphics.fill(x, y, x + 2, y + height, 0xFF70B7FF);
+                graphics.text(client.font, client.font.plainSubstrByWidth(title, width - 12), x + 6, y + 5, 0xFF70B7FF, false);
+                int row = y + 16;
+                for (int i = debugScroll; i < debugScroll + shown; i++) {
+                    graphics.text(client.font, diagnosticLines.get(i), x + 6, row, 0xFFD3DBE5, false);
                     row += 11;
                 }
-                String status = lastStatus.length() > 200 ? lastStatus.substring(0, 200) : lastStatus;
-                graphics.text(client.font, client.font.plainSubstrByWidth(status, width - 12), x + 6, row, 0xFFFFCF70, false);
-                double dbfs = source == null ? -96 : source.microphoneDbfs();
-                int meter = (int) ((width - 12) * Math.max(0, Math.min(1, (dbfs + 60) / 60)));
-                graphics.fill(x + 6, y + height - 5, x + width - 6, y + height - 3, 0xFF384451);
-                if (meter > 0) graphics.fill(x + 6, y + height - 5, x + 6 + meter, y + height - 3, dbfs > -3 ? 0xFFFF7070 : 0xFF70EF9B);
+                if (debugPage == 8) {
+                    double dbfs = source == null ? -96 : source.microphoneDbfs();
+                    int meter = (int) ((width - 12) * Math.max(0, Math.min(1, (dbfs + 60) / 60)));
+                    graphics.fill(x + 6, y + height - 5, x + width - 6, y + height - 3, 0xFF384451);
+                    if (meter > 0) graphics.fill(x + 6, y + height - 5, x + 6 + meter, y + height - 3, dbfs > -3 ? 0xFFFF7070 : 0xFF70EF9B);
+                }
             });
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "trade_tracker"),
             (graphics, delta) -> tracker.render(graphics));
@@ -128,9 +160,11 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 client.getTutorial().setStep(net.minecraft.client.tutorial.TutorialSteps.NONE);
                 tutorialDisabled = true;
             }
-            while (diagnostics.consumeClick()) {
-                if (client.screen == null) showDiagnostics = !showDiagnostics;
-            }
+            toggleDebugPage(client, conversationDebug, 6);
+            toggleDebugPage(client, contextDebug, 7);
+            toggleDebugPage(client, diagnostics, 8);
+            while (scrollUp.consumeClick()) debugScroll = Math.max(0, debugScroll - 10);
+            while (scrollDown.consumeClick()) debugScroll += 10; // Clamped against the page length when drawn.
             if (pending && System.currentTimeMillis() - requestTime > 15_000) {
                 stop(true);
                 status("Villager connection timed out. Check the backend.");
@@ -160,6 +194,31 @@ public final class HiggsVillagersClient implements ClientModInitializer {
             if (voice != null) voice.setTalking(recordSpeech);
             wasTalking = held;
         });
+    }
+
+    private void toggleDebugPage(Minecraft client, KeyMapping key, int page) {
+        while (key.consumeClick()) {
+            if (client.screen != null) continue;
+            debugPage = debugPage == page ? 0 : page;
+            debugScroll = 0;
+            diagnosticRefresh = 0;
+        }
+    }
+
+    private List<String> connectionLines(Minecraft client, VoiceSession source, long now) {
+        List<String> lines = new ArrayList<>(source == null ? List.of("No voice session yet.") : List.of(source.diagnosticLines()));
+        lines.add("");
+        String target = "none";
+        if (targetId >= 0 && client.level != null && client.level.getEntity(targetId) instanceof Villager villager)
+            target = "#" + targetId + " " + villager.getName().getString()
+                + String.format(java.util.Locale.ROOT, " %.1fm", Math.sqrt(client.player.distanceToSqr(villager)));
+        lines.add("Client " + (pending ? "PENDING" : voice != null ? "ACTIVE" : "IDLE") + "  target " + target
+            + "  generation " + generation);
+        lines.add("Server mod " + (ClientPlayNetworking.canSend(ControlPayload.TYPE) ? "present" : "missing")
+            + "  window " + (client.isWindowActive() ? "focused" : "unfocused") + "  B " + (wasTalking ? "held" : "up"));
+        lines.add("Status history (newest first)");
+        for (Status status : STATUS_HISTORY) lines.add("  " + DebugPages.seconds(now - status.at()) + "  " + status.message());
+        return lines;
     }
 
     private void start(Minecraft client, Villager target) {
@@ -261,8 +320,8 @@ public final class HiggsVillagersClient implements ClientModInitializer {
     }
 
     private static void status(String message) {
-        lastStatus = message;
-        lastStatusAt = System.currentTimeMillis();
+        STATUS_HISTORY.addFirst(new Status(System.currentTimeMillis(), message.length() > 200 ? message.substring(0, 200) : message));
+        while (STATUS_HISTORY.size() > 10) STATUS_HISTORY.pollLast();
         org.slf4j.LoggerFactory.getLogger("HiggsVillagersVoice").info("{}", message);
         Minecraft client = Minecraft.getInstance();
         // Audio-only by default. F8 exposes diagnostic status when explicitly requested.
