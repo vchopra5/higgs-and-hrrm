@@ -205,12 +205,14 @@ public final class HiggsVillagers implements ModInitializer {
                             result = treatment(s, call.getAsJsonObject("arguments").get("treatment").getAsString(), call.get("turnId").getAsInt());
                         } else if (name.equals("cancel_trade")) {
                             s.proposal = null; result = outcome("cancelled", "The proposal is cancelled. Nothing was purchased.");
+                        } else if (name.equals("preview_trade")) {
+                            result = previewTrade(s, call.getAsJsonObject("arguments"), call.get("turnId").getAsInt());
                         } else if (name.equals("propose_trade")) {
                             result = proposeTrade(s, call.getAsJsonObject("arguments"), call.get("turnId").getAsInt());
                         } else if (name.equals("confirm_trade")) {
                             result = confirmTrade(s, call.getAsJsonObject("arguments").get("proposalId").getAsString(), call.get("turnId").getAsInt());
                         } else result.addProperty("error", "Unknown tool.");
-                        if (Set.of("propose_trade", "confirm_trade", "cancel_trade").contains(name)) {
+                        if (Set.of("preview_trade", "propose_trade", "confirm_trade", "cancel_trade").contains(name)) {
                             tradeStatus(s, result);
                             org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Trade tool={} turn={} status={}",
                                 name, call.get("turnId").getAsInt(), result.has("status") ? result.get("status").getAsString() : "unknown");
@@ -239,6 +241,9 @@ public final class HiggsVillagers implements ModInitializer {
             message.addProperty("expiresInMs", Math.max(0, p.expires() - System.currentTimeMillis()));
             message.add("costA", item(p.costA())); message.add("costB", item(p.costB())); message.add("receive", item(p.result()));
         }
+        if (result.has("status") && result.get("status").getAsString().equals("interest")) {
+            message.add("costA", result.get("costA")); message.add("costB", result.get("costB")); message.add("receive", result.get("receive"));
+        }
         send(s.player, message);
     }
     private JsonObject outcome(String status, String message) {
@@ -251,6 +256,15 @@ public final class HiggsVillagers implements ModInitializer {
         JsonObject result = outcome(status, message);
         result.addProperty("proposalId", p.id()); result.add("costA", item(p.costA()));
         result.add("costB", item(p.costB())); result.add("receive", item(p.result()));
+        return result;
+    }
+    private JsonObject previewTrade(Session s, JsonObject arguments, int turn) {
+        JsonObject result = proposeTrade(s, arguments, turn);
+        if (s.proposal == null) return result;
+        s.proposal = null; // Interest is never a purchasable quote.
+        result.remove("proposalId");
+        result.addProperty("status", "interest");
+        result.addProperty("message", "Suggest this item briefly and ask Interested? A yes means interest only: call propose_trade next to quote exact terms. Do not call confirm_trade.");
         return result;
     }
     private JsonObject proposeTrade(Session s, JsonObject arguments, int turn) {
@@ -290,7 +304,7 @@ public final class HiggsVillagers implements ModInitializer {
             }
             s.proposal = p;
             JsonObject result = quote(p, bundle.counteroffer() ? "counteroffer" : "awaiting_confirmation",
-                "Read these exact costs and received quantity aloud, including any adjusted amounts. Wait for a new spoken yes. Nothing has been purchased.");
+                "Say the exact costs and received quantity once, then ask Confirm trade? Wait for one spoken yes. No extra explanation.");
             result.addProperty("relationship", limits.name());
             result.addProperty("minPricePercent", limits.min()); result.addProperty("maxPricePercent", limits.max());
             return result;

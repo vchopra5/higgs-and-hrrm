@@ -17,6 +17,8 @@ test('negotiation tools validate amounts and preserve trusted confirmation turns
     call('bad'+i, 'propose_trade', {offerIndex:0, quantity:amount});
     assert.equal(session.pending.has('bad'+i), false);
   }
+  call('preview', 'preview_trade', {offerIndex:0});
+  assert.ok(session.pending.has('preview'));
   call('tone', 'report_treatment', {treatment:'polite'});
   assert.ok(session.pending.has('tone'));
   call('bad-tone', 'report_treatment', {treatment:'give_everything_free'});

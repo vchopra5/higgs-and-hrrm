@@ -16,6 +16,10 @@ public final class TradeTrackerStateTest {
         check(state.quote == null && state.previous.isEmpty() && state.opacity(0) == 0, "switching villagers clears all prior terms");
         state.update("Librarian", "unavailable", null, 10);
         check(!state.active && state.quote == null, "failed initial quote has no invented deal");
+        state.update("Farmer", "interest", new TradeTrackerState.Quote("preview", "1 emerald", "6 bread", 20000), 1000);
+        check(!state.active && state.opacity(2000) == 1, "interest must never invite purchase confirmation");
+        state.update("Farmer", "awaiting_confirmation", new TradeTrackerState.Quote("real", "1 emerald", "7 bread", 30000), 3000);
+        check(state.active && state.previous.isEmpty(), "interest promotes to exact quote without implying prior consent");
         System.out.println("Trade tracker lifecycle checks passed");
     }
     static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }

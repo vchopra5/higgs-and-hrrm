@@ -13,10 +13,11 @@ final class TradeTrackerState {
             && (!next.payment().equals(quote.payment()) || !next.received().equals(quote.received())))
             previous = quote.payment() + " → " + quote.received();
         else if (next == null) previous = "";
+        if (status.equals("interest") || this.status.equals("interest")) previous = "";
         this.villager = villager;
         this.status = status;
         if (next != null) quote = next;
-        active = next != null;
+        active = next != null && !status.equals("interest");
         updated = now;
     }
     void expire(long now) {
@@ -26,7 +27,7 @@ final class TradeTrackerState {
     }
     float opacity(long now) {
         expire(now);
-        return status.isEmpty() ? 0 : active ? 1 : Math.max(0, Math.min(1, (6000 - (now - updated)) / 1500f));
+        return status.isEmpty() ? 0 : active ? 1 : Math.max(0, Math.min(1, ((status.equals("interest") ? 15000 : 6000) - (now - updated)) / 1500f));
     }
     void clear() { quote = null; villager = ""; status = ""; previous = ""; active = false; updated = 0; }
 }

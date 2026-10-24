@@ -12,12 +12,12 @@ final class TradeTracker {
     void update(JsonObject event) {
         long now = System.currentTimeMillis();
         TradeTrackerState.Quote next = null;
-        if (event.has("proposalId")) {
+        if (event.has("costA")) {
             String payment = item(event.getAsJsonObject("costA"));
             JsonObject second = event.getAsJsonObject("costB");
             if (second.get("count").getAsInt() > 0) payment += " + " + item(second);
-            next = new TradeTrackerState.Quote(event.get("proposalId").getAsString(), payment,
-                item(event.getAsJsonObject("receive")), now + Math.max(0, Math.min(120_000, event.get("expiresInMs").getAsLong())));
+            next = new TradeTrackerState.Quote(event.has("proposalId") ? event.get("proposalId").getAsString() : "preview", payment,
+                item(event.getAsJsonObject("receive")), now + (event.has("expiresInMs") ? Math.max(0, Math.min(120_000, event.get("expiresInMs").getAsLong())) : 15000));
         }
         state.update(clean(event.get("villager").getAsString()), event.get("status").getAsString(), next, now);
     }
@@ -33,8 +33,8 @@ final class TradeTracker {
         float opacity = state.opacity(now);
         if (opacity <= 0) return;
         int alpha = Math.max(5, (int) (255 * opacity));
-        int width = Math.min(280, graphics.guiWidth() - 24);
-        int x = (graphics.guiWidth() - width) / 2, y = 66;
+        int width = Math.min(210, graphics.guiWidth() - 24);
+        int x = graphics.guiWidth() - width - 10, y = 68;
         int column = (width - 36) / 2;
         var pay = client.font.split(Component.literal(state.quote == null ? "—" : state.quote.payment()), column);
         var receive = client.font.split(Component.literal(state.quote == null ? "—" : state.quote.received()), column);
@@ -42,9 +42,10 @@ final class TradeTracker {
         boolean old = !state.previous.isEmpty() && now - state.updated < 4000;
         int height = 74 + rows * 10 + (old ? 14 : 0);
         int tint = state.active ? 0xA5D8FF : state.status.equals("purchased") ? 0xA6E9BA : 0xFFCF70;
-        graphics.fill(x, y, x + width, y + height, ((alpha * 9 / 10) << 24) | 0x101B20);
+        graphics.fill(x, y, x + width, y + height, ((alpha * 2 / 3) << 24) | 0x101B20);
         graphics.fill(x, y, x + 2, y + height, (alpha << 24) | tint);
-        String heading = state.active ? (state.status.equals("counteroffer") ? "COUNTEROFFER" : "CURRENT OFFER")
+        String heading = state.status.equals("interest") ? "INTERESTED?"
+            : state.active ? (state.status.equals("counteroffer") ? "COUNTEROFFER" : "CONFIRM TRADE?")
             : state.status.equals("purchased") ? "TRADE COMPLETE" : "NO ACTIVE OFFER";
         graphics.text(client.font, heading, x + 12, y + 8, (alpha << 24) | tint, false);
         graphics.text(client.font, client.font.plainSubstrByWidth(state.villager, width - 24), x + 12, y + 21,
@@ -61,7 +62,8 @@ final class TradeTracker {
         graphics.text(client.font, "YOU GET", x + 24 + column, top, (alpha << 24) | 0xABB9C5, false);
         for (int i = 0; i < pay.size(); i++) graphics.text(client.font, pay.get(i), x + 12, top + 13 + i * 10, (alpha << 24) | 0xF2F5F4, false);
         for (int i = 0; i < receive.size(); i++) graphics.text(client.font, receive.get(i), x + 24 + column, top + 13 + i * 10, (alpha << 24) | 0xF2F5F4, false);
-        String footer = state.active ? "Say yes to accept · or negotiate" : switch (state.status) {
+        String footer = state.active ? "Say yes to confirm" : switch (state.status) {
+            case "interest" -> "Just browsing · no purchase";
             case "purchased" -> "Items exchanged successfully";
             case "cancelled" -> "Cancelled · nothing exchanged";
             case "expired" -> "Expired · ask for a fresh quote";

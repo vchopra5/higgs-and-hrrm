@@ -85,31 +85,26 @@ public final class HiggsVillagersClient implements ClientModInitializer {
                 if (source == null) return;
                 long now = System.currentTimeMillis();
                 var captions = source.captions.visible(now);
-                float captionScale = 0.75f;
-                int width = (int) (Math.min(400, graphics.guiWidth() - 24) / captionScale);
-                int x = (int) ((graphics.guiWidth() / captionScale - width) / 2);
-                int bottom = (int) ((graphics.guiHeight() - 58) / captionScale);
-                graphics.pose().pushMatrix();
-                graphics.pose().scale(captionScale, captionScale);
-                try {
-                    // Bottom-anchor the newest reply; limit each speaker to three wrapped lines.
-                    for (int i = captions.size() - 1; i >= 0; i--) {
-                        var caption = captions.get(i);
-                        var lines = client.font.split(Component.literal(caption.text()), width - 20);
-                        int start = Math.max(0, lines.size() - 3), count = lines.size() - start;
-                        int height = 21 + count * 11;
-                        int top = bottom - height;
-                        int alpha = Math.max(5, (int) (255 * caption.opacity(now)));
-                        graphics.fill(x, top, x + width, bottom, ((alpha * 3 / 4) << 24) | 0x101B20);
-                        int tint = caption.speaker().equals("you") ? 0xA5D8FF : 0xA6E9BA;
-                        graphics.fill(x, top + 5, x + 2, bottom - 5, (alpha << 24) | tint);
-                        graphics.text(client.font, caption.speaker().equals("you") ? "YOU" : "VILLAGER",
-                            x + 10, top + 6, (alpha << 24) | tint, false);
-                        for (int row = 0; row < count; row++) graphics.text(client.font, lines.get(start + row),
-                            x + 10, top + 19 + row * 11, (alpha << 24) | 0xF2F5F4, false);
-                        bottom = top - 5;
-                    }
-                } finally { graphics.pose().popMatrix(); }
+                int width = Math.min(300, graphics.guiWidth() - 24);
+                int x = 10;
+                int bottom = graphics.guiHeight() - 58;
+                // Bottom-anchor the newest reply; limit each speaker to two wrapped lines.
+                for (int i = captions.size() - 1; i >= 0; i--) {
+                    var caption = captions.get(i);
+                    var lines = client.font.split(Component.literal(caption.text()), width - 20);
+                    int start = Math.max(0, lines.size() - 2), count = lines.size() - start;
+                    int height = 21 + count * 11;
+                    int top = bottom - height;
+                    int alpha = Math.max(5, (int) (255 * caption.opacity(now)));
+                    graphics.fill(x, top, x + width, bottom, ((alpha * 3 / 4) << 24) | 0x101B20);
+                    int tint = caption.speaker().equals("you") ? 0xA5D8FF : 0xA6E9BA;
+                    graphics.fill(x, top + 5, x + 2, bottom - 5, (alpha << 24) | tint);
+                    graphics.text(client.font, caption.speaker().equals("you") ? "YOU" : "VILLAGER",
+                        x + 10, top + 6, (alpha << 24) | tint, false);
+                    for (int row = 0; row < count; row++) graphics.text(client.font, lines.get(start + row),
+                        x + 10, top + 19 + row * 11, (alpha << 24) | 0xF2F5F4, false);
+                    bottom = top - 5;
+                }
             });
         HudElementRegistry.addLast(Identifier.fromNamespaceAndPath("higgs_villagers", "diagnostics"),
             (graphics, delta) -> {
