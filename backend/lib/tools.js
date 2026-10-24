@@ -33,6 +33,7 @@ export function submitToolResult(session, callId, result) {
     session.memoryContext.acceptResult(pending, result);
     return true;
   }
+  if (pending.name === '_errand_heard') session.errandHeard?.(pending, result);
   if (pending.name === 'report_treatment') session.logTreatment?.({
     event: 'treatment_result', source: pending.internal ? 'keyword_fallback' : 'voice_model',
     callId, turnId: pending.turnId, treatment: pending.arguments?.treatment,

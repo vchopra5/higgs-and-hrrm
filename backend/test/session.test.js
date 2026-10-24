@@ -701,6 +701,61 @@ test('politeness logs distinguish transcript fallback, model labels and applied 
   assert.equal(f.bridge.sessions.get(f.sessionId).pending.size, 0);
 });
 
+test('an errand delivery the model missed is checked by the game server, and the villager reacts once', async t => {
+  const f = await fixture(t, { context: { name: 'Nell', errands: { expectingWord: true } } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  const creates = () => f.received.filter(event => event.type === 'response.create').length;
+  f.emit({ type: 'input_audio_buffer.speech_started' });
+  f.emit({ type: 'input_audio_buffer.speech_stopped' });
+  f.emit({ type: 'response.created', response: { id: 'asks-what-task' } });
+  f.emit({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u1', transcript: 'Cedric says hi and needs you for a small task.' });
+  await until(() => [...session.pending.values()].some(tool => tool.name === '_errand_heard'));
+  const heard = [...session.pending.values()].find(tool => tool.name === '_errand_heard');
+  assert.equal(heard.internal, true);
+  assert.equal(heard.arguments.conveyed, 'Cedric says hi and needs you for a small task.');
+  const before = creates();
+  // The result lands mid-reply: the villager reacts only once it has finished speaking.
+  await f.request(`/sessions/${f.sessionId}/tools/${heard.callId}/result`, 'POST',
+    { result: { status: 'errand_complete', message: 'Cedric sent the player. They told you: "Cedric says hi".' } });
+  assert.equal(creates(), before);
+  f.emit({ type: 'response.output_audio_transcript.done', response_id: 'asks-what-task', transcript: 'What task would that be?' });
+  f.emit({ type: 'response.done', response: { id: 'asks-what-task', status: 'completed' } });
+  await until(() => creates() === before + 1);
+  const note = f.received.findLast(event => event.type === 'conversation.item.create');
+  assert.match(note.item.content[0].text, /^\[Server check, not player speech\] The player just delivered an errand to you\. Cedric sent/);
+  assert.equal(session.context.errands.expectingWord, false);
+  // Delivered: later lines are not checked again.
+  f.emit({ type: 'input_audio_buffer.speech_started' });
+  f.emit({ type: 'input_audio_buffer.speech_stopped' });
+  f.emit({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u2', transcript: 'Cedric says hi again.' });
+  await delay(30);
+  assert.equal([...session.pending.values()].some(tool => tool.name === '_errand_heard'), false);
+});
+
+test('no extra errand reaction when the model delivered the errand itself', async t => {
+  const f = await fixture(t, { context: { name: 'Nell', errands: { expectingWord: true } } });
+  const session = f.bridge.sessions.get(f.sessionId);
+  const creates = () => f.received.filter(event => event.type === 'response.create').length;
+  f.emit({ type: 'input_audio_buffer.speech_started' });
+  f.emit({ type: 'input_audio_buffer.speech_stopped' });
+  f.emit({ type: 'response.created', response: { id: 'delivers' } });
+  f.emit({ type: 'conversation.item.input_audio_transcription.completed', item_id: 'u1', transcript: 'Cedric says hi and needs you for a small task.' });
+  f.emit({ type: 'response.function_call_arguments.done', response_id: 'delivers', call_id: 'model-deliver', name: 'deliver_errand',
+    arguments: '{"conveyed":"Cedric says hi"}' });
+  await until(() => session.pending.has('model-deliver') && [...session.pending.values()].some(tool => tool.name === '_errand_heard'));
+  const heard = [...session.pending.values()].find(tool => tool.name === '_errand_heard');
+  await f.request(`/sessions/${f.sessionId}/tools/${heard.callId}/result`, 'POST',
+    { result: { status: 'errand_complete', message: 'Cedric sent the player.' } });
+  await f.request(`/sessions/${f.sessionId}/tools/model-deliver/result`, 'POST',
+    { result: { status: 'already_delivered', message: 'Cedric sent the player.' } });
+  f.emit({ type: 'response.done', response: { id: 'delivers', status: 'completed' } });
+  await until(() => creates() >= 1);
+  await delay(30);
+  const notes = f.received.filter(event => event.type === 'conversation.item.create'
+    && event.item.content?.[0]?.text?.includes('delivered an errand'));
+  assert.equal(notes.length, 0);
+});
+
 test('a villager that invents a trade is made to correct itself once per turn', async t => {
   const f = await fixture(t, { mode: 'ptt' });
   const session = f.bridge.sessions.get(f.sessionId);

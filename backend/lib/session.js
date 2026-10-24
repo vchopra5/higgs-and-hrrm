@@ -85,6 +85,8 @@ export class BridgeSession {
     this.companionSpec = parseCompanion(body.companion);
     this.companion = null;
     this.lastTranscript = null;
+    this.deliverTurn = -1;
+    this.heardErrand = null;
     this.lastCommitAt = 0;
     // Recent lines, so a neighbour joining mid-conversation can catch up.
     this.recentLines = [];
@@ -245,6 +247,7 @@ export class BridgeSession {
 
   noteToolCall(name) {
     if (TRADE_TOOLS.has(name)) this.tradeTurn().tools.add(name);
+    if (name === 'deliver_errand') this.deliverTurn = this.turnId;
     if (BARGAINING.has(name)) this.bargainTurn = this.turnId;
   }
 
@@ -480,6 +483,7 @@ export class BridgeSession {
           this.sendClient({ type: 'transcript', speaker: 'you', id: event.item_id ?? 'input',
             text: String(event.transcript ?? '').slice(0, 4000), replace: true });
           this.reportTreatment(String(event.transcript ?? '').slice(0, 4000), event.item_id);
+          this.checkErrandHeard(String(event.transcript ?? ''));
           this.lastTranscript = { text: String(event.transcript ?? '').slice(0, 4000), at: this.now() };
           if (this.lastTranscript.text.trim()) this.playerTurns++;
           this.remember(this.context.playerName ?? 'The player', this.lastTranscript.text);
@@ -616,6 +620,39 @@ export class BridgeSession {
       turnId: this.turnId, created: this.now() });
   }
 
+  // The model does not always notice an errand being delivered ("Cedric needs you for a small task" sounds like a request).
+  // When one is aimed at this villager, the game server checks each player line itself; the model never sees the call.
+  checkErrandHeard(transcript) {
+    const callId = `errand-heard-${this.id}-${this.turnId}`;
+    if (this.context.errands?.expectingWord !== true || !transcript.trim() || this.turnId <= 0
+        || this.pending.has(callId) || this.seen.has(callId)) return;
+    this.seen.add(callId);
+    this.pending.set(callId, { callId, name: '_errand_heard', arguments: { conveyed: transcript.slice(0, 240) }, internal: true,
+      turnId: this.turnId, created: this.now() });
+  }
+
+  errandHeard(tool, result) {
+    if (result?.status !== 'errand_complete') return;
+    this.context.errands.expectingWord = false;
+    this.heardErrand = { turnId: tool.turnId, message: String(result.message ?? '') };
+    this.reactToHeardErrand();
+  }
+
+  // Once the villager is idle, have it react to a delivery it missed; skipped when the model called deliver_errand itself.
+  reactToHeardErrand() {
+    if (!this.heardErrand) return;
+    if (this.deliverTurn >= this.heardErrand.turnId) { this.heardErrand = null; return; }
+    if (!this.responseDone || this.recording || this.cancelled || this.queuedResponse || this.hasTools
+        || [...this.pending.values()].some(tool => !tool.internal)) return;
+    const { message } = this.heardErrand;
+    this.heardErrand = null;
+    this.stage('errand_heard', { turnId: this.turnId });
+    this.responseDone = false;
+    this.sendProvider({ type: 'conversation.item.create', item: { type: 'message', role: 'user', content: [{ type: 'input_text',
+      text: '[Server check, not player speech] The player just delivered an errand to you. ' + message }] } });
+    this.sendProvider({ type: 'response.create' });
+  }
+
   startResponse(responseId) {
     this.responseStartBytes = this.diagnostics.outputBytes;
     this.responseId = responseId;
@@ -655,6 +692,7 @@ export class BridgeSession {
     if (this.queuedResponse) {
       this.flushPreparedResponse();
     } else if (!this.correctUngroundedTrade(response)) completeToolBatch(this);
+    if (this.responseDone) this.reactToHeardErrand();
     // Nothing else started: the neighbour may chime in after a finished spoken line.
     if (response?.status === 'completed' && spoken && this.responseDone && !this.hasTools && !this.recording
         && !this.queuedResponse && ![...this.pending.values()].some(tool => !tool.internal)

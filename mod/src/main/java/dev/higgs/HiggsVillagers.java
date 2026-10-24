@@ -313,6 +313,8 @@ public final class HiggsVillagers implements ModInitializer {
         boolean bedtime;
         /** The neighbour who just brought the player here, when a guide handed the conversation over. */
         String introducedBy;
+        /** The errand result from this conversation, so a second delivery attempt (model or fallback) hears the same outcome. */
+        JsonObject deliveredErrand;
         final Map<String, JsonObject> purchases = new HashMap<>();
         final Map<String, JsonObject> toolResults = new HashMap<>();
         final Set<String> pendingTools = new HashSet<>();
@@ -1203,6 +1205,20 @@ public final class HiggsVillagers implements ModInitializer {
                             submitToolResult(s, callId, result);
                             continue;
                         }
+                        // The bridge heard the player speak to the villager their errand is for; the model may not have noticed.
+                        if (name.equals("_errand_heard") && call.has("internal") && call.get("internal").getAsBoolean()) {
+                            Errand open = errand(s.player);
+                            JsonObject heardArgs = call.getAsJsonObject("arguments");
+                            String said = heardArgs != null && heardArgs.has("conveyed") ? heardArgs.get("conveyed").getAsString() : "";
+                            // Only messages: a spoken line must never hand over a package.
+                            result = open == null || !open.kind().equals("message") || !open.targetId().equals(s.villager.getUUID().toString())
+                                ? outcome("ignored", "") : deliverErrand(s, said);
+                            org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Errand heard turn={} status={}",
+                                call.get("turnId").getAsInt(), result.get("status").getAsString());
+                            s.toolResults.put(callId, result);
+                            submitToolResult(s, callId, result);
+                            continue;
+                        }
                         if (name.equals("_companion_left") && call.has("internal") && call.get("internal").getAsBoolean()) {
                             companionLeft(s);
                             result.addProperty("status", "left");
@@ -1647,6 +1663,10 @@ public final class HiggsVillagers implements ModInitializer {
         String message = arguments.has("message") ? arguments.get("message").getAsString().trim() : "";
         if (kind.equals("message") && (message.isEmpty() || message.length() > Errands.MESSAGE_LIMIT))
             return CompletableFuture.completedFuture(outcome("invalid", "A message errand needs the short message to pass on."));
+        if (kind.equals("message") && Errands.vague(message, s.villager.getName().getString()))
+            return CompletableFuture.completedFuture(outcome("too_vague", "Nobody could act on that message: it does not say what is needed. "
+                + "Call offer_errand again at once with one sentence that does, such as \"The wolves took two sheep last night; keep your gate shut\" "
+                + "or \"Could you spare three loaves of bread for the harvest supper?\" Say nothing to the player about this."));
         Villager giver = s.villager;
         // Someone else in the same village, preferably a short walk away.
         VillageTracker.Village village = villages.villageOf(giver);
@@ -1712,6 +1732,8 @@ public final class HiggsVillagers implements ModInitializer {
     /** The recipient knows nothing in advance: it learns the message only from the player's own words. */
     private JsonObject deliverErrand(Session s, String conveyed) {
         Errand errand = errand(s.player);
+        if ((errand == null || !errand.targetId().equals(s.villager.getUUID().toString())) && s.deliveredErrand != null)
+            return outcome("already_delivered", s.deliveredErrand.get("message").getAsString());
         if (errand == null || !errand.targetId().equals(s.villager.getUUID().toString()))
             return outcome("no_errand", "Nobody sent the player to you with anything. Say you are not sure what they mean; do not pretend otherwise.");
         if (errand.kind().equals("message") && !TextTerms.conveys(conveyed, errand.message(), errand.giverName()))
@@ -1758,7 +1780,7 @@ public final class HiggsVillagers implements ModInitializer {
         org.slf4j.LoggerFactory.getLogger("HiggsVillagers").info("Errand delivered by {}: {} -> {}", s.player.getName().getString(),
             errand.giverName(), errand.targetName());
         // Only the player's own words: never the original wording the recipient could not have known.
-        return outcome("errand_complete", errand.giverName() + " sent the player. " + (errand.kind().equals("message")
+        return s.deliveredErrand = outcome("errand_complete", errand.giverName() + " sent the player. " + (errand.kind().equals("message")
             ? "They told you: \"" + conveyed.trim() + "\""
             : "They brought you the " + errand.itemName() + (conveyed.isBlank() ? "" : " and said: \"" + conveyed.trim() + "\""))
             + ". React to what they said in character, using only that, and thank them warmly.");
@@ -1776,8 +1798,10 @@ public final class HiggsVillagers implements ModInitializer {
         Errand errand = errand(player);
         String id = villager.getUUID().toString();
         if (errand != null && errand.giverId().equals(id)) context.addProperty("youGaveThePlayer", errand.describe() + " (not yet done)");
-        // Anyone else only knows the player is busy for a neighbour, not what the errand is (the recipient learns it on delivery).
-        else if (errand != null && !errand.targetId().equals(id))
+        // The recipient only knows someone may come with word, not who or what (it learns that on delivery).
+        else if (errand != null && errand.targetId().equals(id)) context.addProperty("expectingWord", true);
+        // Anyone else only knows the player is busy for a neighbour, not what the errand is.
+        else if (errand != null)
             context.addProperty("playerIsBusyWith", "an errand for " + errand.giverName() + " to " + errand.targetName());
         List<String> done = errandHistory.get(player.getUUID() + ":" + id);
         if (done != null && !done.isEmpty()) {

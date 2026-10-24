@@ -48,10 +48,12 @@ final class TextTerms {
 
     /**
      * Whether what the player said carries the message they were asked to pass on: at least half of its content
-     * words, or the sender's name plus one of them. Paraphrase is fine; an unrelated sentence is not.
+     * words, or the sender's name plus one of them. Paraphrase is fine; an unrelated sentence is not. The sender's
+     * name never counts as a content word, so "where is Cedric?" does not carry "Cedric says hello...".
      */
     static boolean conveys(String said, String message, String sender) {
         Set<String> expected = stems(message), heard = stems(said);
+        expected.removeAll(stems(sender));
         if (expected.isEmpty()) return !heard.isEmpty();
         long matched = expected.stream().filter(heard::contains).count();
         boolean namesSender = !stems(sender).isEmpty() && heard.containsAll(stems(sender.split("\\s+")[0]));
