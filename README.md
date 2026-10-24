@@ -186,6 +186,12 @@ those axes?”); asking “what did I buy last time?” finds it. Routine events
 real days, important ones (quests, first meetings) last up to four times longer, and
 things you told villagers now last 30 days. Saved in `data/higgs-journal.json`.
 
+After each real conversation, the villager also folds it into memory in its own words:
+a short digest of what mattered, any promises (“you said you'd deal with the wolves”),
+and a running summary of your whole relationship that never expires. This uses one
+short text-only Boson call per conversation; turn it off with
+`HIGGS_CONSOLIDATION_ENABLED=false` in `.env`.
+
 ## Gifts
 
 Hand a villager a gift by voice (“I brought you a diamond… here you go”) or by sneaking

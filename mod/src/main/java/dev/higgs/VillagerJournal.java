@@ -27,7 +27,7 @@ public final class VillagerJournal implements AutoCloseable {
         public static Limits defaults() { return new Limits(48, 20_000, 30L * 24 * 60 * 60 * 1000); }
     }
     private record Snapshot(int schemaVersion, List<Episode> episodes, List<Summary> summaries) {}
-    public static final int MAX_TEXT = 240, MAX_SUMMARY = 600;
+    public static final int MAX_TEXT = 320, MAX_SUMMARY = 600;
     private static final Gson GSON = new Gson();
     private static final long MAX_FILE_BYTES = 8L * 1024 * 1024;
 

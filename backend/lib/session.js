@@ -82,6 +82,11 @@ export class BridgeSession {
     // Recent lines, so a neighbour joining mid-conversation can catch up.
     this.recentLines = [];
     this.companionLines = [];
+    // For consolidation when the conversation ends.
+    this.villagerId = body.villagerId;
+    this.transcriptLines = [];
+    this.playerTurns = 0;
+    this.companionsPresent = new Map();
     for (const line of this.carriedLines()) this.remember(line.speaker, line.text);
     this.timer = setTimeout(() => {
       this.sendError(true, 'session_duration_limit', DURATION_MESSAGE);
@@ -443,6 +448,7 @@ export class BridgeSession {
             text: String(event.transcript ?? '').slice(0, 4000), replace: true });
           this.reportTreatment(String(event.transcript ?? '').slice(0, 4000), event.item_id);
           this.lastTranscript = { text: String(event.transcript ?? '').slice(0, 4000), at: this.now() };
+          if (this.lastTranscript.text.trim()) this.playerTurns++;
           this.remember(this.context.playerName ?? 'The player', this.lastTranscript.text);
           this.companion?.hear(this.context.playerName ?? 'The player', this.lastTranscript.text);
           if (this.mode === 'ptt') this.memoryContext.transcript(event.item_id, event.transcript);
@@ -526,6 +532,7 @@ export class BridgeSession {
     }
     this.stage('upstream_ready');
     if (this.companionSpec && !this.companion) {
+      this.notePresent(this.companionSpec);
       this.companion = new Companion(this, this.companionSpec, {
         partner: { name: this.context.name ?? 'your neighbour', profession: this.context.profession ?? 'villager' },
         playerName: this.context.playerName ?? 'the traveller',
@@ -617,6 +624,11 @@ export class BridgeSession {
         && !this.queuedResponse && ![...this.pending.values()].some(tool => !tool.internal)) this.companion?.maybeInterject(this.turnId);
   }
 
+  /** Companions who heard this conversation also remember being there. */
+  notePresent(spec) {
+    if (typeof spec?.villagerId === 'string' && /^[0-9a-f-]{36}$/i.test(spec.villagerId)) this.companionsPresent.set(spec.villagerId, spec.name);
+  }
+
   /** Lines carried over from the conversation the player just switched out of. */
   carriedLines() {
     const lines = Array.isArray(this.context.recentConversation) ? this.context.recentConversation : [];
@@ -630,6 +642,8 @@ export class BridgeSession {
     if (!text) return;
     this.recentLines.push({ speaker, text: String(text).slice(0, 600) });
     if (this.recentLines.length > 8) this.recentLines.shift();
+    this.transcriptLines.push(`${speaker}: ${String(text).slice(0, 600)}`);
+    if (this.transcriptLines.length > 40) this.transcriptLines.shift();
   }
 
   /** Nobody is speaking or about to: safe for a joining neighbour to say hello. */
@@ -643,6 +657,7 @@ export class BridgeSession {
     if (this.companion) return 'occupied';
     const spec = parseCompanion(body);
     if (!spec) return 'invalid';
+    this.notePresent(spec);
     this.companion = new Companion(this, spec, {
       partner: { name: this.context.name ?? 'your neighbour', profession: this.context.profession ?? 'villager' },
       playerName: this.context.playerName ?? 'the traveller',

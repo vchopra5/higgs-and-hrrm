@@ -18,6 +18,7 @@ function start() {
     apiKey: process.env.BOSON_API_KEY,
     token: process.env.HIGGS_BRIDGE_TOKEN,
     upstreamUrl: process.env.HIGGS_REALTIME_URL,
+    consolidation: process.env.HIGGS_CONSOLIDATION_ENABLED !== 'false',
     voiceOverrides: { warm: process.env.HIGGS_VOICE_WARM, thoughtful: process.env.HIGGS_VOICE_THOUGHTFUL, steady: process.env.HIGGS_VOICE_STEADY },
   });
   const host = process.env.HIGGS_HOST || '127.0.0.1';

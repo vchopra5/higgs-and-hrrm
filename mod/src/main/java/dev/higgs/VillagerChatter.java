@@ -178,6 +178,7 @@ final class VillagerChatter {
     JsonObject speaker(ServerPlayer player, Villager villager, VillagerPersonalityStore.Profile profile) {
         JsonObject speaker = new JsonObject();
         speaker.addProperty("entityId", villager.getId());
+        speaker.addProperty("villagerId", villager.getUUID().toString());
         speaker.addProperty("name", villager.getName().getString());
         speaker.addProperty("profession", VillagerMemoryService.profession(villager));
         if (profile != null) {

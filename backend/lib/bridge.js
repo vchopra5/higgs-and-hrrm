@@ -6,9 +6,11 @@ import { validateVoiceOverrides } from './personalities.js';
 import { BridgeSession } from './session.js';
 import { CHATTER_LIMITS, ChatterScene } from './chatter.js';
 import { SHOUT_LIMITS, ShoutCache, ShoutScene, parseShout } from './shout.js';
+import { consolidate as consolidateConversation } from './consolidate.js';
 import { submitToolResult } from './tools.js';
 
 const CONTINUE_MS = 2 * 60_000;
+const DIGEST_MS = 10 * 60_000;
 
 export function createBridge({
   apiKey,
@@ -18,6 +20,8 @@ export function createBridge({
   voiceOverrides = {},
   now = Date.now,
   log = entry => console.info(JSON.stringify(entry)),
+  consolidation = true,
+  consolidate = consolidateConversation,
 } = {}) {
   if (typeof token !== 'string' || token.length < 32) {
     throw new Error('Set HIGGS_BRIDGE_TOKEN to a random secret of at least 32 characters.');
@@ -25,6 +29,8 @@ export function createBridge({
   voiceOverrides = validateVoiceOverrides(voiceOverrides);
   const sessions = new Map();
   const recentConversations = new Map();
+  // Finished conversations consolidated into long-term memory, waiting for the game server to collect.
+  let digests = [];
   const shoutCache = new ShoutCache();
   const scenes = new Map();
   const expectedAuth = Buffer.from(`Bearer ${token}`);
@@ -35,8 +41,24 @@ export function createBridge({
       const closing = sessions.get(id);
       if (closing?.recentLines?.length) recentConversations.set(closing.playerId, { lines: closing.recentLines.slice(-8), at: now() });
       sessions.delete(id);
+      if (closing) queueConsolidation(closing);
     },
   };
+
+  function queueConsolidation(session) {
+    if (!consolidation || !apiKey || session.playerTurns < 2 || typeof session.villagerId !== 'string') return;
+    const context = session.context ?? {};
+    consolidate({ apiKey, upstreamUrl, connect, villagerName: context.name ?? 'a villager', playerName: context.playerName ?? 'the player',
+      previousSummary: context.relationship?.summary, transcript: session.transcriptLines.slice(-40) })
+      .then(result => {
+        log({ event: 'consolidation', sessionId: session.id, ok: Boolean(result), promises: result?.promises.length ?? 0 });
+        if (!result) return;
+        digests.push({ villagerId: session.villagerId, playerId: session.playerId, villagerName: context.name ?? 'a villager',
+          playerName: context.playerName ?? 'the player', ...result, at: now(),
+          companions: [...session.companionsPresent.keys()] });
+        if (digests.length > 200) digests = digests.slice(-200);
+      });
+  }
 
   function authorized(request) {
     const received = Buffer.from(request.headers.authorization ?? '');
@@ -105,6 +127,12 @@ export function createBridge({
       const path = new URL(request.url, 'http://localhost').pathname;
       if (request.method === 'POST' && path === '/scenes') return await createScene(request, response);
       if (request.method === 'POST' && path === '/shouts') return await createShout(request, response);
+      if (request.method === 'GET' && path === '/digests') {
+        // Collected once; anything the game server has not fetched within ten minutes is dropped.
+        const fresh = digests.filter(digest => now() - digest.at <= DIGEST_MS);
+        digests = [];
+        return replyJson(response, 200, fresh);
+      }
       const sceneMatch = path.match(/^\/scenes\/([^/]+)$/);
       if (sceneMatch) {
         const scene = scenes.get(sceneMatch[1]);

@@ -505,6 +505,7 @@ public final class HiggsVillagers implements ModInitializer {
                     }
                 }
             }
+            if (ticks % 100 == 0 && !token.isBlank()) collectDigests(server);
             if (ticks % 10 != 0) return;
             for (Session s : List.copyOf(sessions.values())) {
                 if (!valid(s, 144)) end(s.player, true, "Conversation ended: stay within 12 blocks of an awake villager.");
@@ -638,6 +639,39 @@ public final class HiggsVillagers implements ModInitializer {
                 });
             });
         } catch (RuntimeException ex) { error(player, "Invalid villager request."); }
+    }
+    private boolean collectingDigests;
+    /**
+     * Finished conversations, consolidated by the backend into a first-person digest, an updated relationship summary
+     * and promises. They become journal episodes; companions remember being there.
+     */
+    private void collectDigests(MinecraftServer server) {
+        if (collectingDigests) return;
+        collectingDigests = true;
+        request("GET", "/digests", null).whenComplete((reply, failure) -> server.execute(() -> {
+            collectingDigests = false;
+            VillagerJournal journal = memory.journal();
+            if (failure != null || journal == null || reply == null || !reply.isJsonArray()) return;
+            long now = System.currentTimeMillis(), day = Math.floorDiv(server.overworld().getOverworldClockTime(), 24000L);
+            for (JsonElement element : reply.getAsJsonArray()) {
+                try {
+                    JsonObject digest = element.getAsJsonObject();
+                    UUID villager = UUID.fromString(digest.get("villagerId").getAsString());
+                    UUID player = UUID.fromString(digest.get("playerId").getAsString());
+                    String text = digest.get("digest").getAsString();
+                    journal.record(villager, player, "conversation", text, day, now, 3, false, 0);
+                    journal.summarise(villager, player, digest.get("summary").getAsString(), now);
+                    for (JsonElement promise : digest.getAsJsonArray("promises"))
+                        journal.record(villager, player, "promise", promise.getAsString(), day, now, 4, false, 0);
+                    String names = digest.get("playerName").getAsString() + " talked with " + digest.get("villagerName").getAsString();
+                    for (JsonElement companion : digest.getAsJsonArray("companions"))
+                        journal.record(UUID.fromString(companion.getAsString()), player, "overheard",
+                            "I was there when " + names + ": " + text, day, now, 2, true, 0);
+                } catch (RuntimeException malformed) {
+                    org.slf4j.LoggerFactory.getLogger("HiggsVillagers").warn("Skipped a malformed conversation digest");
+                }
+            }
+        }));
     }
     private record RecentConversation(Set<UUID> villagers, String previous, long until) {}
     private static final long CONTINUE_MS = 2 * 60_000;

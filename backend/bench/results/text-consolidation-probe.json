@@ -1,0 +1,53 @@
+{
+  "probedAt": "2026-10-24T10:49:11.026Z",
+  "url": "wss://api.boson.ai/v1/realtime/",
+  "results": [
+    {
+      "arm": "text_only",
+      "events": [
+        "session.created",
+        "conversation.item.added",
+        "response.created",
+        "response.output_item.added",
+        "response.content_part.added",
+        "response.output_text.delta",
+        "response.output_text.done",
+        "response.content_part.done",
+        "response.output_item.done",
+        "response.done"
+      ],
+      "errors": [],
+      "text": "{\"digest\": \"Steve dealt with the wolves and bought two iron axes from me.\", \"summary\": \"Steve is a polite regular who once gave me a diamond and recently bought two iron axes from me for five emeralds. He also promised to deal with the wolves near the eastern fields tomorrow.\", \"promises\": [\"Steve promised to deal with the wolves near the eastern fields tomorrow.\"]}",
+      "transcript": "",
+      "audioBytes": 0,
+      "ms": 1217,
+      "sessionModalities": [
+        "text"
+      ],
+      "status": "completed",
+      "json": {
+        "digest": "Steve dealt with the wolves and bought two iron axes from me.",
+        "summary": "Steve is a polite regular who once gave me a diamond and recently bought two iron axes from me for five emeralds. He also promised to deal with the wolves near the eastern fields tomorrow.",
+        "promises": [
+          "Steve promised to deal with the wolves near the eastern fields tomorrow."
+        ]
+      },
+      "validDigest": true
+    },
+    {
+      "arm": "text_and_audio",
+      "events": [
+        "error"
+      ],
+      "errors": [
+        "Session terminated due to Error while handling session update: 1 validation error(s) for SessionUpdateData\n: Value error, output_modalities must be exactly one of ['text'] or ['audio'] (got ['text', 'audio']); mixed and empty modality lists are not supported."
+      ],
+      "text": "",
+      "transcript": "",
+      "audioBytes": 0,
+      "ms": 294,
+      "json": null,
+      "validDigest": false
+    }
+  ]
+}
