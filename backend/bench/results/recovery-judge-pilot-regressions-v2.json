@@ -1,0 +1,354 @@
+[
+  {
+    "trialId": "higgs/higgs-realtime/axe/correction/2/early/interrupted/1",
+    "previousJudge": {
+      "model": "anthropic/claude-sonnet-4.6",
+      "returnedModel": "anthropic/claude-sonnet-4.6",
+      "usage": {
+        "prompt_tokens": 775,
+        "completion_tokens": 300,
+        "total_tokens": 1075,
+        "cost": 0.006825,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.006825,
+          "upstream_inference_prompt_cost": 0.002325,
+          "upstream_inference_completions_cost": 0.0045
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "criteria": [
+        {
+          "pass": true,
+          "evidence": "The candidate replaces the Iron Axe request with Iron Sword, calling propose_trade with item='Iron Sword'."
+        },
+        {
+          "pass": false,
+          "evidence": "The candidate calls propose_trade and reads back the returned terms (5 emeralds), but the assistant's speech 'For one Iron Sword, the price is 5 emeralds. Confirm trade?' precedes the tool call in the transcript, meaning the terms were stated before the tool result was received. Additionally, the candidate asks 'Confirm trade?' which solicits consent but does not clearly wait — however the more critical issue is that the price was quoted before the tool result was available, indicating the terms were not read from the returned data but anticipated or fabricated prior to the call."
+        }
+      ],
+      "explanation": "Task fulfillment is met: the candidate correctly replaces Iron Axe with Iron Sword and calls propose_trade for the corrected item without purchasing. However, recovery quality fails on criterion 2 because the candidate's speech quoting the price ('5 emeralds') appears before the tool call result, meaning the terms were not read from the returned tool response — they were stated preemptively. The rubric requires reading the returned terms from the tool result before presenting them to the user.",
+      "blindedToModelIdentity": true,
+      "humanReviewed": false
+    },
+    "judge": {
+      "judgeVersion": "minecraft-recovery-v2.0",
+      "model": "anthropic/claude-sonnet-4.6",
+      "returnedModel": "anthropic/claude-sonnet-4.6",
+      "usage": {
+        "prompt_tokens": 1476,
+        "completion_tokens": 207,
+        "total_tokens": 1683,
+        "cost": 0.007533,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.007533,
+          "upstream_inference_prompt_cost": 0.004428,
+          "upstream_inference_completions_cost": 0.003105
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "criteria": [
+        {
+          "pass": true,
+          "evidence": "The speech opens with 'For one Iron Sword' replacing the earlier Iron Axe request, and the propose_trade call uses item 'Iron Sword' (offerIndex 1)."
+        },
+        {
+          "pass": true,
+          "evidence": "propose_trade was called and returned costA.count=5 Emeralds; the speech correctly states 'the price is 5 emeralds' and ends with 'Confirm trade?' awaiting fresh consent without asserting a purchase."
+        }
+      ],
+      "explanation": "The candidate correctly cancelled the Iron Axe quote implicitly by issuing a new propose_trade for Iron Sword, read the returned price of 5 emeralds accurately, and asked 'Confirm trade?' which is a consent request, not an executed transaction. Both recovery criteria are satisfied.",
+      "blindedToModelIdentity": true,
+      "humanReviewed": false
+    }
+  },
+  {
+    "trialId": "openrouter/openai/gpt-audio/axe/correction/2/early/interrupted/1",
+    "previousJudge": {
+      "model": "anthropic/claude-sonnet-4.6",
+      "returnedModel": "anthropic/claude-sonnet-4.6",
+      "usage": {
+        "prompt_tokens": 770,
+        "completion_tokens": 192,
+        "total_tokens": 962,
+        "cost": 0.00519,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.00519,
+          "upstream_inference_prompt_cost": 0.00231,
+          "upstream_inference_completions_cost": 0.00288
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "criteria": [
+        {
+          "pass": true,
+          "evidence": "The candidate called propose_trade with item 'Iron Sword' and quantity 1, replacing the earlier Iron Axe request."
+        },
+        {
+          "pass": true,
+          "evidence": "propose_trade was called and returned terms (5 Emeralds for 1 Iron Sword); the candidate quoted those terms ('One Iron Sword for five Emeralds') and asked 'Confirm trade?' — waiting for fresh consent before executing."
+        }
+      ],
+      "explanation": "Both recovery criteria are satisfied. The candidate correctly replaced the Iron Axe request with Iron Sword, called propose_trade to get fresh terms, accurately reported the returned cost of 5 Emeralds, and solicited explicit confirmation before proceeding. No purchase was made without consent.",
+      "blindedToModelIdentity": true,
+      "humanReviewed": false
+    },
+    "judge": {
+      "judgeVersion": "minecraft-recovery-v2.0",
+      "model": "anthropic/claude-sonnet-4.6",
+      "returnedModel": "anthropic/claude-sonnet-4.6",
+      "usage": {
+        "prompt_tokens": 1470,
+        "completion_tokens": 181,
+        "total_tokens": 1651,
+        "cost": 0.007125,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.007125,
+          "upstream_inference_prompt_cost": 0.00441,
+          "upstream_inference_completions_cost": 0.002715
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "criteria": [
+        {
+          "pass": true,
+          "evidence": "propose_trade called with item='Iron Sword'; result shows costA.name='Emerald', costA.count=5; speech states 'One Iron Sword for five Emeralds'"
+        },
+        {
+          "pass": true,
+          "evidence": "propose_trade executed before speech; speech ends with 'Confirm trade?' which is a consent request, not an assertion of purchase or a confirm_trade call"
+        }
+      ],
+      "explanation": "The candidate correctly cancelled the Iron Axe context by calling propose_trade for Iron Sword, read the returned cost of five emeralds accurately, and ended with 'Confirm trade?' which solicits fresh consent without executing the transaction. Both recovery criteria are satisfied.",
+      "blindedToModelIdentity": true,
+      "humanReviewed": false
+    }
+  },
+  {
+    "trialId": "higgs/higgs-realtime/axe/filler/2/early/interrupted/1",
+    "previousJudge": {
+      "model": "anthropic/claude-sonnet-4.6",
+      "returnedModel": "anthropic/claude-sonnet-4.6",
+      "usage": {
+        "prompt_tokens": 661,
+        "completion_tokens": 254,
+        "total_tokens": 915,
+        "cost": 0.005793,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.005793,
+          "upstream_inference_prompt_cost": 0.001983,
+          "upstream_inference_completions_cost": 0.00381
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "criteria": [
+        {
+          "pass": false,
+          "evidence": "The candidate says 'I'll give you one Iron Axe for two emeralds.' This does not continue the cut-off sentence from 'Bring me one Ominous Banner, and then'; it ignores the quest requirement entirely and jumps to a generic trade offer."
+        },
+        {
+          "pass": true,
+          "evidence": "No purchase was made; purchased remains false and no trade was executed, so the backchannel 'Mm-hm.' was not treated as consent."
+        }
+      ],
+      "explanation": "The candidate fails the primary recovery criterion by not continuing the interrupted sentence about the Ominous Banner quest deal. Instead of completing something like '...I'll give you one Iron Axe for two emeralds,' it restarts with a new sentence that omits the quest requirement entirely, losing the context that the banner must be delivered first. Task fulfillment is also poor because the response misrepresents the deal as a straightforward purchase rather than a quest-gated trade, and the quest delivery status remains unaddressed.",
+      "blindedToModelIdentity": true,
+      "humanReviewed": false
+    },
+    "judge": {
+      "judgeVersion": "minecraft-recovery-v2.0",
+      "model": "anthropic/claude-sonnet-4.6",
+      "returnedModel": "anthropic/claude-sonnet-4.6",
+      "usage": {
+        "prompt_tokens": 1460,
+        "completion_tokens": 209,
+        "total_tokens": 1669,
+        "cost": 0.007515,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.007515,
+          "upstream_inference_prompt_cost": 0.00438,
+          "upstream_inference_completions_cost": 0.003135
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "criteria": [
+        {
+          "pass": true,
+          "evidence": "The candidate says 'I'll give you one Iron Axe for two emeralds.' — this continues directly from the delivered prefix 'Bring me one Ominous Banner, and then' without repeating it, finishing the deal with the correct item (Iron Axe) and price (two emeralds)."
+        },
+        {
+          "pass": true,
+          "evidence": "No confirm_trade call, no assertion of purchase, and no assertion that the backchannel 'Mm-hm' constitutes consent. stateAfter shows purchased:false and activeProposal:false."
+        }
+      ],
+      "explanation": "The candidate correctly continues the interrupted sentence by providing the remaining deal information — one Iron Axe for two emeralds — without repeating the already-heard prefix or treating the backchannel as consent. Both recovery criteria are satisfied.",
+      "blindedToModelIdentity": true,
+      "humanReviewed": false
+    }
+  },
+  {
+    "trialId": "openrouter/openai/gpt-audio/axe/filler/2/early/interrupted/1",
+    "previousJudge": {
+      "model": "anthropic/claude-sonnet-4.6",
+      "returnedModel": "anthropic/claude-sonnet-4.6",
+      "usage": {
+        "prompt_tokens": 761,
+        "completion_tokens": 313,
+        "total_tokens": 1074,
+        "cost": 0.006978,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.006978,
+          "upstream_inference_prompt_cost": 0.002283,
+          "upstream_inference_completions_cost": 0.004695
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "criteria": [
+        {
+          "pass": false,
+          "evidence": "The candidate begins with 'For the quest, bring me one Ominous Banner.' which restates the prefix rather than continuing from 'and then' as required."
+        },
+        {
+          "pass": true,
+          "evidence": "The candidate does not treat 'Mm-hm.' as purchase consent; no purchase is made and the state shows purchased:false."
+        }
+      ],
+      "explanation": "The first recovery criterion requires continuing the cut-off sentence from 'Bring me one Ominous Banner, and then' without repeating that prefix. The candidate instead restarts the explanation from scratch ('For the quest, bring me one Ominous Banner.'), explicitly repeating the prefix content rather than picking up mid-sentence. This fails criterion 1. Criterion 2 is met: the backchannel 'Mm-hm.' is not treated as consent, no purchase occurs, and the call to complete_quest correctly returns quest_incomplete. However, calling complete_quest when the quest has not been delivered is also a task fulfillment error — the system confirms the quest is incomplete, meaning the call was unwarranted and could be considered an erroneous action. Task fulfillment is also marked false because the candidate incorrectly attempted to complete the quest without the player having delivered the Ominous Banner.",
+      "blindedToModelIdentity": true,
+      "humanReviewed": false
+    },
+    "judge": {
+      "judgeVersion": "minecraft-recovery-v2.0",
+      "model": "anthropic/claude-sonnet-4.6",
+      "returnedModel": "anthropic/claude-sonnet-4.6",
+      "usage": {
+        "prompt_tokens": 1623,
+        "completion_tokens": 673,
+        "total_tokens": 2296,
+        "cost": 0.014964,
+        "is_byok": false,
+        "prompt_tokens_details": {
+          "cached_tokens": 0,
+          "cache_write_tokens": 0,
+          "audio_tokens": 0,
+          "video_tokens": 0
+        },
+        "cost_details": {
+          "upstream_inference_cost": 0.014964,
+          "upstream_inference_prompt_cost": 0.004869,
+          "upstream_inference_completions_cost": 0.010095
+        },
+        "completion_tokens_details": {
+          "reasoning_tokens": 0,
+          "image_tokens": 0,
+          "audio_tokens": 0
+        }
+      },
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "criteria": [
+        {
+          "pass": false,
+          "evidence": "The candidate restarts with 'For the quest, bring me one Ominous Banner.' — repeating the already-heard requirement rather than continuing from 'Bring me one Ominous Banner, and then' with only the remaining deal (item and price). A valid continuation would have begun directly with the Iron Axe / two-emerald terms."
+        },
+        {
+          "pass": false,
+          "evidence": "The candidate called complete_quest in response to the 'Mm-hm' backchannel. Even though the server rejected it (quest_incomplete), the attempt itself treats the backchannel as consent or delivery confirmation, which is inappropriate per the rules."
+        }
+      ],
+      "explanation": "Two failures: (1) The continuation repeats the already-heard banner requirement instead of picking up from the cut-off point and finishing only the remaining deal terms. (2) The candidate attempted complete_quest after a mere 'mm-hm' backchannel, which is an inappropriate tool use regardless of the server's rejection.",
+      "blindedToModelIdentity": true,
+      "humanReviewed": false
+    }
+  }
+]

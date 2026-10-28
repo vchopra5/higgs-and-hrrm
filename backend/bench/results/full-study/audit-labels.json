@@ -1,0 +1,242 @@
+{
+  "normal/2/higgs": [
+    true,
+    false,
+    "Accurate blue-barrel/windmill recall, but no return to the quest."
+  ],
+  "normal/2/openrouter": [
+    true,
+    false,
+    "Accurate stash recall; asking whether it was placed there for the villager does not explicitly resume the interrupted deal."
+  ],
+  "normal/6/higgs": [
+    true,
+    false,
+    "Accurate blue-barrel/windmill recall, but no return to the quest."
+  ],
+  "normal/6/openrouter": [
+    true,
+    true,
+    "Accurate stash recall; explicit quest resumption."
+  ],
+  "normal/12/higgs": [
+    true,
+    false,
+    "Accurate blue-barrel/windmill recall, but no return to the quest."
+  ],
+  "normal/12/openrouter": [
+    true,
+    true,
+    "Accurate stash recall; explicit quest resumption."
+  ],
+  "normal/20/higgs": [
+    true,
+    false,
+    "Accurate blue-barrel/windmill recall, but no return to the quest."
+  ],
+  "normal/20/openrouter": [
+    true,
+    true,
+    "Accurate stash recall; explicit quest resumption."
+  ],
+  "correction/2/higgs": [
+    false,
+    false,
+    "Successful corrected sword proposal, but speech ends at \"the price is\" without the returned price."
+  ],
+  "correction/2/openrouter": [
+    true,
+    true,
+    "Correct sword proposal, five-emerald quote and fresh confirmation request, with no purchase."
+  ],
+  "correction/12/higgs": [
+    false,
+    false,
+    "Successful corrected sword proposal, but speech ends at \"the price is\" without the returned price."
+  ],
+  "correction/12/openrouter": [
+    true,
+    true,
+    "Correct sword proposal, five-emerald quote and fresh confirmation request, with no purchase."
+  ],
+  "correction/20/higgs": [
+    true,
+    true,
+    "Successful corrected sword proposal and five-emerald quote; no purchase, waiting for consent."
+  ],
+  "correction/20/openrouter": [
+    true,
+    true,
+    "Correct sword proposal, five-emerald quote and fresh confirmation request, with no purchase."
+  ],
+  "filler/2/higgs": [
+    true,
+    true,
+    "Combines naturally with the heard prefix and finishes the axe/two-emerald deal without repetition or action."
+  ],
+  "filler/6/higgs": [
+    true,
+    true,
+    "Combines naturally with the heard prefix and finishes the axe/two-emerald deal without repetition or action."
+  ],
+  "filler/20/higgs": [
+    true,
+    true,
+    "Combines naturally with the heard prefix and finishes the axe/two-emerald deal without repetition or action."
+  ],
+  "filler/6/openrouter": [
+    false,
+    false,
+    "Unrequested complete_quest attempt; repeats heard condition and omits explicit price."
+  ],
+  "filler/20/openrouter": [
+    true,
+    false,
+    "Correct remaining axe/two-emerald deal, but acknowledges filler and repeats the heard banner requirement."
+  ],
+  "impatient/20/higgs": [
+    true,
+    true,
+    "Concise correct requirement, with no repeated explanation or game mutation."
+  ],
+  "impatient/20/openrouter": [
+    true,
+    true,
+    "Concise correct requirement, with no repeated explanation or game mutation."
+  ],
+  "pushback/2/higgs": [
+    true,
+    true,
+    "Cancels proposal and respects refusal."
+  ],
+  "pushback/2/openrouter": [
+    true,
+    true,
+    "Cancellation succeeds and future availability preserves entitlement without asking for purchase consent."
+  ],
+  "pushback/6/higgs": [
+    true,
+    true,
+    "Cancels proposal and respects refusal."
+  ],
+  "pushback/6/openrouter": [
+    true,
+    true,
+    "Cancellation succeeds, refusal respected and entitlement retained."
+  ],
+  "pushback/12/higgs": [
+    false,
+    false,
+    "Speech respects refusal, but no cancel_trade call; active proposal remains."
+  ],
+  "pushback/12/openrouter": [
+    true,
+    true,
+    "Cancellation succeeds, refusal respected and entitlement retained."
+  ],
+  "pushback/20/higgs": [
+    false,
+    false,
+    "Speech respects refusal, but no cancel_trade call; active proposal remains."
+  ],
+  "pushback/20/openrouter": [
+    true,
+    true,
+    "Cancellation succeeds, refusal respected and entitlement retained."
+  ],
+  "topic_switch/2/higgs": [
+    true,
+    true,
+    "Correct guide_player result and accurate location; explicit quest return."
+  ],
+  "topic_switch/2/openrouter": [
+    true,
+    true,
+    "Correct lookup/location and explicit quest return."
+  ],
+  "topic_switch/12/higgs": [
+    true,
+    false,
+    "Correct guide_player result and accurate location satisfy task; no quest return fails recovery only."
+  ],
+  "topic_switch/12/openrouter": [
+    true,
+    false,
+    "Correct guide_player result and accurate location satisfy task; no quest return fails recovery only."
+  ],
+  "topic_switch/20/higgs": [
+    true,
+    false,
+    "Correct guide_player result and accurate location satisfy task; no quest return fails recovery only."
+  ],
+  "topic_switch/20/openrouter": [
+    true,
+    true,
+    "Correct lookup/location and explicit quest return."
+  ],
+  "filler/2/openrouter": [
+    false,
+    false,
+    "Unrequested complete_quest is an inappropriate action after only a backchannel; repeats the heard requirement. Exact action gate already rejects this trial despite the semantic task pass."
+  ],
+  "impatient/2/higgs": [
+    true,
+    true,
+    "States one Ominous Banner concisely without restarting explanation or mutating game state."
+  ],
+  "impatient/2/openrouter": [
+    true,
+    true,
+    "States one Ominous Banner concisely without restarting explanation or mutating game state."
+  ],
+  "correction/6/higgs": [
+    false,
+    false,
+    "Correct sword proposal, but utterance ends at \"the price is\" without stating the returned price."
+  ],
+  "correction/6/openrouter": [
+    true,
+    true,
+    "Correct sword proposal, five-emerald quote and confirmation request; no purchase."
+  ],
+  "impatient/6/higgs": [
+    true,
+    true,
+    "Correct one-banner requirement stated briefly without repeating the explanation."
+  ],
+  "impatient/6/openrouter": [
+    true,
+    true,
+    "Correct one-banner requirement stated briefly without repeating the explanation."
+  ],
+  "impatient/12/higgs": [
+    true,
+    true,
+    "Correct one-banner requirement stated briefly without repeating the explanation."
+  ],
+  "impatient/12/openrouter": [
+    true,
+    true,
+    "Correct one-banner requirement stated briefly without repeating the explanation."
+  ],
+  "topic_switch/6/higgs": [
+    true,
+    false,
+    "Successful librarian lookup and accurate returned location satisfy task; no quest return fails recovery only."
+  ],
+  "topic_switch/6/openrouter": [
+    true,
+    true,
+    "Successful librarian lookup, correct location, and explicit return to quest."
+  ],
+  "filler/12/higgs": [
+    true,
+    true,
+    "Natural continuation of heard prefix with the correct axe/two-emerald terms, no repetition, acknowledgement or mutation."
+  ],
+  "filler/12/openrouter": [
+    false,
+    false,
+    "Unrequested complete_quest attempt after a backchannel; acknowledges filler and repeats heard requirement."
+  ]
+}

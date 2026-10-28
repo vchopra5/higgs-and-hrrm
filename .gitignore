@@ -22,3 +22,5 @@ server-cardboard/*
 **/node_modules/
 backend/logs/
 mod/run/
+# Generated full benchmark audio; retained locally for audit, not source control.
+backend/bench/results/full-study*/audio/

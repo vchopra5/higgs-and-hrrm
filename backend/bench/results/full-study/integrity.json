@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "raw_sha256": "9c31c96ccf13e3b17807b752dc1e57a92bde17f5718251858e52ae017ffbe3a8",
+  "trials": 576,
+  "unique_schedule_ids": 576,
+  "journal_matches_snapshot": true,
+  "source_snapshots_verified": 17,
+  "matched_input_waveforms": 8,
+  "unique_output_waveforms_verified": 576,
+  "output_audio_seconds_all_attempts": {
+    "openrouter": 1815.5,
+    "higgs": 1023.1199999999995
+  },
+  "output_audio_bytes": 136279104,
+  "note": "File/PCM integrity verified; this is not a listening or independent transcription audit."
+}

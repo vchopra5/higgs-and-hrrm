@@ -1,0 +1,17 @@
+model,arm,depth,attempted,completed,judged,failed_or_missing,retries,task,recovery,action
+higgs,control,2,36,36,36,0,0,36,27,36
+higgs,control,6,36,36,36,0,0,33,24,35
+higgs,control,12,36,36,36,0,0,35,25,36
+higgs,control,20,36,36,36,0,0,35,24,36
+higgs,interrupted,2,36,36,36,0,0,31,25,34
+higgs,interrupted,6,36,36,36,0,0,25,16,32
+higgs,interrupted,12,36,36,36,0,0,26,15,30
+higgs,interrupted,20,36,36,36,0,0,28,17,31
+openrouter,control,2,36,36,36,0,0,35,31,36
+openrouter,control,6,36,36,36,0,0,31,28,33
+openrouter,control,12,36,36,35,1,0,29,22,30
+openrouter,control,20,36,36,36,0,0,33,27,34
+openrouter,interrupted,2,36,36,36,0,0,32,24,34
+openrouter,interrupted,6,36,36,36,0,0,32,27,32
+openrouter,interrupted,12,36,36,36,0,0,31,27,32
+openrouter,interrupted,20,36,36,36,0,0,34,31,34

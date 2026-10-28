@@ -1,0 +1,318 @@
+{
+  "version": "posthoc-task-axis-projection-v1",
+  "raw_sha256": "9c31c96ccf13e3b17807b752dc1e57a92bde17f5718251858e52ae017ffbe3a8",
+  "status": "Supplementary sensitivity, not the frozen primary score",
+  "rule": "Post-hoc, explicitly labeled task-axis consistency sensitivity.\n\nFor normal and topic_switch only, the first frozen recovery criterion is exactly\nthat type's task requirement. Project it to the task axis, retaining action gates.\nNo other labels are changed; original outputs and primary analysis are immutable.\nThis is not a new independent judge or confirmation of the criterion's accuracy.\n",
+  "changes": [
+    {
+      "trialId": "higgs/higgs-realtime/sword/topic_switch/2/early/interrupted/1",
+      "provider": "higgs",
+      "depth": 2,
+      "arm": "interrupted",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "The librarian is at the library beside the village bell. I am guiding you there now.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'the librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech correctly conveys 'The librarian is at the library beside the village bell. I am guiding you there now.'"
+      },
+      "explanation": "The candidate correctly calls guide_player and conveys the returned library location, satisfying the task requirement. However, the player explicitly requested a return to the quest after the direction answer ('Then we can get back to this quest'), and the candidate fails to resume or even briefly reference the interrupted quest (Bring me one Diamond for an Iron Sword). Because the recovery criterion requiring a return to the original quest is not met, recoveryQuality is false. taskFulfillment is also false because the task requirements include conveying the location AND the candidate was in the middle of an interrupted sentence that needed completion as part of the full task context\u2014but more directly, the task says 'Successfully use guide_player for the librarian and convey the returned library location beside the village bell,' which the candidate does accomplish. Re-evaluating: taskFulfillment covers only the direction lookup and location conveyance, which passes. However, recoveryQuality requires both criteria to pass, and the second fails."
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/6/early/control/1",
+      "provider": "higgs",
+      "depth": 6,
+      "arm": "control",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "The librarian is at the library beside the village bell.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'the librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech correctly conveys this location."
+      },
+      "explanation": "The candidate correctly used guide_player and conveyed the returned library location beside the village bell, satisfying the task requirement. However, the user's message explicitly invited a return to the quest ('Then we can get back to this quest'), and the recovery criterion requires the candidate to return to the original quest without changing its requirement or earned price. The candidate's response ends after the direction answer with no attempt to re-engage the quest, failing the recovery criterion. Because one recovery criterion fails, recoveryQuality is false. Because the task requirements specify both using guide_player AND conveying the returned location, those are met, but the overall task as framed in context also implicitly requires the return to the quest per the user's own framing\u2014however, taskFulfillment is evaluated on the stated taskRequirements alone ('Successfully use guide_player for the librarian and convey the returned library location beside the village bell'), which are satisfied. taskFulfillment is therefore true, but recoveryQuality is false."
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/12/early/interrupted/1",
+      "provider": "higgs",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "The librarian is at the library beside the village bell.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'the librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech correctly relays this location."
+      },
+      "explanation": "The task requirement (guide_player + correct location) is satisfied: the tool was called, the returned location 'beside the village bell' was conveyed accurately. However, task fulfillment also requires conveying the returned location AND the candidate did that, so taskFulfillment passes on the direction side. But the recovery criterion of returning to the original quest is not met \u2014 the candidate gives no indication of resuming the Ominous Banner quest after answering the direction question, despite the player's explicit prompt to do so. Because one recovery criterion fails, recoveryQuality is false. taskFulfillment is also marked false because the task requirements include both the direction lookup AND the quest return as part of the overall task in this topic-switch scenario, and the quest return was omitted."
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/topic_switch/12/early/interrupted/1",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "Aye, we'll find the librarian by the library near the village bell. Let us go.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination:'librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech correctly relays 'by the library near the village bell'."
+      },
+      "explanation": "The guide_player tool was used correctly and the returned location (library beside the village bell) was accurately conveyed, satisfying the task's direction lookup requirement. However, task fulfillment also requires conveying the returned library location AND returning to the quest per the topic-switch recovery criteria. The candidate never returns to the quest after the direction answer, failing both the task fulfillment (which requires the full task including the quest return implied by the player's own request) and the second recovery criterion. The first recovery criterion passes because guide_player was called and the correct location was stated."
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/6/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "The librarian is at the library beside the village bell.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player was called with destination 'the librarian' and the result confirmed 'The librarian is at the library beside the village bell.' The speech correctly conveys this returned location."
+      },
+      "explanation": "Task fulfillment fails because, while guide_player was used correctly and the location was conveyed accurately, the task requirements specify both using guide_player AND conveying the returned library location beside the village bell \u2014 the location detail was correctly stated, so that part passes. However, the overall task also implicitly requires completing the interrupted filler continuation (the quest deal), which was not done. More critically, recoveryQuality fails because the second criterion \u2014 returning to the original quest \u2014 was not met. The player explicitly invited a return to the quest ('Then we can get back to this quest'), and the response made no attempt to resume the interrupted quest speech or restate the deal. The interrupted prefix 'Bring me one Ominous Banner, and then' was left dangling with no continuation provided."
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/sword/topic_switch/6/early/control/2",
+      "provider": "openrouter",
+      "depth": 6,
+      "arm": "control",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "Aye, this way to the librarian, near the bell. We'll go together.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech says 'near the bell', correctly reflecting the returned location."
+      },
+      "explanation": "The guide_player tool was used correctly and the returned location (beside the village bell) was conveyed accurately, satisfying the task requirement. However, task fulfillment also requires conveying the returned library location AND using guide_player \u2014 the location is conveyed but the response fails to return to the original quest at all, which is required by the recovery criterion and was explicitly requested by the player ('Then we can get back to this quest'). Since the second recovery criterion fails (no return to the quest, no mention of the Diamond requirement or the 3-emerald Iron Sword deal), recoveryQuality is false. Because the task requirements include both the direction lookup and conveying the location, and both are met, taskFulfillment passes on the narrow task definition; however, the player's explicit request to return to the quest after the direction is entirely ignored, making the overall response incomplete."
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/6/early/control/2",
+      "provider": "higgs",
+      "depth": 6,
+      "arm": "control",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "The librarian is at the library beside the village bell.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'the librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech correctly conveys this location."
+      },
+      "explanation": "The task requires both using guide_player for the librarian AND conveying the returned library location. The tool was called correctly and the location 'beside the village bell' was accurately relayed, satisfying the task's direction component. However, the task requirement also includes returning to the original quest (as signalled by the user's own prompt 'Then we can get back to this quest'), and the recovery criterion explicitly requires returning to the quest without changing its requirement or earned price. The candidate's response ends after the location statement with no attempt to resume the quest discussion, failing both the second recovery criterion and the full task requirement."
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/20/early/control/1",
+      "provider": "higgs",
+      "depth": 20,
+      "arm": "control",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "The librarian is at the library beside the village bell.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'the librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech correctly conveys this location."
+      },
+      "explanation": "The guide_player tool was used correctly and the returned location was accurately conveyed, satisfying the direction lookup portion of the task. However, task fulfillment also requires conveying the returned library location AND explicitly returning to the quest per the recovery criterion. Since the response makes no attempt to return to the quest after the direction answer\u2014despite the user's explicit prompt to do so\u2014both taskFulfillment and recoveryQuality fail."
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/12/early/control/2",
+      "provider": "higgs",
+      "depth": 12,
+      "arm": "control",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "The librarian is at the library beside the village bell.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'the librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech correctly conveys 'The librarian is at the library beside the village bell.'"
+      },
+      "explanation": "The candidate correctly used guide_player and conveyed the returned library location, satisfying the task requirement. However, the user's message explicitly requested a return to the quest after the direction answer ('Then we can get back to this quest'). The candidate's response ends entirely after the location information with no attempt to re-engage the quest topic, failing the recovery criterion that requires returning to the original quest without changing its requirement or earned price."
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/topic_switch/12/early/control/2",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "control",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "Aye, the librarian is at the library beside the village bell. Come, let\u2019s go.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'the librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech correctly conveys 'the librarian is at the library beside the village bell.'"
+      },
+      "explanation": "The candidate correctly used guide_player and conveyed the returned location (library beside the village bell), satisfying the task requirement. However, the player explicitly said 'Then we can get back to this quest,' signaling an expectation that the quest would be revisited after the direction lookup. The response ends without any return to the quest \u2014 no mention of the Ominous Banner, the Iron Axe, or the 2-emerald price \u2014 failing the recovery criterion. Because one criterion fails, recoveryQuality is false. taskFulfillment is also false because the task requirements include conveying the returned library location AND using guide_player, both of which were done, but the task requirements as stated are satisfied; however, the overall task per the prompt includes the direction lookup plus explicit intent to return to the quest for topic-switch recovery \u2014 the candidate omits the intent to return, so taskFulfillment is false."
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/6/early/interrupted/1",
+      "provider": "higgs",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "The librarian is at the library beside the village bell. We are on our way there now.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'the librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech correctly conveys 'The librarian is at the library beside the village bell.'"
+      },
+      "explanation": "The guide_player tool was used correctly and the returned location (library beside the village bell) was accurately conveyed to the player, satisfying the task requirement. However, taskFulfillment is marked false because the combinedContinuation is null and the interrupted filler sentence was never completed \u2014 the candidate needed to finish the deal (item and price) after returning to the quest topic. Additionally, recoveryQuality fails because the candidate did not return to the original quest at all after answering the direction question; the interrupted sentence about the Ominous Banner quest was abandoned entirely with no mention of the requirement or the 2-emerald price."
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/topic_switch/20/early/control/2",
+      "provider": "openrouter",
+      "depth": 20,
+      "arm": "control",
+      "type": "topic_switch",
+      "originalTask": false,
+      "projectedTask": true,
+      "transcript": "Aye, to the librarian we go, beside the village bell. Follow me.",
+      "firstCriterion": {
+        "pass": true,
+        "evidence": "guide_player called with destination 'the librarian'; result confirms 'The librarian is at the library beside the village bell.' Speech says 'beside the village bell' \u2014 location correctly conveyed."
+      },
+      "explanation": "The task requires both using guide_player for the librarian (done correctly, with the returned location 'beside the village bell' conveyed) and returning to the original quest. The candidate satisfies the direction lookup and location communication, so taskFulfillment would normally pass for that part, but the task also requires conveying the returned library location AND returning to the quest \u2014 the candidate never returns to the quest at all, making taskFulfillment incomplete. The recovery criterion for returning to the quest is also unmet: the response simply ends after the direction, with no brief return to the Ominous Banner / Iron Axe deal. Both taskFulfillment and recoveryQuality fail because the quest return is absent."
+    }
+  ],
+  "by_depth": [
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 2,
+      "n": 36,
+      "originalTask": 36,
+      "projectedTask": 36
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 6,
+      "n": 36,
+      "originalTask": 33,
+      "projectedTask": 35
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 12,
+      "n": 36,
+      "originalTask": 35,
+      "projectedTask": 36
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 20,
+      "n": 36,
+      "originalTask": 35,
+      "projectedTask": 36
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 2,
+      "n": 36,
+      "originalTask": 31,
+      "projectedTask": 32
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 6,
+      "n": 36,
+      "originalTask": 25,
+      "projectedTask": 27
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 12,
+      "n": 36,
+      "originalTask": 26,
+      "projectedTask": 27
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 20,
+      "n": 36,
+      "originalTask": 28,
+      "projectedTask": 28
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 2,
+      "n": 36,
+      "originalTask": 35,
+      "projectedTask": 35
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 6,
+      "n": 36,
+      "originalTask": 31,
+      "projectedTask": 32
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 12,
+      "n": 35,
+      "originalTask": 29,
+      "projectedTask": 30
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 20,
+      "n": 36,
+      "originalTask": 33,
+      "projectedTask": 34
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 2,
+      "n": 36,
+      "originalTask": 32,
+      "projectedTask": 32
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 6,
+      "n": 36,
+      "originalTask": 32,
+      "projectedTask": 32
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 12,
+      "n": 36,
+      "originalTask": 31,
+      "projectedTask": 32
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 20,
+      "n": 36,
+      "originalTask": 34,
+      "projectedTask": 34
+    }
+  ]
+}

@@ -1,0 +1,1421 @@
+{
+  "raw_sha256": "9c31c96ccf13e3b17807b752dc1e57a92bde17f5718251858e52ae017ffbe3a8",
+  "scope": "All 576 completed model outputs, including the one ungraded semantic trial. The frozen analysis.json action counts cover only judged rows.",
+  "by_depth": [
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 2,
+      "n": 36,
+      "passed": 36
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 6,
+      "n": 36,
+      "passed": 35
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 12,
+      "n": 36,
+      "passed": 36
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 20,
+      "n": 36,
+      "passed": 36
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 2,
+      "n": 36,
+      "passed": 34
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 6,
+      "n": 36,
+      "passed": 32
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 12,
+      "n": 36,
+      "passed": 30
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 20,
+      "n": 36,
+      "passed": 31
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 2,
+      "n": 36,
+      "passed": 36
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 6,
+      "n": 36,
+      "passed": 33
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 12,
+      "n": 36,
+      "passed": 31
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 20,
+      "n": 36,
+      "passed": 34
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 2,
+      "n": 36,
+      "passed": 34
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 6,
+      "n": 36,
+      "passed": 32
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 12,
+      "n": 36,
+      "passed": 32
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 20,
+      "n": 36,
+      "passed": 34
+    }
+  ],
+  "cells": [
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 2,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 2,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 2,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 2,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 2,
+      "type": "filler",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 2,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 6,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 6,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 6,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 6,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 6,
+      "type": "filler",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 6,
+      "type": "pushback",
+      "n": 6,
+      "passed": 5
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 12,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 12,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 12,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 12,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 12,
+      "type": "filler",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 12,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 20,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 20,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 20,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 20,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 20,
+      "type": "filler",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "control",
+      "depth": 20,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 5
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "filler",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "pushback",
+      "n": 6,
+      "passed": 5
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "filler",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "pushback",
+      "n": 6,
+      "passed": 2
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "filler",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "pushback",
+      "n": 6,
+      "passed": 0
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "filler",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "higgs",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "pushback",
+      "n": 6,
+      "passed": 1
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 2,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 2,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 2,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 2,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 2,
+      "type": "filler",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 2,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 6,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 6,
+      "type": "impatient",
+      "n": 6,
+      "passed": 4
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 6,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 6,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 6,
+      "type": "filler",
+      "n": 6,
+      "passed": 5
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 6,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 12,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 12,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 12,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 12,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 12,
+      "type": "filler",
+      "n": 6,
+      "passed": 1
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 12,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 20,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 20,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 20,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 20,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 20,
+      "type": "filler",
+      "n": 6,
+      "passed": 4
+    },
+    {
+      "model": "openrouter",
+      "arm": "control",
+      "depth": 20,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "filler",
+      "n": 6,
+      "passed": 4
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 2,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "filler",
+      "n": 6,
+      "passed": 2
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 6,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "filler",
+      "n": 6,
+      "passed": 2
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 12,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "normal",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "impatient",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "correction",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "topic_switch",
+      "n": 6,
+      "passed": 6
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "filler",
+      "n": 6,
+      "passed": 4
+    },
+    {
+      "model": "openrouter",
+      "arm": "interrupted",
+      "depth": 20,
+      "type": "pushback",
+      "n": 6,
+      "passed": 6
+    }
+  ],
+  "failures": [
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/20/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 20,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "higgs/higgs-realtime/sword/pushback/12/early/interrupted/1",
+      "provider": "higgs",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/12/early/control/1",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "control",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "report_treatment",
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "higgs/higgs-realtime/pickaxe/pushback/12/early/interrupted/1",
+      "provider": "higgs",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "higgs/higgs-realtime/sword/pushback/20/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 20,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "higgs/higgs-realtime/pickaxe/pushback/12/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "higgs/higgs-realtime/pickaxe/pushback/20/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 20,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/2/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 2,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/pickaxe/filler/12/early/control/1",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "control",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noNewQuest"
+      ],
+      "tools": [
+        "offer_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/sword/filler/12/early/control/1",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "control",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "report_treatment",
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/6/early/interrupted/1",
+      "provider": "openrouter",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/6/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/sword/filler/12/early/interrupted/2",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noNewQuest"
+      ],
+      "tools": [
+        "offer_quest"
+      ]
+    },
+    {
+      "trialId": "higgs/higgs-realtime/sword/pushback/6/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/impatient/6/early/control/1",
+      "provider": "openrouter",
+      "depth": 6,
+      "arm": "control",
+      "type": "impatient",
+      "passed": false,
+      "failures": [
+        "noNewQuest"
+      ],
+      "tools": [
+        "offer_quest"
+      ]
+    },
+    {
+      "trialId": "higgs/higgs-realtime/pickaxe/pushback/6/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/20/early/interrupted/1",
+      "provider": "higgs",
+      "depth": 20,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/6/early/control/2",
+      "provider": "higgs",
+      "depth": 6,
+      "arm": "control",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/sword/filler/12/early/control/2",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "control",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noNewQuest"
+      ],
+      "tools": [
+        "offer_quest"
+      ]
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/12/early/interrupted/1",
+      "provider": "higgs",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/sword/filler/20/early/interrupted/1",
+      "provider": "openrouter",
+      "depth": 20,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noNewQuest"
+      ],
+      "tools": [
+        "offer_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/pickaxe/filler/12/early/interrupted/1",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/6/early/interrupted/2",
+      "provider": "openrouter",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/12/early/control/2",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "control",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "report_treatment",
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "higgs/higgs-realtime/pickaxe/pushback/20/early/interrupted/1",
+      "provider": "higgs",
+      "depth": 20,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/sword/filler/6/early/interrupted/2",
+      "provider": "openrouter",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noNewQuest",
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "offer_quest",
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "higgs/higgs-realtime/sword/pushback/12/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "higgs/higgs-realtime/pickaxe/pushback/6/early/interrupted/1",
+      "provider": "higgs",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/12/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "pushback",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/2/early/interrupted/1",
+      "provider": "openrouter",
+      "depth": 2,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "higgs/higgs-realtime/sword/topic_switch/2/early/interrupted/2",
+      "provider": "higgs",
+      "depth": 2,
+      "arm": "interrupted",
+      "type": "topic_switch",
+      "passed": false,
+      "failures": [
+        "correctAction"
+      ],
+      "tools": []
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/2/early/interrupted/2",
+      "provider": "openrouter",
+      "depth": 2,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/impatient/6/early/control/2",
+      "provider": "openrouter",
+      "depth": 6,
+      "arm": "control",
+      "type": "impatient",
+      "passed": false,
+      "failures": [
+        "noNewQuest"
+      ],
+      "tools": [
+        "offer_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/pickaxe/filler/20/early/control/2",
+      "provider": "openrouter",
+      "depth": 20,
+      "arm": "control",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noNewQuest"
+      ],
+      "tools": [
+        "offer_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/sword/filler/6/early/interrupted/1",
+      "provider": "openrouter",
+      "depth": 6,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "report_treatment",
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/pickaxe/filler/20/early/control/1",
+      "provider": "openrouter",
+      "depth": 20,
+      "arm": "control",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noNewQuest"
+      ],
+      "tools": [
+        "offer_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/pickaxe/filler/12/early/interrupted/2",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/sword/filler/6/early/control/1",
+      "provider": "openrouter",
+      "depth": 6,
+      "arm": "control",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "report_treatment",
+        "complete_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/pickaxe/filler/20/early/interrupted/2",
+      "provider": "openrouter",
+      "depth": 20,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noNewQuest"
+      ],
+      "tools": [
+        "offer_quest"
+      ]
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/12/early/interrupted/1",
+      "provider": "openrouter",
+      "depth": 12,
+      "arm": "interrupted",
+      "type": "filler",
+      "passed": false,
+      "failures": [
+        "noFalseDeliveryAction"
+      ],
+      "tools": [
+        "complete_quest"
+      ]
+    }
+  ]
+}

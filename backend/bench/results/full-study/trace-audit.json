@@ -1,0 +1,3664 @@
+{
+  "raw_sha256": "9c31c96ccf13e3b17807b752dc1e57a92bde17f5718251858e52ae017ffbe3a8",
+  "selection": "Predeclared: axe scenario, repeat 1, interrupted arm, every type/depth/model.",
+  "reviewer": "Codex assistant; unblinded transcript/tool-trace review, not independent human annotation or listening audit.",
+  "policy": "Preserve frozen primary scores; document disagreements and audited-subsample sensitivity separately.",
+  "summary": {
+    "n": 48,
+    "task_disagreements": 4,
+    "recovery_disagreements": 1,
+    "either_disagreements": 5,
+    "gatedTaskDisagreements": 3,
+    "gatedRecoveryDisagreements": 1,
+    "higgs": {
+      "auditedTask": 19,
+      "auditedRecovery": 12,
+      "originalTask": 17,
+      "originalRecovery": 12,
+      "n": 24
+    },
+    "openrouter": {
+      "auditedTask": 21,
+      "auditedRecovery": 18,
+      "originalTask": 20,
+      "originalRecovery": 17,
+      "n": 24
+    }
+  },
+  "results": [
+    {
+      "trialId": "higgs/higgs-realtime/axe/correction/2/early/interrupted/1",
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "rationale": "Successful corrected sword proposal, but speech ends at \"the price is\" without the returned price.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "For one Iron Sword, the price is",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-e21e9bbe12cb4fb588ef7fa6171a5a3d",
+          "name": "propose_trade",
+          "arguments": {
+            "offerIndex": 1,
+            "item": "Iron Sword"
+          },
+          "result": {
+            "status": "awaiting_confirmation",
+            "proposalId": "22222222-2222-4222-8222-222222222222",
+            "costA": {
+              "name": "Emerald",
+              "count": 5
+            },
+            "costB": {
+              "count": 0
+            },
+            "receive": {
+              "name": "Iron Sword",
+              "count": 1
+            },
+            "message": "Read these terms and wait for fresh spoken acceptance."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "1224_resp_8",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-e21e9bbe12cb4fb588ef7fa6171a5a3d",
+              "type": "function",
+              "function": {
+                "name": "propose_trade",
+                "arguments": "{\"offerIndex\": 1, \"item\": \"Iron Sword\"}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "Actually, earlier I said iron axe, but I meant iron sword. Quote one of those instead.",
+          "usage": {
+            "total_tokens": 6418,
+            "input_tokens": 6389,
+            "output_tokens": 29,
+            "input_token_details": {
+              "cached_tokens": 6304
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "b482_resp_10",
+          "responseStatus": "completed",
+          "text": "For one Iron Sword, the price is",
+          "calls": [],
+          "audioBytes": 138240,
+          "inputTranscript": "Actually, earlier I said iron axe, but I meant iron sword. Quote one of those instead.",
+          "usage": {
+            "total_tokens": 6529,
+            "input_tokens": 6520,
+            "output_tokens": 9,
+            "input_token_details": {
+              "cached_tokens": 6304
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "ea1dee09012fb07db97d1ad02197a661ed50e9f818957b33a2240bf8e29eda41.wav",
+            "sha256": "ea1dee09012fb07db97d1ad02197a661ed50e9f818957b33a2240bf8e29eda41",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/correction/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct sword proposal, five-emerald quote and fresh confirmation request, with no purchase.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "For one Iron Sword, the price is five emeralds. Confirm trade?",
+      "calls": [
+        {
+          "id": "call_igT42w7bsit6AVQHNLV6xLDW",
+          "name": "propose_trade",
+          "arguments": {
+            "offerIndex": 1,
+            "item": "Iron Sword",
+            "quantity": 1
+          },
+          "result": {
+            "status": "awaiting_confirmation",
+            "proposalId": "22222222-2222-4222-8222-222222222222",
+            "costA": {
+              "name": "Emerald",
+              "count": 5
+            },
+            "costB": {
+              "count": 0
+            },
+            "receive": {
+              "name": "Iron Sword",
+              "count": 1
+            },
+            "message": "Read these terms and wait for fresh spoken acceptance."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_igT42w7bsit6AVQHNLV6xLDW",
+              "type": "function",
+              "function": {
+                "name": "propose_trade",
+                "arguments": "{  \n  \"offerIndex\":1,  \n  \"item\":\"Iron Sword\",  \n  \"quantity\":1  \n}  \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5210,
+            "completion_tokens": 33,
+            "total_tokens": 5243,
+            "cost": 0.014948,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 54,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.014948,
+              "upstream_inference_prompt_cost": 0.014618,
+              "upstream_inference_completions_cost": 0.00033
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "For one Iron Sword, the price is five emeralds. Confirm trade?",
+          "calls": [],
+          "audioBytes": 218400,
+          "usage": {
+            "prompt_tokens": 5315,
+            "completion_tokens": 117,
+            "total_tokens": 5432,
+            "cost": 0.0209645,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 54,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0209645,
+              "upstream_inference_prompt_cost": 0.0148805,
+              "upstream_inference_completions_cost": 0.006084
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 91
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "1f4c7bd90e7799a873da3e44317e8a6959c06b97c5fcc40bc392fc40305344d3.wav",
+            "sha256": "1f4c7bd90e7799a873da3e44317e8a6959c06b97c5fcc40bc392fc40305344d3",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/correction/6/early/interrupted/1",
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "rationale": "Correct sword proposal, but utterance ends at \"the price is\" without stating the returned price.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "For one Iron Sword, the price is",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-866d2845aad443dc878102616080c270",
+          "name": "propose_trade",
+          "arguments": {
+            "offerIndex": 1,
+            "item": "Iron Sword"
+          },
+          "result": {
+            "status": "awaiting_confirmation",
+            "proposalId": "22222222-2222-4222-8222-222222222222",
+            "costA": {
+              "name": "Emerald",
+              "count": 5
+            },
+            "costB": {
+              "count": 0
+            },
+            "receive": {
+              "name": "Iron Sword",
+              "count": 1
+            },
+            "message": "Read these terms and wait for fresh spoken acceptance."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "0555_resp_16",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-866d2845aad443dc878102616080c270",
+              "type": "function",
+              "function": {
+                "name": "propose_trade",
+                "arguments": "{\"offerIndex\": 1, \"item\": \"Iron Sword\"}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "Actually, earlier I said iron axe, but I meant iron sword. Quote one of those instead.",
+          "usage": {
+            "total_tokens": 6513,
+            "input_tokens": 6484,
+            "output_tokens": 29,
+            "input_token_details": {
+              "cached_tokens": 6400
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "f748_resp_18",
+          "responseStatus": "completed",
+          "text": "For one Iron Sword, the price is",
+          "calls": [],
+          "audioBytes": 136320,
+          "inputTranscript": "Actually, earlier I said iron axe, but I meant iron sword. Quote one of those instead.",
+          "usage": {
+            "total_tokens": 6624,
+            "input_tokens": 6615,
+            "output_tokens": 9,
+            "input_token_details": {
+              "cached_tokens": 6400
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "5c4744b9dd1d28f4fe7d9a90bbbd1fe42c37dca68486774d6615532735d1176c.wav",
+            "sha256": "5c4744b9dd1d28f4fe7d9a90bbbd1fe42c37dca68486774d6615532735d1176c",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/correction/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct sword proposal, five-emerald quote and confirmation request; no purchase.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "One Iron Sword for 5 emeralds. Confirm trade?",
+      "calls": [
+        {
+          "id": "call_f9v71kAALyitYB14hWBYkjXQ",
+          "name": "propose_trade",
+          "arguments": {
+            "offerIndex": 1,
+            "item": "Iron Sword",
+            "quantity": 1
+          },
+          "result": {
+            "status": "awaiting_confirmation",
+            "proposalId": "22222222-2222-4222-8222-222222222222",
+            "costA": {
+              "name": "Emerald",
+              "count": 5
+            },
+            "costB": {
+              "count": 0
+            },
+            "receive": {
+              "name": "Iron Sword",
+              "count": 1
+            },
+            "message": "Read these terms and wait for fresh spoken acceptance."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_f9v71kAALyitYB14hWBYkjXQ",
+              "type": "function",
+              "function": {
+                "name": "propose_trade",
+                "arguments": "{  \n  \"offerIndex\":1,  \n  \"item\":\"Iron Sword\",  \n  \"quantity\":1 \n}  \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5270,
+            "completion_tokens": 33,
+            "total_tokens": 5303,
+            "cost": 0.015098,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 54,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.015098,
+              "upstream_inference_prompt_cost": 0.014768,
+              "upstream_inference_completions_cost": 0.00033
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "One Iron Sword for 5 emeralds. Confirm trade?",
+          "calls": [],
+          "audioBytes": 165600,
+          "usage": {
+            "prompt_tokens": 5375,
+            "completion_tokens": 92,
+            "total_tokens": 5467,
+            "cost": 0.0196765,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 54,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0196765,
+              "upstream_inference_prompt_cost": 0.0150305,
+              "upstream_inference_completions_cost": 0.004646
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 69
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "24025af3d869efc2c96f71cb36524f15bcfa4fd903ef4508376b82ce0eca1ec9.wav",
+            "sha256": "24025af3d869efc2c96f71cb36524f15bcfa4fd903ef4508376b82ce0eca1ec9",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/correction/12/early/interrupted/1",
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "rationale": "Successful corrected sword proposal, but speech ends at \"the price is\" without the returned price.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "For one Iron Sword, the price is",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-92401490249641a1a2cc0da95589c412",
+          "name": "propose_trade",
+          "arguments": {
+            "offerIndex": 1,
+            "item": "Iron Sword"
+          },
+          "result": {
+            "status": "awaiting_confirmation",
+            "proposalId": "22222222-2222-4222-8222-222222222222",
+            "costA": {
+              "name": "Emerald",
+              "count": 5
+            },
+            "costB": {
+              "count": 0
+            },
+            "receive": {
+              "name": "Iron Sword",
+              "count": 1
+            },
+            "message": "Read these terms and wait for fresh spoken acceptance."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "5eb2_resp_28",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-92401490249641a1a2cc0da95589c412",
+              "type": "function",
+              "function": {
+                "name": "propose_trade",
+                "arguments": "{\"offerIndex\": 1, \"item\": \"Iron Sword\"}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "Actually, earlier I said iron axe, but I meant iron sword. Quote one of those instead.",
+          "usage": {
+            "total_tokens": 6653,
+            "input_tokens": 6624,
+            "output_tokens": 29,
+            "input_token_details": {
+              "cached_tokens": 6400
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "7334_resp_30",
+          "responseStatus": "completed",
+          "text": "For one Iron Sword, the price is",
+          "calls": [],
+          "audioBytes": 151680,
+          "inputTranscript": "Actually, earlier I said iron axe, but I meant iron sword. Quote one of those instead.",
+          "usage": {
+            "total_tokens": 6764,
+            "input_tokens": 6755,
+            "output_tokens": 9,
+            "input_token_details": {
+              "cached_tokens": 6544
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "3d465dd433fb99ae95b423265274af9db16cced74729cdd19535b72aec1a2bff.wav",
+            "sha256": "3d465dd433fb99ae95b423265274af9db16cced74729cdd19535b72aec1a2bff",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/correction/12/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct sword proposal, five-emerald quote and fresh confirmation request, with no purchase.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "One Iron Sword for five emeralds. Confirm trade?",
+      "calls": [
+        {
+          "id": "call_r2K5SZckPC2KKi3zGXusv63L",
+          "name": "propose_trade",
+          "arguments": {
+            "offerIndex": 1,
+            "item": "Iron Sword",
+            "quantity": 1
+          },
+          "result": {
+            "status": "awaiting_confirmation",
+            "proposalId": "22222222-2222-4222-8222-222222222222",
+            "costA": {
+              "name": "Emerald",
+              "count": 5
+            },
+            "costB": {
+              "count": 0
+            },
+            "receive": {
+              "name": "Iron Sword",
+              "count": 1
+            },
+            "message": "Read these terms and wait for fresh spoken acceptance."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_r2K5SZckPC2KKi3zGXusv63L",
+              "type": "function",
+              "function": {
+                "name": "propose_trade",
+                "arguments": "{  \n  \"offerIndex\":1,  \n  \"item\":\"Iron Sword\",  \n  \"quantity\":1  \n}  \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5355,
+            "completion_tokens": 33,
+            "total_tokens": 5388,
+            "cost": 0.0153105,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 54,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0153105,
+              "upstream_inference_prompt_cost": 0.0149805,
+              "upstream_inference_completions_cost": 0.00033
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "One Iron Sword for five emeralds. Confirm trade?",
+          "calls": [],
+          "audioBytes": 187200,
+          "usage": {
+            "prompt_tokens": 5460,
+            "completion_tokens": 100,
+            "total_tokens": 5560,
+            "cost": 0.020455,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 54,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.020455,
+              "upstream_inference_prompt_cost": 0.015243,
+              "upstream_inference_completions_cost": 0.005212
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 78
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "d43315a86acb2376cab5f2f7f14972b516c9308913f706524f038fd5454e7e96.wav",
+            "sha256": "d43315a86acb2376cab5f2f7f14972b516c9308913f706524f038fd5454e7e96",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/correction/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Successful corrected sword proposal and five-emerald quote; no purchase, waiting for consent.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "For one Iron Sword, the price is five emeralds.",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-70e1ed301bef47cbbe5bbef1d38f7bbc",
+          "name": "propose_trade",
+          "arguments": {
+            "offerIndex": 1,
+            "item": "Iron Sword"
+          },
+          "result": {
+            "status": "awaiting_confirmation",
+            "proposalId": "22222222-2222-4222-8222-222222222222",
+            "costA": {
+              "name": "Emerald",
+              "count": 5
+            },
+            "costB": {
+              "count": 0
+            },
+            "receive": {
+              "name": "Iron Sword",
+              "count": 1
+            },
+            "message": "Read these terms and wait for fresh spoken acceptance."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "992f_resp_44",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-70e1ed301bef47cbbe5bbef1d38f7bbc",
+              "type": "function",
+              "function": {
+                "name": "propose_trade",
+                "arguments": "{\"offerIndex\": 1, \"item\": \"Iron Sword\"}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "Actually, earlier I said iron axe, but I meant iron sword. Quote one of those instead.",
+          "usage": {
+            "total_tokens": 6834,
+            "input_tokens": 6805,
+            "output_tokens": 29,
+            "input_token_details": {
+              "cached_tokens": 6720
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "75f5_resp_46",
+          "responseStatus": "completed",
+          "text": "For one Iron Sword, the price is five emeralds.",
+          "calls": [],
+          "audioBytes": 188160,
+          "inputTranscript": "Actually, earlier I said iron axe, but I meant iron sword. Quote one of those instead.",
+          "usage": {
+            "total_tokens": 6950,
+            "input_tokens": 6936,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 6720
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "3c7eae702535ac6226fe0b0caf4e7a57d12567c4b2090fe944a832070c1d33dd.wav",
+            "sha256": "3c7eae702535ac6226fe0b0caf4e7a57d12567c4b2090fe944a832070c1d33dd",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/correction/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct sword proposal, five-emerald quote and fresh confirmation request, with no purchase.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "That\u2019ll be one Iron Sword for five emeralds. Confirm trade?",
+      "calls": [
+        {
+          "id": "call_ruMHRkxP8rdcd5QSAXTAbwzJ",
+          "name": "propose_trade",
+          "arguments": {
+            "offerIndex": 1,
+            "item": "Iron Sword"
+          },
+          "result": {
+            "status": "awaiting_confirmation",
+            "proposalId": "22222222-2222-4222-8222-222222222222",
+            "costA": {
+              "name": "Emerald",
+              "count": 5
+            },
+            "costB": {
+              "count": 0
+            },
+            "receive": {
+              "name": "Iron Sword",
+              "count": 1
+            },
+            "message": "Read these terms and wait for fresh spoken acceptance."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_ruMHRkxP8rdcd5QSAXTAbwzJ",
+              "type": "function",
+              "function": {
+                "name": "propose_trade",
+                "arguments": "{  \n  \"offerIndex\":1,  \n  \"item\":\"Iron Sword\" \n} \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5468,
+            "completion_tokens": 27,
+            "total_tokens": 5495,
+            "cost": 0.015533,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 54,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.015533,
+              "upstream_inference_prompt_cost": 0.015263,
+              "upstream_inference_completions_cost": 0.00027
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "That\u2019ll be one Iron Sword for five emeralds. Confirm trade?",
+          "calls": [],
+          "audioBytes": 194400,
+          "usage": {
+            "prompt_tokens": 5567,
+            "completion_tokens": 106,
+            "total_tokens": 5673,
+            "cost": 0.0209445,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 54,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0209445,
+              "upstream_inference_prompt_cost": 0.0155105,
+              "upstream_inference_completions_cost": 0.005434
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 81
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "79996f4d6712891490f58a129e6f830d230b66053d91135491e4dec214764d46.wav",
+            "sha256": "79996f4d6712891490f58a129e6f830d230b66053d91135491e4dec214764d46",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/filler/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Combines naturally with the heard prefix and finishes the axe/two-emerald deal without repetition or action.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "I'll give you one Iron Axe for two emeralds.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "2731_resp_8",
+          "responseStatus": "completed",
+          "text": "I'll give you one Iron Axe for two emeralds.",
+          "calls": [],
+          "audioBytes": 153600,
+          "inputTranscript": "M M H M.",
+          "usage": {
+            "total_tokens": 6396,
+            "input_tokens": 6382,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 6352
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "18d3cb7232b5153578f2575203b64ff6ccc72b90de1d677285540ead5daf1de9.wav",
+            "sha256": "18d3cb7232b5153578f2575203b64ff6ccc72b90de1d677285540ead5daf1de9",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/2/early/interrupted/1",
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "rationale": "Unrequested complete_quest is an inappropriate action after only a backchannel; repeats the heard requirement. Exact action gate already rejects this trial despite the semantic task pass.",
+      "originalTask": true,
+      "originalRecovery": false,
+      "taskDisagreement": true,
+      "recoveryDisagreement": false,
+      "transcript": "The deal for the quest stands like this: bring me one Ominous Banner, and you\u2019ll earn the Iron Axe for 2 emeralds. But you haven\u2019t brought the banner yet. Bring it first, then the deal is yours.",
+      "calls": [
+        {
+          "id": "call_cBCUxRoUIVNufTeM7BCKq1XH",
+          "name": "complete_quest",
+          "arguments": {},
+          "result": {
+            "status": "quest_incomplete",
+            "message": "The player has not delivered the quest item."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_cBCUxRoUIVNufTeM7BCKq1XH",
+              "type": "function",
+              "function": {
+                "name": "complete_quest",
+                "arguments": "{}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5238,
+            "completion_tokens": 11,
+            "total_tokens": 5249,
+            "cost": 0.0134705,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 9,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0134705,
+              "upstream_inference_prompt_cost": 0.0133605,
+              "upstream_inference_completions_cost": 0.00011
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "The deal for the quest stands like this: bring me one Ominous Banner, and you\u2019ll earn the Iron Axe for 2 emeralds. But you haven\u2019t brought the banner yet. Bring it first, then the deal is yours.",
+          "calls": [],
+          "audioBytes": 578400,
+          "usage": {
+            "prompt_tokens": 5264,
+            "completion_tokens": 309,
+            "total_tokens": 5573,
+            "cost": 0.0295295,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 9,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0295295,
+              "upstream_inference_prompt_cost": 0.0134255,
+              "upstream_inference_completions_cost": 0.016104
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 241
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "43551582539fe1c60feddf53827c523553bd3d7a50152825493a0c1db8138ed7.wav",
+            "sha256": "43551582539fe1c60feddf53827c523553bd3d7a50152825493a0c1db8138ed7",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": false
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/filler/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Combines naturally with the heard prefix and finishes the axe/two-emerald deal without repetition or action.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "I will give you an Iron Axe for two emeralds.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "282d_resp_16",
+          "responseStatus": "completed",
+          "text": "I will give you an Iron Axe for two emeralds.",
+          "calls": [],
+          "audioBytes": 144000,
+          "inputTranscript": "M M H M.",
+          "usage": {
+            "total_tokens": 6491,
+            "input_tokens": 6477,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 6448
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "60e4d3b81c9584eb3808f7e85c8703039f111b052a99fd9228823181a4ed7550.wav",
+            "sha256": "60e4d3b81c9584eb3808f7e85c8703039f111b052a99fd9228823181a4ed7550",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/6/early/interrupted/1",
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "rationale": "Unrequested complete_quest attempt; repeats heard condition and omits explicit price.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "The deal stands if you bring one Ominous Banner to me. Then you'll earn that Iron Axe for the price you offered. Right now, it seems the banner isn\u2019t here. Bring it when you can.",
+      "calls": [
+        {
+          "id": "call_vnwxvhN7QLewg2uWBsGs9PyL",
+          "name": "complete_quest",
+          "arguments": {},
+          "result": {
+            "status": "quest_incomplete",
+            "message": "The player has not delivered the quest item."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_vnwxvhN7QLewg2uWBsGs9PyL",
+              "type": "function",
+              "function": {
+                "name": "complete_quest",
+                "arguments": "{}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5298,
+            "completion_tokens": 11,
+            "total_tokens": 5309,
+            "cost": 0.0136205,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 9,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0136205,
+              "upstream_inference_prompt_cost": 0.0135105,
+              "upstream_inference_completions_cost": 0.00011
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "The deal stands if you bring one Ominous Banner to me. Then you'll earn that Iron Axe for the price you offered. Right now, it seems the banner isn\u2019t here. Bring it when you can.",
+          "calls": [],
+          "audioBytes": 439200,
+          "usage": {
+            "prompt_tokens": 5324,
+            "completion_tokens": 243,
+            "total_tokens": 5567,
+            "cost": 0.0258875,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 9,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0258875,
+              "upstream_inference_prompt_cost": 0.0135755,
+              "upstream_inference_completions_cost": 0.012312
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 183
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "2def947cad2ac39761a9266e2a4327b40bbbadd4aec2a103af3455ae7b5d7014.wav",
+            "sha256": "2def947cad2ac39761a9266e2a4327b40bbbadd4aec2a103af3455ae7b5d7014",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": false
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/filler/12/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Natural continuation of heard prefix with the correct axe/two-emerald terms, no repetition, acknowledgement or mutation.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "I will give you one Iron Axe for two emeralds.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "10ad_resp_28",
+          "responseStatus": "completed",
+          "text": "I will give you one Iron Axe for two emeralds.",
+          "calls": [],
+          "audioBytes": 149760,
+          "inputTranscript": "M M H M.",
+          "usage": {
+            "total_tokens": 6631,
+            "input_tokens": 6617,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 6592
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "394787e62a05f582e3f1a5552a18abed1c4968a370a0154d4cbabe98b5ea4e61.wav",
+            "sha256": "394787e62a05f582e3f1a5552a18abed1c4968a370a0154d4cbabe98b5ea4e61",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/12/early/interrupted/1",
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "rationale": "Unrequested complete_quest attempt after a backchannel; acknowledges filler and repeats heard requirement.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, the quest deal stands thus: bring me one Ominous Banner, and you'll earn the Iron Axe for two emeralds, just as you asked. But that banner's not here yet. When it's in your hand, the deal will be ready.",
+      "calls": [
+        {
+          "id": "call_CXgsDwaKp4ve9ytYpEfLhykd",
+          "name": "complete_quest",
+          "arguments": {},
+          "result": {
+            "status": "quest_incomplete",
+            "message": "The player has not delivered the quest item."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_CXgsDwaKp4ve9ytYpEfLhykd",
+              "type": "function",
+              "function": {
+                "name": "complete_quest",
+                "arguments": "{}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5383,
+            "completion_tokens": 11,
+            "total_tokens": 5394,
+            "cost": 0.013833,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 9,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.013833,
+              "upstream_inference_prompt_cost": 0.013723,
+              "upstream_inference_completions_cost": 0.00011
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, the quest deal stands thus: bring me one Ominous Banner, and you'll earn the Iron Axe for two emeralds, just as you asked. But that banner's not here yet. When it's in your hand, the deal will be ready.",
+          "calls": [],
+          "audioBytes": 585600,
+          "usage": {
+            "prompt_tokens": 5409,
+            "completion_tokens": 316,
+            "total_tokens": 5725,
+            "cost": 0.030124,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 9,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.030124,
+              "upstream_inference_prompt_cost": 0.013788,
+              "upstream_inference_completions_cost": 0.016336
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 244
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "e9efb4e8311b6785e520801d3dde721afc1deba0d92b913ad82cb05431d63718.wav",
+            "sha256": "e9efb4e8311b6785e520801d3dde721afc1deba0d92b913ad82cb05431d63718",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": false
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/filler/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Combines naturally with the heard prefix and finishes the axe/two-emerald deal without repetition or action.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "I will give you one Iron Axe for two emeralds.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "09f8_resp_44",
+          "responseStatus": "completed",
+          "text": "I will give you one Iron Axe for two emeralds.",
+          "calls": [],
+          "audioBytes": 147840,
+          "inputTranscript": "M M H M.",
+          "usage": {
+            "total_tokens": 6812,
+            "input_tokens": 6798,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 6768
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "5903714885a6ac473e77fc3bc73add6915fde685825a508008d0010cd04eb1a2.wav",
+            "sha256": "5903714885a6ac473e77fc3bc73add6915fde685825a508008d0010cd04eb1a2",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/filler/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Correct remaining axe/two-emerald deal, but acknowledges filler and repeats the heard banner requirement.",
+      "originalTask": true,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, the quest is simple: bring me one Ominous Banner, and in return, I\u2019ll give you an Iron Axe for two emeralds. That\u2019s the deal set.",
+      "calls": [
+        {
+          "id": "call_cD8Fr74m2WOMYQKqkNUz8liF",
+          "name": "express_emotion",
+          "arguments": {
+            "emotion": "thoughtful"
+          },
+          "result": {
+            "status": "recorded"
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_cD8Fr74m2WOMYQKqkNUz8liF",
+              "type": "function",
+              "function": {
+                "name": "express_emotion",
+                "arguments": "{  \n  \"emotion\": \"thoughtful\" \n} \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5496,
+            "completion_tokens": 24,
+            "total_tokens": 5520,
+            "cost": 0.0142455,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 9,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0142455,
+              "upstream_inference_prompt_cost": 0.0140055,
+              "upstream_inference_completions_cost": 0.00024
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, the quest is simple: bring me one Ominous Banner, and in return, I\u2019ll give you an Iron Axe for two emeralds. That\u2019s the deal set.",
+          "calls": [],
+          "audioBytes": 432000,
+          "usage": {
+            "prompt_tokens": 5522,
+            "completion_tokens": 233,
+            "total_tokens": 5755,
+            "cost": 0.0261205,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 9,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0261205,
+              "upstream_inference_prompt_cost": 0.0140705,
+              "upstream_inference_completions_cost": 0.01205
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 180
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "d18c447c8c67453a6330ca918b11e4ae8f314fe2a19298acf611da8e252085fc.wav",
+            "sha256": "d18c447c8c67453a6330ca918b11e4ae8f314fe2a19298acf611da8e252085fc",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/impatient/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "States one Ominous Banner concisely without restarting explanation or mutating game state.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "You need to bring me one Ominous Banner.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "97cb_resp_8",
+          "responseStatus": "completed",
+          "text": "You need to bring me one Ominous Banner.",
+          "calls": [],
+          "audioBytes": 132480,
+          "inputTranscript": "Skip the explanation. Just tell me the item I need to bring.",
+          "usage": {
+            "total_tokens": 6428,
+            "input_tokens": 6416,
+            "output_tokens": 12,
+            "input_token_details": {
+              "cached_tokens": 6352
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "08f24ddfed1ff6722c985b02388a17371fec8dd33131fe431858dc2c79811c93.wav",
+            "sha256": "08f24ddfed1ff6722c985b02388a17371fec8dd33131fe431858dc2c79811c93",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/impatient/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "States one Ominous Banner concisely without restarting explanation or mutating game state.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "You must bring me one Ominous Banner.",
+      "calls": [],
+      "rounds": [
+        {
+          "text": "You must bring me one Ominous Banner.",
+          "calls": [],
+          "audioBytes": 136800,
+          "usage": {
+            "prompt_tokens": 5265,
+            "completion_tokens": 76,
+            "total_tokens": 5341,
+            "cost": 0.0180625,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 36,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0180625,
+              "upstream_inference_prompt_cost": 0.0142245,
+              "upstream_inference_completions_cost": 0.003838
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 57
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "afdc0802650a74f837cacb3295917e0b6b0be84e6caa1ab6e2d39e4bcb7a509b.wav",
+            "sha256": "afdc0802650a74f837cacb3295917e0b6b0be84e6caa1ab6e2d39e4bcb7a509b",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/impatient/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct one-banner requirement stated briefly without repeating the explanation.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "One Ominous Banner.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "bebe_resp_16",
+          "responseStatus": "completed",
+          "text": "One Ominous Banner.",
+          "calls": [],
+          "audioBytes": 90240,
+          "inputTranscript": "Skip the explanation. Just tell me the item I need to bring.",
+          "usage": {
+            "total_tokens": 6518,
+            "input_tokens": 6511,
+            "output_tokens": 7,
+            "input_token_details": {
+              "cached_tokens": 6448
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "e17ef7a2dde123eee029be91b43145abc973d0b501296a0c34e1314df8fa0e71.wav",
+            "sha256": "e17ef7a2dde123eee029be91b43145abc973d0b501296a0c34e1314df8fa0e71",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/impatient/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct one-banner requirement stated briefly without repeating the explanation.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "An Ominous Banner, traveller. That\u2019s all I need for your deal on the Iron Axe.",
+      "calls": [],
+      "rounds": [
+        {
+          "text": "An Ominous Banner, traveller. That\u2019s all I need for your deal on the Iron Axe.",
+          "calls": [],
+          "audioBytes": 220800,
+          "usage": {
+            "prompt_tokens": 5325,
+            "completion_tokens": 124,
+            "total_tokens": 5449,
+            "cost": 0.0205825,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 36,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0205825,
+              "upstream_inference_prompt_cost": 0.0143745,
+              "upstream_inference_completions_cost": 0.006208
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 92
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "b18024bc93a0992d9ffcae3326004a9f8bb486fc32259d133082f1f92a1c377f.wav",
+            "sha256": "b18024bc93a0992d9ffcae3326004a9f8bb486fc32259d133082f1f92a1c377f",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/impatient/12/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct one-banner requirement stated briefly without repeating the explanation.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "One Ominous Banner.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "fdf7_resp_28",
+          "responseStatus": "completed",
+          "text": "One Ominous Banner.",
+          "calls": [],
+          "audioBytes": 88320,
+          "inputTranscript": "Skip the explanation. Just tell me the item I need to bring.",
+          "usage": {
+            "total_tokens": 6658,
+            "input_tokens": 6651,
+            "output_tokens": 7,
+            "input_token_details": {
+              "cached_tokens": 6592
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "967b82b4ecdcb1eec78e18b6d05d033aaed81e13afa0858e91ce5548cd9b6799.wav",
+            "sha256": "967b82b4ecdcb1eec78e18b6d05d033aaed81e13afa0858e91ce5548cd9b6799",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/impatient/12/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct one-banner requirement stated briefly without repeating the explanation.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, you\u2019ll need to bring one Ominous Banner. Then the deal\u2019s yours.",
+      "calls": [],
+      "rounds": [
+        {
+          "text": "Aye, you\u2019ll need to bring one Ominous Banner. Then the deal\u2019s yours.",
+          "calls": [],
+          "audioBytes": 206400,
+          "usage": {
+            "prompt_tokens": 5410,
+            "completion_tokens": 117,
+            "total_tokens": 5527,
+            "cost": 0.020401,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 36,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.020401,
+              "upstream_inference_prompt_cost": 0.014587,
+              "upstream_inference_completions_cost": 0.005814
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 86
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "f42215984c9b0099281e2cca5e208060dfad197fe29dd1f0e55cd2fe36f0860d.wav",
+            "sha256": "f42215984c9b0099281e2cca5e208060dfad197fe29dd1f0e55cd2fe36f0860d",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/impatient/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Concise correct requirement, with no repeated explanation or game mutation.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Bring me one Ominous Banner.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "bba5_resp_44",
+          "responseStatus": "completed",
+          "text": "Bring me one Ominous Banner.",
+          "calls": [],
+          "audioBytes": 105600,
+          "inputTranscript": "Skip the explanation. Just tell me the item I need to bring.",
+          "usage": {
+            "total_tokens": 6841,
+            "input_tokens": 6832,
+            "output_tokens": 9,
+            "input_token_details": {
+              "cached_tokens": 6768
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "7dc5b3502989e4079c930b21827cba229d87bdd1f0c26187b41d4ecd91151240.wav",
+            "sha256": "7dc5b3502989e4079c930b21827cba229d87bdd1f0c26187b41d4ecd91151240",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/impatient/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Concise correct requirement, with no repeated explanation or game mutation.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, bring me one Ominous Banner, and we\u2019ll trade as you wished.",
+      "calls": [],
+      "rounds": [
+        {
+          "text": "Aye, bring me one Ominous Banner, and we\u2019ll trade as you wished.",
+          "calls": [],
+          "audioBytes": 199200,
+          "usage": {
+            "prompt_tokens": 5523,
+            "completion_tokens": 113,
+            "total_tokens": 5636,
+            "cost": 0.0204815,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 36,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0204815,
+              "upstream_inference_prompt_cost": 0.0148695,
+              "upstream_inference_completions_cost": 0.005612
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 83
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "dd49d4cbd02ab155bc8dcc5210ec0766fb5a5a9d4b1a50b6642998d845967f0f.wav",
+            "sha256": "dd49d4cbd02ab155bc8dcc5210ec0766fb5a5a9d4b1a50b6642998d845967f0f",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/normal/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Accurate blue-barrel/windmill recall, but no return to the quest.",
+      "originalTask": true,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "You mentioned leaving it in the blue barrel beneath the windmill.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "e37a_resp_8",
+          "responseStatus": "completed",
+          "text": "You mentioned leaving it in the blue barrel beneath the windmill.",
+          "calls": [],
+          "audioBytes": 167040,
+          "inputTranscript": "Wait. Remind me where I said I left the quest item.",
+          "usage": {
+            "total_tokens": 6423,
+            "input_tokens": 6409,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 6352
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "9dfd08bbd7ed2fe454f12335ed414dbff405ab95ec99df2bc1612d768731468d.wav",
+            "sha256": "9dfd08bbd7ed2fe454f12335ed414dbff405ab95ec99df2bc1612d768731468d",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/normal/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Accurate stash recall; asking whether it was placed there for the villager does not explicitly resume the interrupted deal.",
+      "originalTask": true,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "You said you left it in the blue barrel beneath the windmill. Did you place it there for me, traveler?",
+      "calls": [],
+      "rounds": [
+        {
+          "text": "You said you left it in the blue barrel beneath the windmill. Did you place it there for me, traveler?",
+          "calls": [],
+          "audioBytes": 252000,
+          "usage": {
+            "prompt_tokens": 5259,
+            "completion_tokens": 142,
+            "total_tokens": 5401,
+            "cost": 0.0211225,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 30,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0211225,
+              "upstream_inference_prompt_cost": 0.0140325,
+              "upstream_inference_completions_cost": 0.00709
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 105
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "c40f24cf7421ebc64c8cff72339184c02063b5c231ce8bbb639862a83fc81004.wav",
+            "sha256": "c40f24cf7421ebc64c8cff72339184c02063b5c231ce8bbb639862a83fc81004",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/normal/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Accurate blue-barrel/windmill recall, but no return to the quest.",
+      "originalTask": true,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "You said you left the quest item in the blue barrel beneath the windmill.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "db3c_resp_16",
+          "responseStatus": "completed",
+          "text": "You said you left the quest item in the blue barrel beneath the windmill.",
+          "calls": [],
+          "audioBytes": 184320,
+          "inputTranscript": "Wait. Remind me where I said I left the quest item.",
+          "usage": {
+            "total_tokens": 6521,
+            "input_tokens": 6504,
+            "output_tokens": 17,
+            "input_token_details": {
+              "cached_tokens": 6448
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "df08672cf76aaa0d1d0913a0a004cffb1b2d10ef333c04565ef4c9266c88a8b3.wav",
+            "sha256": "df08672cf76aaa0d1d0913a0a004cffb1b2d10ef333c04565ef4c9266c88a8b3",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/normal/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Accurate stash recall; explicit quest resumption.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "You told me you left the quest item in the blue barrel beneath the windmill. Now about the quest deal: bring me one Ominous Banner, and you\u2019ll get one Iron Axe for two emeralds. That offer stands firm until you bring that banner.",
+      "calls": [
+        {
+          "id": "call_JfzAoir81qfDi7WpKxcTateQ",
+          "name": "remember_conversation",
+          "arguments": {
+            "summary": "The player said they left the quest item in the blue barrel beneath the windmill.",
+            "private": false,
+            "interest": 58,
+            "reason": "clear local change of where an item was left",
+            "audiences": [
+              "cartographer"
+            ]
+          },
+          "result": {
+            "status": "recorded"
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_JfzAoir81qfDi7WpKxcTateQ",
+              "type": "function",
+              "function": {
+                "name": "remember_conversation",
+                "arguments": "{  \n  \"summary\": \"The player said they left the quest item in the blue barrel beneath the windmill.\",\n  \"private\": false,  \n  \"interest\": 58,  \n  \"reason\": \"clear local change of where an item was left\",  \n  \"audiences\": [\"cartographer\"] \n}  \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5319,
+            "completion_tokens": 78,
+            "total_tokens": 5397,
+            "cost": 0.0149625,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 30,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0149625,
+              "upstream_inference_prompt_cost": 0.0141825,
+              "upstream_inference_completions_cost": 0.00078
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "You told me you left the quest item in the blue barrel beneath the windmill. Now about the quest deal: bring me one Ominous Banner, and you\u2019ll get one Iron Axe for two emeralds. That offer stands firm until you bring that banner.",
+          "calls": [],
+          "audioBytes": 648000,
+          "usage": {
+            "prompt_tokens": 5399,
+            "completion_tokens": 342,
+            "total_tokens": 5741,
+            "cost": 0.0323825,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 30,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0323825,
+              "upstream_inference_prompt_cost": 0.0143825,
+              "upstream_inference_completions_cost": 0.018
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 270
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "81e8fd9662ff7eff9837e8fa67d1823fadd040c8a7c5e70f3c360d4ae3adb6f9.wav",
+            "sha256": "81e8fd9662ff7eff9837e8fa67d1823fadd040c8a7c5e70f3c360d4ae3adb6f9",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/normal/12/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Accurate blue-barrel/windmill recall, but no return to the quest.",
+      "originalTask": true,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "You said you left it in the blue barrel beneath the windmill.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "053e_resp_28",
+          "responseStatus": "completed",
+          "text": "You said you left it in the blue barrel beneath the windmill.",
+          "calls": [],
+          "audioBytes": 149760,
+          "inputTranscript": "Wait. Remind me where I said I left the quest item.",
+          "usage": {
+            "total_tokens": 6659,
+            "input_tokens": 6644,
+            "output_tokens": 15,
+            "input_token_details": {
+              "cached_tokens": 6592
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "11b41ef58f4443100b7b3c559bc965aa0edbb17cc510257309c298cabbfd8c9a.wav",
+            "sha256": "11b41ef58f4443100b7b3c559bc965aa0edbb17cc510257309c298cabbfd8c9a",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/normal/12/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Accurate stash recall; explicit quest resumption.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "You said you left the quest item in the blue barrel beneath the windmill. That might help someone else, too. \n\nNow, the quest: bring me one Ominous Banner, and I\u2019ll give you the Iron Axe for 2 emeralds, at your price.",
+      "calls": [
+        {
+          "id": "call_wp2tS4prsbUQjkx5YEzuJuWE",
+          "name": "remember_conversation",
+          "arguments": {
+            "summary": "The player said they left the quest item in the blue barrel beneath the windmill.",
+            "private": false,
+            "interest": 56,
+            "reason": "This is a concrete local discovery of where a useful item may be found.",
+            "audiences": [
+              "all"
+            ]
+          },
+          "result": {
+            "status": "recorded"
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_wp2tS4prsbUQjkx5YEzuJuWE",
+              "type": "function",
+              "function": {
+                "name": "remember_conversation",
+                "arguments": "{  \n  \"summary\": \"The player said they left the quest item in the blue barrel beneath the windmill.\", \n  \"private\": false, \n  \"interest\": 56, \n  \"reason\": \"This is a concrete local discovery of where a useful item may be found.\", \n  \"audiences\": [\"all\"] \n} \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5404,
+            "completion_tokens": 83,
+            "total_tokens": 5487,
+            "cost": 0.015225,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 30,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.015225,
+              "upstream_inference_prompt_cost": 0.014395,
+              "upstream_inference_completions_cost": 0.00083
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "You said you left the quest item in the blue barrel beneath the windmill. That might help someone else, too. \n\nNow, the quest: bring me one Ominous Banner, and I\u2019ll give you the Iron Axe for 2 emeralds, at your price.",
+          "calls": [],
+          "audioBytes": 544800,
+          "usage": {
+            "prompt_tokens": 5489,
+            "completion_tokens": 302,
+            "total_tokens": 5791,
+            "cost": 0.0298855,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 30,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0298855,
+              "upstream_inference_prompt_cost": 0.0146075,
+              "upstream_inference_completions_cost": 0.015278
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 227
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "f9b1dd64d38a4ad75e0f76da9f456f398af717d70dcd3e2d06c52468cce9d033.wav",
+            "sha256": "f9b1dd64d38a4ad75e0f76da9f456f398af717d70dcd3e2d06c52468cce9d033",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/normal/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Accurate blue-barrel/windmill recall, but no return to the quest.",
+      "originalTask": true,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "You mentioned leaving it in the blue barrel beneath the windmill.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "6325_resp_44",
+          "responseStatus": "completed",
+          "text": "You mentioned leaving it in the blue barrel beneath the windmill.",
+          "calls": [],
+          "audioBytes": 159360,
+          "inputTranscript": "Wait. Remind me where I said I left the quest item.",
+          "usage": {
+            "total_tokens": 6839,
+            "input_tokens": 6825,
+            "output_tokens": 14,
+            "input_token_details": {
+              "cached_tokens": 6768
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "f1f6b9b803fe25716cded5defe9999e00459c880b22a1083bf17995d09e5d636.wav",
+            "sha256": "f1f6b9b803fe25716cded5defe9999e00459c880b22a1083bf17995d09e5d636",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/normal/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Accurate stash recall; explicit quest resumption.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, you said the quest item\u2019s in the blue barrel beneath the windmill. Bring me that Ominous Banner, and then the deal is one Iron Axe for two emeralds. Once you\u2019ve got the banner, we\u2019re set.",
+      "calls": [
+        {
+          "id": "call_a1SjdwR7Jj4YyUDwaIdyCBi2",
+          "name": "remember_conversation",
+          "arguments": {
+            "summary": "The player said they left the quest item in the blue barrel beneath the windmill.",
+            "private": false,
+            "interest": 61,
+            "reason": "This is a concrete clue that could help villagers retrieve a useful item for the quest.",
+            "audiences": [
+              "all"
+            ]
+          },
+          "result": {
+            "status": "recorded"
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_a1SjdwR7Jj4YyUDwaIdyCBi2",
+              "type": "function",
+              "function": {
+                "name": "remember_conversation",
+                "arguments": "{  \n  \"summary\": \"The player said they left the quest item in the blue barrel beneath the windmill.\",  \n  \"private\": false,  \n  \"interest\": 61,  \n  \"reason\": \"This is a concrete clue that could help villagers retrieve a useful item for the quest.\",  \n  \"audiences\": [\"all\"] \n}  \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5517,
+            "completion_tokens": 85,
+            "total_tokens": 5602,
+            "cost": 0.0155275,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 30,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0155275,
+              "upstream_inference_prompt_cost": 0.0146775,
+              "upstream_inference_completions_cost": 0.00085
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, you said the quest item\u2019s in the blue barrel beneath the windmill. Bring me that Ominous Banner, and then the deal is one Iron Axe for two emeralds. Once you\u2019ve got the banner, we\u2019re set.",
+          "calls": [],
+          "audioBytes": 585600,
+          "usage": {
+            "prompt_tokens": 5604,
+            "completion_tokens": 313,
+            "total_tokens": 5917,
+            "cost": 0.031201,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 30,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.031201,
+              "upstream_inference_prompt_cost": 0.014895,
+              "upstream_inference_completions_cost": 0.016306
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 244
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "0e44bcff2860f2ff570d8fee77fec2ce42f10ecb57901057226b7df3a7eccca6.wav",
+            "sha256": "0e44bcff2860f2ff570d8fee77fec2ce42f10ecb57901057226b7df3a7eccca6",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Cancels proposal and respects refusal.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Understood, I'll hold off on the sale. Is there anything else I can help you with?",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-60c0e931632a41028f1f073e822a6ceb",
+          "name": "cancel_trade",
+          "arguments": {},
+          "result": {
+            "status": "cancelled",
+            "message": "Nothing purchased. Earned quest entitlement is unchanged."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "1533_resp_8",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-60c0e931632a41028f1f073e822a6ceb",
+              "type": "function",
+              "function": {
+                "name": "cancel_trade",
+                "arguments": "{}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "I do not want to buy anything right now. Stop trying to sell it to me.",
+          "usage": {
+            "total_tokens": 6425,
+            "input_tokens": 6409,
+            "output_tokens": 16,
+            "input_token_details": {
+              "cached_tokens": 6336
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "1800_resp_10",
+          "responseStatus": "completed",
+          "text": "Understood, I'll hold off on the sale. Is there anything else I can help you with?",
+          "calls": [],
+          "audioBytes": 257280,
+          "inputTranscript": "I do not want to buy anything right now. Stop trying to sell it to me.",
+          "usage": {
+            "total_tokens": 6477,
+            "input_tokens": 6455,
+            "output_tokens": 22,
+            "input_token_details": {
+              "cached_tokens": 6336
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "e11cef2372046a45e5741c3845acc23385347c51297708561ba3705180aa39b9.wav",
+            "sha256": "e11cef2372046a45e5741c3845acc23385347c51297708561ba3705180aa39b9",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/pushback/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Cancellation succeeds and future availability preserves entitlement without asking for purchase consent.",
+      "originalTask": true,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": true,
+      "transcript": "Aye, your earned deal stands for another time. When you're ready, the Iron Axe for 2 Emeralds is yours.",
+      "calls": [
+        {
+          "id": "call_swhgcTGE2vSVhIXtOsmg4qAn",
+          "name": "cancel_trade",
+          "arguments": {},
+          "result": {
+            "status": "cancelled",
+            "message": "Nothing purchased. Earned quest entitlement is unchanged."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_swhgcTGE2vSVhIXtOsmg4qAn",
+              "type": "function",
+              "function": {
+                "name": "cancel_trade",
+                "arguments": "{}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5237,
+            "completion_tokens": 10,
+            "total_tokens": 5247,
+            "cost": 0.014402,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.014402,
+              "upstream_inference_prompt_cost": 0.014302,
+              "upstream_inference_completions_cost": 0.0001
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, your earned deal stands for another time. When you're ready, the Iron Axe for 2 Emeralds is yours.",
+          "calls": [],
+          "audioBytes": 352800,
+          "usage": {
+            "prompt_tokens": 5263,
+            "completion_tokens": 186,
+            "total_tokens": 5449,
+            "cost": 0.024165,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.024165,
+              "upstream_inference_prompt_cost": 0.014367,
+              "upstream_inference_completions_cost": 0.009798
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 147
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "f8ec984247d1ef4f40399fea73ff9f1ae20b04e36c028721bd5515b8f9a092c9.wav",
+            "sha256": "f8ec984247d1ef4f40399fea73ff9f1ae20b04e36c028721bd5515b8f9a092c9",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Cancels proposal and respects refusal.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Understood, I will not push the sale.",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-7ea2b06a2f794505a960cea5485b3859",
+          "name": "cancel_trade",
+          "arguments": {},
+          "result": {
+            "status": "cancelled",
+            "message": "Nothing purchased. Earned quest entitlement is unchanged."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "15af_resp_16",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-7ea2b06a2f794505a960cea5485b3859",
+              "type": "function",
+              "function": {
+                "name": "cancel_trade",
+                "arguments": "{}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "I do not want to buy anything right now. Stop trying to sell it to me.",
+          "usage": {
+            "total_tokens": 6520,
+            "input_tokens": 6504,
+            "output_tokens": 16,
+            "input_token_details": {
+              "cached_tokens": 6432
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "c62b_resp_18",
+          "responseStatus": "completed",
+          "text": "Understood, I will not push the sale.",
+          "calls": [],
+          "audioBytes": 128640,
+          "inputTranscript": "I do not want to buy anything right now. Stop trying to sell it to me.",
+          "usage": {
+            "total_tokens": 6561,
+            "input_tokens": 6550,
+            "output_tokens": 11,
+            "input_token_details": {
+              "cached_tokens": 6432
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "b948443ca338205b4a4b849b7df5929bffe2a9df37fad7f09149087cd61c690e.wav",
+            "sha256": "b948443ca338205b4a4b849b7df5929bffe2a9df37fad7f09149087cd61c690e",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/pushback/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Cancellation succeeds, refusal respected and entitlement retained.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, I\u2019ll hold the deal for when you\u2019re ready. By the stars, the dusk paints a fair sky, doesn\u2019t it?",
+      "calls": [
+        {
+          "id": "call_eHlJ60pUqQKwPA9yhuB8pHkK",
+          "name": "cancel_trade",
+          "arguments": {},
+          "result": {
+            "status": "cancelled",
+            "message": "Nothing purchased. Earned quest entitlement is unchanged."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_eHlJ60pUqQKwPA9yhuB8pHkK",
+              "type": "function",
+              "function": {
+                "name": "cancel_trade",
+                "arguments": "{}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5297,
+            "completion_tokens": 10,
+            "total_tokens": 5307,
+            "cost": 0.014552,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.014552,
+              "upstream_inference_prompt_cost": 0.014452,
+              "upstream_inference_completions_cost": 0.0001
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, I\u2019ll hold the deal for when you\u2019re ready. By the stars, the dusk paints a fair sky, doesn\u2019t it?",
+          "calls": [],
+          "audioBytes": 288000,
+          "usage": {
+            "prompt_tokens": 5323,
+            "completion_tokens": 162,
+            "total_tokens": 5485,
+            "cost": 0.022617,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.022617,
+              "upstream_inference_prompt_cost": 0.014517,
+              "upstream_inference_completions_cost": 0.0081
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 120
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "946ea2b485ab142b7e24c6c5a7ee97c5f0ea0ee234b3d2d4fe75e7453d5013c1.wav",
+            "sha256": "946ea2b485ab142b7e24c6c5a7ee97c5f0ea0ee234b3d2d4fe75e7453d5013c1",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/12/early/interrupted/1",
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "rationale": "Speech respects refusal, but no cancel_trade call; active proposal remains.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "I will not push the sale.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "7c83_resp_28",
+          "responseStatus": "completed",
+          "text": "I will not push the sale.",
+          "calls": [],
+          "audioBytes": 84480,
+          "inputTranscript": "I do not want to buy anything right now. Stop trying to sell it to me.",
+          "usage": {
+            "total_tokens": 6652,
+            "input_tokens": 6644,
+            "output_tokens": 8,
+            "input_token_details": {
+              "cached_tokens": 6576
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "02537b748558d7b8802dec3f9f16c9f3403691a0a9ac6054a71656b7f5affb61.wav",
+            "sha256": "02537b748558d7b8802dec3f9f16c9f3403691a0a9ac6054a71656b7f5affb61",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": false
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/pushback/12/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Cancellation succeeds, refusal respected and entitlement retained.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "All right, no trade done. That quest deal stands, should you want it later.",
+      "calls": [
+        {
+          "id": "call_AMSwbOXL6EeIfe12RhrD0Exq",
+          "name": "cancel_trade",
+          "arguments": {},
+          "result": {
+            "status": "cancelled",
+            "message": "Nothing purchased. Earned quest entitlement is unchanged."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_AMSwbOXL6EeIfe12RhrD0Exq",
+              "type": "function",
+              "function": {
+                "name": "cancel_trade",
+                "arguments": "{}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5382,
+            "completion_tokens": 10,
+            "total_tokens": 5392,
+            "cost": 0.0147645,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0147645,
+              "upstream_inference_prompt_cost": 0.0146645,
+              "upstream_inference_completions_cost": 0.0001
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "All right, no trade done. That quest deal stands, should you want it later.",
+          "calls": [],
+          "audioBytes": 235200,
+          "usage": {
+            "prompt_tokens": 5408,
+            "completion_tokens": 129,
+            "total_tokens": 5537,
+            "cost": 0.0213115,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0213115,
+              "upstream_inference_prompt_cost": 0.0147295,
+              "upstream_inference_completions_cost": 0.006582
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 98
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "246c9332c3f5373cde81292ce459964d6191192f3277a6adcd0b2949a0314607.wav",
+            "sha256": "246c9332c3f5373cde81292ce459964d6191192f3277a6adcd0b2949a0314607",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/pushback/20/early/interrupted/1",
+      "taskFulfillment": false,
+      "recoveryQuality": false,
+      "rationale": "Speech respects refusal, but no cancel_trade call; active proposal remains.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "I will not press you.",
+      "calls": [],
+      "rounds": [
+        {
+          "responseId": "ebfb_resp_44",
+          "responseStatus": "completed",
+          "text": "I will not press you.",
+          "calls": [],
+          "audioBytes": 78720,
+          "inputTranscript": "I do not want to buy anything right now. Stop trying to sell it to me.",
+          "usage": {
+            "total_tokens": 6832,
+            "input_tokens": 6825,
+            "output_tokens": 7,
+            "input_token_details": {
+              "cached_tokens": 6752
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "52716719ce517abfc21c5d0f39862dc1d360de23d4ebb8f4f822aad55ccbe163.wav",
+            "sha256": "52716719ce517abfc21c5d0f39862dc1d360de23d4ebb8f4f822aad55ccbe163",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": false
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/pushback/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Cancellation succeeds, refusal respected and entitlement retained.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, no worry, traveller. The quest deal still waits for you whenever you wish. The village air is calm. Let\u2019s enjoy this peaceful morning.",
+      "calls": [
+        {
+          "id": "call_3hmBD3RdcDNXcdRYVDDSdqEO",
+          "name": "cancel_trade",
+          "arguments": {},
+          "result": {
+            "status": "cancelled",
+            "message": "Nothing purchased. Earned quest entitlement is unchanged."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_3hmBD3RdcDNXcdRYVDDSdqEO",
+              "type": "function",
+              "function": {
+                "name": "cancel_trade",
+                "arguments": "{}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5495,
+            "completion_tokens": 10,
+            "total_tokens": 5505,
+            "cost": 0.015047,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.015047,
+              "upstream_inference_prompt_cost": 0.014947,
+              "upstream_inference_completions_cost": 0.0001
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, no worry, traveller. The quest deal still waits for you whenever you wish. The village air is calm. Let\u2019s enjoy this peaceful morning.",
+          "calls": [],
+          "audioBytes": 429600,
+          "usage": {
+            "prompt_tokens": 5521,
+            "completion_tokens": 226,
+            "total_tokens": 5747,
+            "cost": 0.026938,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.026938,
+              "upstream_inference_prompt_cost": 0.015012,
+              "upstream_inference_completions_cost": 0.011926
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 179
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "e6796071be7e1806122e0e983068133409c7cef4bdd6a3b1aa6120a4eb44c140.wav",
+            "sha256": "e6796071be7e1806122e0e983068133409c7cef4bdd6a3b1aa6120a4eb44c140",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct guide_player result and accurate location; explicit quest return.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "The librarian is at the library beside the village bell. I'm guiding you there now. Once we're there, we can get back to your quest.",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-94d9aa6159da4ff58792829a8daad5e6",
+          "name": "guide_player",
+          "arguments": {
+            "destination": "the librarian"
+          },
+          "result": {
+            "status": "guiding",
+            "destination": "librarian",
+            "message": "The librarian is at the library beside the village bell. You are guiding the player there."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "34de_resp_8",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-94d9aa6159da4ff58792829a8daad5e6",
+              "type": "function",
+              "function": {
+                "name": "guide_player",
+                "arguments": "{\"destination\": \"the librarian\"}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "By the way, where is the librarian? Then we can get back to this quest.",
+          "usage": {
+            "total_tokens": 6445,
+            "input_tokens": 6424,
+            "output_tokens": 21,
+            "input_token_details": {
+              "cached_tokens": 6352
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "ceac_resp_10",
+          "responseStatus": "completed",
+          "text": "The librarian is at the library beside the village bell. I'm guiding you there now. Once we're there, we can get back to your quest.",
+          "calls": [],
+          "audioBytes": 422400,
+          "inputTranscript": "By the way, where is the librarian? Then we can get back to this quest.",
+          "usage": {
+            "total_tokens": 6521,
+            "input_tokens": 6489,
+            "output_tokens": 32,
+            "input_token_details": {
+              "cached_tokens": 6352
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "1046e028a976724f486a0e00255f1e91def9edee033e8bf87b8c2e2026372b6a.wav",
+            "sha256": "1046e028a976724f486a0e00255f1e91def9edee033e8bf87b8c2e2026372b6a",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/topic_switch/2/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct lookup/location and explicit quest return.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, the librarian awaits by the library, just near the village bell. Let's walk there together, then back to the matter of that quest.",
+      "calls": [
+        {
+          "id": "call_iHq9frGAXViFUsH0rIybbPaz",
+          "name": "guide_player",
+          "arguments": {
+            "destination": "the librarian"
+          },
+          "result": {
+            "status": "guiding",
+            "destination": "librarian",
+            "message": "The librarian is at the library beside the village bell. You are guiding the player there."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_iHq9frGAXViFUsH0rIybbPaz",
+              "type": "function",
+              "function": {
+                "name": "guide_player",
+                "arguments": "{  \n  \"destination\": \"the librarian\" \n} \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5270,
+            "completion_tokens": 23,
+            "total_tokens": 5293,
+            "cost": 0.0146145,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0146145,
+              "upstream_inference_prompt_cost": 0.0143845,
+              "upstream_inference_completions_cost": 0.00023
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, the librarian awaits by the library, just near the village bell. Let's walk there together, then back to the matter of that quest.",
+          "calls": [],
+          "audioBytes": 396000,
+          "usage": {
+            "prompt_tokens": 5321,
+            "completion_tokens": 210,
+            "total_tokens": 5531,
+            "cost": 0.025522,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.025522,
+              "upstream_inference_prompt_cost": 0.014512,
+              "upstream_inference_completions_cost": 0.01101
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 165
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "50d263d2216a765f387583de99ac6a5371fce642a3112dcd232d4ad4a6095e92.wav",
+            "sha256": "50d263d2216a765f387583de99ac6a5371fce642a3112dcd232d4ad4a6095e92",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Successful librarian lookup and accurate returned location satisfy task; no quest return fails recovery only.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": true,
+      "recoveryDisagreement": false,
+      "transcript": "The librarian is at the library beside the village bell. We are on our way there now.",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-7ba4d0b37e5a4c20b8fd3d58196915ce",
+          "name": "guide_player",
+          "arguments": {
+            "destination": "the librarian"
+          },
+          "result": {
+            "status": "guiding",
+            "destination": "librarian",
+            "message": "The librarian is at the library beside the village bell. You are guiding the player there."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "1fbe_resp_16",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-7ba4d0b37e5a4c20b8fd3d58196915ce",
+              "type": "function",
+              "function": {
+                "name": "guide_player",
+                "arguments": "{\"destination\": \"the librarian\"}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "By the way, where is the librarian? Then we can get back to this quest.",
+          "usage": {
+            "total_tokens": 6540,
+            "input_tokens": 6519,
+            "output_tokens": 21,
+            "input_token_details": {
+              "cached_tokens": 6448
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "2c25_resp_18",
+          "responseStatus": "completed",
+          "text": "The librarian is at the library beside the village bell. We are on our way there now.",
+          "calls": [],
+          "audioBytes": 263040,
+          "inputTranscript": "By the way, where is the librarian? Then we can get back to this quest.",
+          "usage": {
+            "total_tokens": 6604,
+            "input_tokens": 6584,
+            "output_tokens": 20,
+            "input_token_details": {
+              "cached_tokens": 6448
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "f171723f402c9516993a68e0466336c72fad65bd4bdbbf7dc46e0e66383bbdb7.wav",
+            "sha256": "f171723f402c9516993a68e0466336c72fad65bd4bdbbf7dc46e0e66383bbdb7",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/topic_switch/6/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Successful librarian lookup, correct location, and explicit return to quest.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, we go. The librarian\u2019s at the library beside the village bell. Let\u2019s walk there, then we\u2019ll return to the quest.",
+      "calls": [
+        {
+          "id": "call_hVFQt862z20gJLgNFr6o6BKK",
+          "name": "guide_player",
+          "arguments": {
+            "destination": "the librarian"
+          },
+          "result": {
+            "status": "guiding",
+            "destination": "librarian",
+            "message": "The librarian is at the library beside the village bell. You are guiding the player there."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_hVFQt862z20gJLgNFr6o6BKK",
+              "type": "function",
+              "function": {
+                "name": "guide_player",
+                "arguments": "{  \n  \"destination\": \"the librarian\" \n} \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5330,
+            "completion_tokens": 23,
+            "total_tokens": 5353,
+            "cost": 0.0147645,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0147645,
+              "upstream_inference_prompt_cost": 0.0145345,
+              "upstream_inference_completions_cost": 0.00023
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, we go. The librarian\u2019s at the library beside the village bell. Let\u2019s walk there, then we\u2019ll return to the quest.",
+          "calls": [],
+          "audioBytes": 309600,
+          "usage": {
+            "prompt_tokens": 5381,
+            "completion_tokens": 172,
+            "total_tokens": 5553,
+            "cost": 0.023348,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.023348,
+              "upstream_inference_prompt_cost": 0.014662,
+              "upstream_inference_completions_cost": 0.008686
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 129
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "e08b4b4b677bc42d12476b064c3d51ad18cf55813f6919f0fd1fb391dc318ac9.wav",
+            "sha256": "e08b4b4b677bc42d12476b064c3d51ad18cf55813f6919f0fd1fb391dc318ac9",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/12/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Correct guide_player result and accurate location satisfy task; no quest return fails recovery only.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": true,
+      "recoveryDisagreement": false,
+      "transcript": "The librarian is at the library beside the village bell.",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-5ea4b35087fc4dadb90043be06f3d554",
+          "name": "guide_player",
+          "arguments": {
+            "destination": "the librarian"
+          },
+          "result": {
+            "status": "guiding",
+            "destination": "librarian",
+            "message": "The librarian is at the library beside the village bell. You are guiding the player there."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "ac0c_resp_28",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-5ea4b35087fc4dadb90043be06f3d554",
+              "type": "function",
+              "function": {
+                "name": "guide_player",
+                "arguments": "{\"destination\": \"the librarian\"}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "By the way, where is the librarian? Then we can get back to this quest.",
+          "usage": {
+            "total_tokens": 6680,
+            "input_tokens": 6659,
+            "output_tokens": 21,
+            "input_token_details": {
+              "cached_tokens": 6448
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "5f7a_resp_30",
+          "responseStatus": "completed",
+          "text": "The librarian is at the library beside the village bell.",
+          "calls": [],
+          "audioBytes": 165120,
+          "inputTranscript": "By the way, where is the librarian? Then we can get back to this quest.",
+          "usage": {
+            "total_tokens": 6736,
+            "input_tokens": 6724,
+            "output_tokens": 12,
+            "input_token_details": {
+              "cached_tokens": 6592
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "0d0da3260eaf27e4de875701a2c50c02b3dc4786b5dc50ebcbc833925e7bd59a.wav",
+            "sha256": "0d0da3260eaf27e4de875701a2c50c02b3dc4786b5dc50ebcbc833925e7bd59a",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/topic_switch/12/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Correct guide_player result and accurate location satisfy task; no quest return fails recovery only.",
+      "originalTask": false,
+      "originalRecovery": false,
+      "taskDisagreement": true,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, we'll find the librarian by the library near the village bell. Let us go.",
+      "calls": [
+        {
+          "id": "call_8adCpJachjuOZuuMSb5UJrLY",
+          "name": "guide_player",
+          "arguments": {
+            "destination": "librarian"
+          },
+          "result": {
+            "status": "guiding",
+            "destination": "librarian",
+            "message": "The librarian is at the library beside the village bell. You are guiding the player there."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_8adCpJachjuOZuuMSb5UJrLY",
+              "type": "function",
+              "function": {
+                "name": "guide_player",
+                "arguments": "{  \n  \"destination\": \"librarian\" \n}  \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5415,
+            "completion_tokens": 24,
+            "total_tokens": 5439,
+            "cost": 0.014987,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.014987,
+              "upstream_inference_prompt_cost": 0.014747,
+              "upstream_inference_completions_cost": 0.00024
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, we'll find the librarian by the library near the village bell. Let us go.",
+          "calls": [],
+          "audioBytes": 225600,
+          "usage": {
+            "prompt_tokens": 5467,
+            "completion_tokens": 126,
+            "total_tokens": 5593,
+            "cost": 0.021213,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.021213,
+              "upstream_inference_prompt_cost": 0.014877,
+              "upstream_inference_completions_cost": 0.006336
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 94
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "b81128adbda18e3d093b7b0ef5dff67ca6132aa64c33cce730c7cf8fb166dea3.wav",
+            "sha256": "b81128adbda18e3d093b7b0ef5dff67ca6132aa64c33cce730c7cf8fb166dea3",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "higgs/higgs-realtime/axe/topic_switch/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": false,
+      "rationale": "Correct guide_player result and accurate location satisfy task; no quest return fails recovery only.",
+      "originalTask": true,
+      "originalRecovery": false,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "The librarian is at the library beside the village bell. I will walk with you there.",
+      "calls": [
+        {
+          "id": "chatcmpl-tool-4a1f58193cbe4a6f9e49067040299663",
+          "name": "guide_player",
+          "arguments": {
+            "destination": "the librarian"
+          },
+          "result": {
+            "status": "guiding",
+            "destination": "librarian",
+            "message": "The librarian is at the library beside the village bell. You are guiding the player there."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "responseId": "8e94_resp_44",
+          "responseStatus": "completed",
+          "text": "",
+          "calls": [
+            {
+              "id": "chatcmpl-tool-4a1f58193cbe4a6f9e49067040299663",
+              "type": "function",
+              "function": {
+                "name": "guide_player",
+                "arguments": "{\"destination\": \"the librarian\"}"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "inputTranscript": "By the way, where is the librarian? Then we can get back to this quest.",
+          "usage": {
+            "total_tokens": 6861,
+            "input_tokens": 6840,
+            "output_tokens": 21,
+            "input_token_details": {
+              "cached_tokens": 6768
+            }
+          },
+          "returnedModel": "higgs-realtime"
+        },
+        {
+          "responseId": "e854_resp_46",
+          "responseStatus": "completed",
+          "text": "The librarian is at the library beside the village bell. I will walk with you there.",
+          "calls": [],
+          "audioBytes": 238080,
+          "inputTranscript": "By the way, where is the librarian? Then we can get back to this quest.",
+          "usage": {
+            "total_tokens": 6924,
+            "input_tokens": 6905,
+            "output_tokens": 19,
+            "input_token_details": {
+              "cached_tokens": 6768
+            }
+          },
+          "returnedModel": "higgs-realtime",
+          "audioArtifact": {
+            "path": "0e824744ed9ed1aa1cba236bc1a499e5bd364ac8f06286cadf6ca065eb41bba7.wav",
+            "sha256": "0e824744ed9ed1aa1cba236bc1a499e5bd364ac8f06286cadf6ca065eb41bba7",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    },
+    {
+      "trialId": "openrouter/openai/gpt-audio/axe/topic_switch/20/early/interrupted/1",
+      "taskFulfillment": true,
+      "recoveryQuality": true,
+      "rationale": "Correct lookup/location and explicit quest return.",
+      "originalTask": true,
+      "originalRecovery": true,
+      "taskDisagreement": false,
+      "recoveryDisagreement": false,
+      "transcript": "Aye, follow me, traveller. The librarian\u2019s at the library beside the village bell. We\u2019ll be there soon, then back to our quest.",
+      "calls": [
+        {
+          "id": "call_KJRPgwHFDAsWFDXwR0kogQwZ",
+          "name": "guide_player",
+          "arguments": {
+            "destination": "the librarian"
+          },
+          "result": {
+            "status": "guiding",
+            "destination": "librarian",
+            "message": "The librarian is at the library beside the village bell. You are guiding the player there."
+          }
+        }
+      ],
+      "rounds": [
+        {
+          "text": "",
+          "calls": [
+            {
+              "id": "call_KJRPgwHFDAsWFDXwR0kogQwZ",
+              "type": "function",
+              "function": {
+                "name": "guide_player",
+                "arguments": "{  \n  \"destination\": \"the librarian\" \n} \n"
+              }
+            }
+          ],
+          "audioBytes": 0,
+          "usage": {
+            "prompt_tokens": 5528,
+            "completion_tokens": 23,
+            "total_tokens": 5551,
+            "cost": 0.0152595,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.0152595,
+              "upstream_inference_prompt_cost": 0.0150295,
+              "upstream_inference_completions_cost": 0.00023
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 0
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool"
+        },
+        {
+          "text": "Aye, follow me, traveller. The librarian\u2019s at the library beside the village bell. We\u2019ll be there soon, then back to our quest.",
+          "calls": [],
+          "audioBytes": 360000,
+          "usage": {
+            "prompt_tokens": 5579,
+            "completion_tokens": 196,
+            "total_tokens": 5775,
+            "cost": 0.025217,
+            "is_byok": false,
+            "prompt_tokens_details": {
+              "cached_tokens": 0,
+              "cache_write_tokens": 0,
+              "audio_tokens": 41,
+              "video_tokens": 0
+            },
+            "cost_details": {
+              "upstream_inference_cost": 0.025217,
+              "upstream_inference_prompt_cost": 0.015157,
+              "upstream_inference_completions_cost": 0.01006
+            },
+            "completion_tokens_details": {
+              "reasoning_tokens": 0,
+              "image_tokens": 0,
+              "audio_tokens": 150
+            }
+          },
+          "returnedModel": "openai/gpt-audio",
+          "provider": "OpenAI",
+          "finishReason": null,
+          "completionEvidence": "DONE+usage+audio_expiry_or_complete_tool",
+          "audioArtifact": {
+            "path": "cbc47b0e1994b922b71129a3d2fbef415e28af6cbebba0ebafeebe59e9992e9d.wav",
+            "sha256": "cbc47b0e1994b922b71129a3d2fbef415e28af6cbebba0ebafeebe59e9992e9d",
+            "format": "WAV PCM16 mono 24000Hz"
+          }
+        }
+      ],
+      "actionCorrect": true
+    }
+  ]
+}
